@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 need() { command -v "$1" >/dev/null 2>&1; }
 
-echo "[0/8] Detecting package manager..."
+echo "[0/11] Detecting package manager..."
 if need apt; then
     PKG=apt
 elif need dnf; then
@@ -15,27 +18,27 @@ else
     exit 1
 fi
 
-echo "[1/8] Updating package database..."
+echo "[1/11] Updating package database..."
 case "$PKG" in
     apt)    sudo apt update ;;
     dnf)    sudo dnf check-update || true ;;
     pacman) sudo pacman -Sy ;;
 esac
 
-echo "[2/8] Installing core developer tools..."
+echo "[2/11] Installing core developer tools..."
 case "$PKG" in
     apt)
-        sudo apt install -y neovim git tmux nodejs npm python3 python3-pip ripgrep curl
+        sudo apt install -y neovim git tmux nodejs npm python3 python3-pip ripgrep curl unzip xclip
         ;;
     dnf)
-        sudo dnf install -y neovim git tmux nodejs npm python3 python3-pip ripgrep curl
+        sudo dnf install -y neovim git tmux nodejs npm python3 python3-pip ripgrep curl unzip xclip
         ;;
     pacman)
-        sudo pacman -Syu --noconfirm neovim git tmux nodejs npm python python-pip ripgrep curl
+        sudo pacman -Syu --noconfirm neovim git tmux nodejs npm python python-pip ripgrep curl unzip xclip
         ;;
 esac
 
-echo "[3/8] Installing LSP servers & formatters..."
+echo "[3/11] Installing LSP servers & formatters..."
 case "$PKG" in
     apt)
         sudo apt install -y clang-format llvm
@@ -54,33 +57,100 @@ case "$PKG" in
         ;;
 esac
 
-echo "[4/8] Installing optional tools..."
+echo "[4/11] Installing terminal tools..."
 case "$PKG" in
     apt)
-        sudo apt install -y fzf fd-find
+        sudo apt install -y fzf fd-find bat jq
+        # fd is named fdfind on debian/ubuntu, symlink it
+        if need fdfind && ! need fd; then
+            sudo ln -sf "$(which fdfind)" /usr/local/bin/fd
+        fi
+        # bat is named batcat on debian/ubuntu, symlink it
+        if need batcat && ! need bat; then
+            sudo ln -sf "$(which batcat)" /usr/local/bin/bat
+        fi
         ;;
     dnf)
-        sudo dnf install -y fzf fd-find
+        sudo dnf install -y fzf fd-find bat jq
         ;;
     pacman)
-        sudo pacman -S --noconfirm fzf fd
+        sudo pacman -S --noconfirm fzf fd bat jq
         ;;
 esac
 
-echo "[5/8] Installing lazy.nvim..."
+echo "[5/11] Installing git tools..."
+case "$PKG" in
+    apt)
+        # lazygit via github release
+        if ! need lazygit; then
+            LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
+            curl -Lo /tmp/lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
+            sudo tar xf /tmp/lazygit.tar.gz -C /usr/local/bin lazygit
+            rm /tmp/lazygit.tar.gz
+        fi
+        # delta via github release
+        if ! need delta; then
+            DELTA_VERSION=$(curl -s "https://api.github.com/repos/dandavison/delta/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
+            curl -Lo /tmp/delta.deb "https://github.com/dandavison/delta/releases/latest/download/git-delta_${DELTA_VERSION}_amd64.deb"
+            sudo dpkg -i /tmp/delta.deb
+            rm /tmp/delta.deb
+        fi
+        ;;
+    dnf)
+        sudo dnf install -y git-delta
+        if ! need lazygit; then
+            sudo dnf copr enable atim/lazygit -y
+            sudo dnf install -y lazygit
+        fi
+        ;;
+    pacman)
+        sudo pacman -S --noconfirm lazygit git-delta
+        ;;
+esac
+
+echo "[6/11] Installing starship prompt..."
+if ! need starship; then
+    curl -sS https://starship.rs/install.sh | sh -s -- -y
+fi
+
+echo "[7/11] Installing zsh plugins..."
+case "$PKG" in
+    apt)
+        sudo apt install -y zsh-autosuggestions zsh-syntax-highlighting 2>/dev/null || true
+        ;;
+    dnf)
+        sudo dnf install -y zsh-autosuggestions zsh-syntax-highlighting 2>/dev/null || true
+        ;;
+    pacman)
+        sudo pacman -S --noconfirm zsh-autosuggestions zsh-syntax-highlighting 2>/dev/null || true
+        ;;
+esac
+
+echo "[8/11] Installing lazy.nvim..."
 if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
   git clone https://github.com/folke/lazy.nvim.git \
     ~/.local/share/nvim/lazy/lazy.nvim
 fi
 
-echo "[6/8] Linking Neovim config..."
+echo "[9/11] Linking configs..."
 mkdir -p ~/.config/nvim
-cp -f "$(dirname "$0")/../nvim/init.lua" ~/.config/nvim/init.lua
+cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua
+cp -f "$REPO_DIR/tmux/.tmux.conf" ~/.tmux.conf
+mkdir -p ~/.config
+cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
 
-echo "[7/8] Bootstrapping Neovim plugins..."
-nvim --headless +qa || true
+echo "[10/11] Installing tmux plugin manager..."
+if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
+  git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+fi
 
-echo "[8/8] Installing Treesitter parsers..."
-nvim --headless -c "TSUpdate" +qa || true
+echo "[11/11] Bootstrapping Neovim plugins..."
+nvim --headless +qa 2>/dev/null || true
 
-echo "Setup complete. Launch Neovim with: nvim"
+echo ""
+echo "Setup complete!"
+echo ""
+echo "Next steps:"
+echo "  1. Open a new terminal or run: source ~/.zshrc"
+echo "  2. In tmux, press prefix + I to install tmux plugins"
+echo "  3. Launch nvim to finish plugin installation"

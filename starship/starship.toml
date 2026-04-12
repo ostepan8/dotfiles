@@ -1,0 +1,24 @@
+add_newline = true
+
+format = """
+$directory$git_branch$git_status
+$character
+"""
+
+[directory]
+style = "bold white"
+format = " [$path]($style)"
+
+[git_branch]
+symbol = " "
+style = "bold magenta"
+format = "  [$symbol$branch]($style)"
+
+[git_status]
+style = "bold magenta"
+format = " [$all_status$ahead_behind]($style)"
+
+
+[character]
+success_symbol = "[>](bold white)"
+error_symbol   = "[>](bold red)"
