@@ -1,0 +1,123 @@
+# ---------- PATH + env ----------
+export PATH="$PATH:$HOME/Desktop/vcpkg"
+export NODE_OPTIONS=--use-openssl-ca
+export AWS_CA_BUNDLE=/etc/ssl/cert.pem
+export SSL_CERT_FILE="/opt/homebrew/etc/ca-certificates/cert.pem"
+export PATH="$PATH:$HOME/Qt/5.15.2/clang_64/bin"
+export EDITOR=nvim
+export PATH="$HOME/.local/bin:$PATH"
+
+# ---------- history ----------
+HISTFILE=~/.zsh_history
+HISTSIZE=50000
+SAVEHIST=50000
+setopt SHARE_HISTORY         # sync history across all open terminals in real time
+setopt HIST_IGNORE_DUPS      # don't record a command that was just recorded
+setopt HIST_IGNORE_ALL_DUPS  # when adding a new entry, remove older duplicates
+setopt HIST_IGNORE_SPACE     # a command prefixed with a space is not recorded
+setopt HIST_REDUCE_BLANKS    # strip extra whitespace before saving
+setopt HIST_VERIFY           # !! / !$ expansions show the command before running
+setopt EXTENDED_HISTORY      # save timestamp + duration per entry
+setopt APPEND_HISTORY        # append instead of overwriting on shell exit
+setopt INC_APPEND_HISTORY    # write commands to disk as they're typed, not on exit
+
+# ---------- conda (lazy) ----------
+# Real init is deferred until the first `conda` / `mamba` call.
+# To run it eagerly, call `load_conda` manually.
+if [ -d "/opt/anaconda3" ]; then
+    load_conda() {
+        unset -f conda mamba load_conda 2>/dev/null
+        __conda_setup="$('/opt/anaconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+        if [ $? -eq 0 ]; then
+            eval "$__conda_setup"
+        else
+            if [ -f "/opt/anaconda3/etc/profile.d/conda.sh" ]; then
+                . "/opt/anaconda3/etc/profile.d/conda.sh"
+            else
+                export PATH="/opt/anaconda3/bin:$PATH"
+            fi
+        fi
+        unset __conda_setup
+    }
+    conda() { load_conda; conda "$@"; }
+    mamba() { load_conda; mamba "$@"; }
+fi
+
+# ---------- nvm (lazy) ----------
+# Real nvm.sh is deferred until the first `nvm` / `node` / `npm` / `npx` / `yarn` / `pnpm` call.
+# To load eagerly, call `load_nvm` manually.
+export NVM_DIR="$HOME/.nvm"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    load_nvm() {
+        unset -f nvm node npm npx yarn pnpm corepack load_nvm 2>/dev/null
+        \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    }
+    nvm()      { load_nvm; nvm "$@"; }
+    node()     { load_nvm; node "$@"; }
+    npm()      { load_nvm; npm "$@"; }
+    npx()      { load_nvm; npx "$@"; }
+    yarn()     { load_nvm; yarn "$@"; }
+    pnpm()     { load_nvm; pnpm "$@"; }
+    corepack() { load_nvm; corepack "$@"; }
+fi
+
+# ---------- bun ----------
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+
+# ---------- MATLAB (optional) ----------
+[ -d "/Applications/MATLAB_R2024b.app" ] && export PATH="/Applications/MATLAB_R2024b.app/bin:$PATH"
+[ -d "/Applications/MATLAB_R2023a.app" ] && export PATH="/Applications/MATLAB_R2023a.app/bin:$PATH"
+
+# ---------- opencode ----------
+[ -d "$HOME/.opencode/bin" ] && export PATH="$HOME/.opencode/bin:$PATH"
+
+# ---------- prompt ----------
+command -v starship >/dev/null && eval "$(starship init zsh)"
+
+# ---------- aliases ----------
+alias code="zed"
+alias cursor='open -a Cursor'
+alias claude-tg="claude --channels plugin:telegram@claude-plugins-official"
+alias ccd="claude --dangerously-skip-permissions"
+alias ccrd="claude --resume --dangerously-skip-permissions"
+
+alias ll='ls -lh'
+alias la='ls -lAh'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias gs='git status'
+alias gd='git diff'
+alias gco='git checkout'
+alias gl='git log --oneline --graph --decorate -20'
+alias reload='source ~/.zshrc'
+
+# ---------- completions + plugins ----------
+# compinit must run before fzf-tab; antidote loads plugins listed in ~/.zsh_plugins.txt
+autoload -Uz compinit && compinit
+# antidote: try common install locations (brew on mac, git clone on linux, distro pkg)
+for __antidote in \
+    /opt/homebrew/opt/antidote/share/antidote/antidote.zsh \
+    /usr/local/opt/antidote/share/antidote/antidote.zsh \
+    "$HOME/.antidote/antidote.zsh" \
+    /usr/share/zsh-antidote/antidote.zsh; do
+    if [ -f "$__antidote" ]; then
+        source "$__antidote"
+        antidote load
+        break
+    fi
+done
+unset __antidote
+
+# Bind ↑/↓ to fuzzy-match history-substring-search (cycles through every match)
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
+
+# ---------- fzf + zoxide ----------
+# fzf shell integration: fuzzy Ctrl+R (history), Ctrl+T (files), Alt+C (cd)
+command -v fzf >/dev/null && source <(fzf --zsh)
+# zoxide: `z <fragment>` jumps to frecent dirs, `zi` opens interactive picker
+command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
