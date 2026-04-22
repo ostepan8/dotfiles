@@ -43,7 +43,7 @@ inner.horizontal = 8
 inner.vertical   = 8
 outer.left       = 8
 outer.bottom     = 8
-outer.top        = 8
+outer.top        = 40    # reserves space for sketchybar (32px bar + 8px margin)
 outer.right      = 8
 
 # ==========================
