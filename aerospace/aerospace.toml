@@ -22,6 +22,11 @@ default-root-container-orientation = 'auto'
 # Don't let windows animate off-screen when switching workspaces
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 
+# Notify sketchybar on workspace change so the workspace indicator highlights correctly
+exec-on-workspace-change = ['/bin/bash', '-c',
+    'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+]
+
 # ==========================
 # Mouse / key interaction
 # ==========================

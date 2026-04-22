@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Sketchybar config — Gruvbox Dark Hard, integrates with Aerospace.
+# Docs: https://felixkratz.github.io/SketchyBar/
+
+PLUGIN_DIR="$HOME/.config/sketchybar/plugins"
+
+# ---------- Gruvbox Dark Hard palette ----------
+BLACK=0xff1d2021
+BG0=0xff282828
+BG1=0xff3c3836
+BG2=0xff504945
+FG=0xffebdbb2
+GREY=0xffa89984
+ORANGE=0xffd65d0e
+YELLOW=0xffd79921
+AQUA=0xff689d6a
+BLUE=0xff458588
+PURPLE=0xffb16286
+RED=0xffcc241d
+GREEN=0xff98971a
+
+# ---------- Bar ----------
+sketchybar --bar \
+    position=top \
+    height=32 \
+    blur_radius=30 \
+    color=$BG0 \
+    padding_left=10 \
+    padding_right=10 \
+    y_offset=0 \
+    corner_radius=0 \
+    margin=0 \
+    sticky=on
+
+# ---------- Defaults applied to every item added below ----------
+sketchybar --default \
+    icon.font="JetBrainsMono Nerd Font:Bold:14.0" \
+    icon.color=$FG \
+    label.font="JetBrainsMono Nerd Font:Semibold:13.0" \
+    label.color=$FG \
+    padding_left=5 \
+    padding_right=5 \
+    background.color=$BG1 \
+    background.corner_radius=5 \
+    background.height=22
+
+# ---------- Aerospace workspace indicators (left) ----------
+# Custom event fired by Aerospace's `exec-on-workspace-change` hook
+sketchybar --add event aerospace_workspace_change
+
+for sid in $(aerospace list-workspaces --all); do
+    sketchybar --add item space.$sid left \
+        --subscribe space.$sid aerospace_workspace_change \
+        --set space.$sid \
+            background.color=$BG1 \
+            background.drawing=on \
+            label="$sid" \
+            label.padding_left=10 \
+            label.padding_right=10 \
+            click_script="aerospace workspace $sid" \
+            script="$PLUGIN_DIR/aerospace.sh $sid"
+done
+
+# ---------- Separator ----------
+sketchybar --add item separator_left left \
+    --set separator_left \
+        label="|" \
+        label.color=$GREY \
+        background.drawing=off \
+        padding_left=5 \
+        padding_right=5
+
+# ---------- Front app (left) ----------
+sketchybar --add item front_app left \
+    --set front_app \
+        background.drawing=off \
+        icon.drawing=off \
+        script="$PLUGIN_DIR/front_app.sh" \
+    --subscribe front_app front_app_switched
+
+# ---------- Clock (right) ----------
+sketchybar --add item clock right \
+    --set clock \
+        update_freq=10 \
+        background.color=$BG1 \
+        icon="" \
+        icon.color=$ORANGE \
+        icon.padding_left=10 \
+        label.padding_right=10 \
+        script="$PLUGIN_DIR/clock.sh"
+
+# ---------- Battery (right) ----------
+sketchybar --add item battery right \
+    --set battery \
+        update_freq=120 \
+        background.color=$BG1 \
+        icon.padding_left=10 \
+        label.padding_right=10 \
+        script="$PLUGIN_DIR/battery.sh" \
+    --subscribe battery system_woke power_source_change
+
+# ---------- CPU (right) ----------
+sketchybar --add item cpu right \
+    --set cpu \
+        update_freq=5 \
+        background.color=$BG1 \
+        icon="" \
+        icon.color=$AQUA \
+        icon.padding_left=10 \
+        label.padding_right=10 \
+        script="$PLUGIN_DIR/cpu.sh"
+
+# ---------- Finalize ----------
+sketchybar --update

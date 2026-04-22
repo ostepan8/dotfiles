@@ -11,6 +11,7 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **ghostty/** — Ghostty terminal config (Gruvbox Dark Hard, JetBrainsMono Nerd Font, transparent titlebar, drop-down quick terminal on `Opt+\``)
 - **skhd/** — global hotkey daemon config (`Opt+Space` opens a new Ghostty window on the current workspace; `Opt+B/S/M/E` launch Chrome/Slack/Spotify/Finder)
 - **aerospace/** — i3-style tiling window manager config (workspaces on `Alt+1-9`, vim-style window focus on `Alt+h/j/k/l`)
+- **sketchybar/** — custom top bar (Gruvbox theme) with Aerospace workspace indicators, front-app, CPU, battery, clock
 - **mac/setup.sh** — macOS installer (Homebrew)
 - **linux/setup.sh** — Linux installer (apt/dnf/pacman)
 
@@ -43,6 +44,7 @@ After install:
 | ghostty | Terminal emulator (replaces Terminal.app; default handler for `.sh`/`.command`/`.tool`/`.zsh`/`.bash`) |
 | skhd | Global hotkey daemon (`Opt+Space` → open Ghostty) |
 | aerospace | Tiling window manager (keyboard-driven workspaces + window arrangement) |
+| sketchybar | Custom top bar with workspace indicators + system stats |
 | duti | Set default app handlers for file types (used to make Ghostty the default terminal) |
 | dockutil | Manage Dock items from the command line |
 | starship | Shell prompt |

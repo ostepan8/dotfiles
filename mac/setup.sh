@@ -28,9 +28,11 @@ brew install lazygit git-delta
 echo "[6/12] Installing zsh plugin manager..."
 brew install antidote
 
-echo "[7/12] Installing Ghostty + skhd + aerospace + CLI utilities..."
+echo "[7/12] Installing Ghostty + skhd + aerospace + sketchybar + CLI utilities..."
 brew install --cask ghostty
 brew install --cask nikitabobko/tap/aerospace
+brew tap FelixKratz/formulae
+brew install sketchybar
 brew install koekeishiya/formulae/skhd duti dockutil
 
 echo "[8/12] Installing lazy.nvim..."
@@ -40,12 +42,15 @@ if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
 fi
 
 echo "[9/12] Linking configs..."
-mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace
+mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/.config/sketchybar/plugins
 cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua
 cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
 cp -f "$REPO_DIR/ghostty/config" ~/.config/ghostty/config
 cp -f "$REPO_DIR/skhd/skhdrc" ~/.skhdrc
 cp -f "$REPO_DIR/aerospace/aerospace.toml" ~/.config/aerospace/aerospace.toml
+cp -f "$REPO_DIR/sketchybar/sketchybarrc" ~/.config/sketchybar/sketchybarrc
+cp -f "$REPO_DIR/sketchybar/plugins/"*.sh ~/.config/sketchybar/plugins/
+chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
 [ -f "$REPO_DIR/tmux/.tmux.conf" ] && cp -f "$REPO_DIR/tmux/.tmux.conf" ~/.tmux.conf
 
 echo "[10/12] Linking zsh config..."
@@ -64,6 +69,7 @@ for ext in sh command tool zsh bash; do
   duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true
 done
 skhd --start-service 2>/dev/null || true
+brew services start felixkratz/formulae/sketchybar 2>/dev/null || true
 nvim --headless +qa 2>/dev/null || true
 
 echo ""
