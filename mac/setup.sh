@@ -28,9 +28,11 @@ brew install lazygit git-delta
 echo "[6/13] Installing zsh plugin manager..."
 brew install antidote
 
-echo "[7/13] Installing Ghostty terminal + skhd + aerospace + CLI utilities..."
+echo "[7/13] Installing Ghostty terminal + skhd + aerospace + borders + CLI utilities..."
 brew install --cask ghostty
 brew install --cask nikitabobko/tap/aerospace
+brew tap FelixKratz/formulae
+brew install borders
 brew install koekeishiya/formulae/skhd duti dockutil
 
 echo "[8/13] Installing lazy.nvim..."
@@ -40,12 +42,14 @@ if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
 fi
 
 echo "[9/13] Linking configs..."
-mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/Applications
+mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/.config/borders ~/Applications
 cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua
 cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
 cp -f "$REPO_DIR/ghostty/config" ~/.config/ghostty/config
 cp -f "$REPO_DIR/skhd/skhdrc" ~/.skhdrc
 cp -f "$REPO_DIR/aerospace/aerospace.toml" ~/.config/aerospace/aerospace.toml
+cp -f "$REPO_DIR/borders/bordersrc" ~/.config/borders/bordersrc
+chmod +x ~/.config/borders/bordersrc
 [ -f "$REPO_DIR/tmux/.tmux.conf" ] && cp -f "$REPO_DIR/tmux/.tmux.conf" ~/.tmux.conf
 
 echo "[10/13] Compiling OpenGhostty.app launcher..."
@@ -68,6 +72,7 @@ for ext in sh command tool zsh bash; do
   duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true
 done
 skhd --start-service 2>/dev/null || true
+brew services start felixkratz/formulae/borders 2>/dev/null || true
 nvim --headless +qa 2>/dev/null || true
 
 echo ""
