@@ -30,7 +30,7 @@ brew install antidote
 
 echo "[7/13] Installing Ghostty terminal + skhd hotkey daemon..."
 brew install --cask ghostty
-brew install koekeishiya/formulae/skhd
+brew install koekeishiya/formulae/skhd duti
 
 echo "[8/13] Installing lazy.nvim..."
 if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
@@ -61,7 +61,10 @@ if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
   git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 fi
 
-echo "[13/13] Starting skhd as a launchd service + bootstrapping Neovim plugins..."
+echo "[13/13] Setting Ghostty as default terminal file handler + starting services..."
+for ext in sh command tool zsh bash; do
+  duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true
+done
 skhd --start-service 2>/dev/null || true
 nvim --headless +qa 2>/dev/null || true
 

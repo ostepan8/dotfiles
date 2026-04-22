@@ -39,8 +39,9 @@ After install:
 |------|---------|
 | neovim | Editor |
 | tmux | Terminal multiplexer |
-| ghostty | Terminal emulator (replaces Terminal.app) |
+| ghostty | Terminal emulator (replaces Terminal.app; default handler for `.sh`/`.command`/`.tool`/`.zsh`/`.bash`) |
 | skhd | Global hotkey daemon (`Opt+Space` → open Ghostty) |
+| duti | Set default app handlers for file types (used to make Ghostty the default terminal) |
 | starship | Shell prompt |
 | antidote | zsh plugin manager |
 | fzf | Fuzzy finder (Ctrl+R, Ctrl+T, Alt+C) |
