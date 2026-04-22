@@ -49,6 +49,7 @@ After install:
 | antidote | zsh plugin manager |
 | fzf | Fuzzy finder (Ctrl+R, Ctrl+T, Alt+C) |
 | zoxide | Smart `cd` replacement (`z <fragment>`) |
+| atuin | Shell history database (fuzzy `Ctrl+R`, synced, timestamped) |
 | fd | Fast file search |
 | ripgrep | Fast text search |
 | bat | `cat` with syntax highlighting |
@@ -99,6 +100,11 @@ After install:
 |-----|--------|
 | `Opt+Space` | Open new Ghostty window (launches Ghostty if dead) |
 | `` Opt+` `` | Toggle Ghostty drop-down quick terminal (only while Ghostty is running) |
+| `Opt+C` | Cursor |
+| `Opt+B` | Chrome |
+| `Opt+S` | Slack |
+| `Opt+M` | Spotify |
+| `Opt+E` | Finder |
 
 ### Aerospace (tiling window manager)
 

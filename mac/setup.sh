@@ -20,7 +20,7 @@ echo "[3/13] Installing LSP servers & formatters..."
 brew install pyright llvm black clang-format
 
 echo "[4/13] Installing terminal tools..."
-brew install fzf fd jq bat eza gh starship zoxide
+brew install fzf fd jq bat eza gh starship zoxide atuin
 
 echo "[5/13] Installing git tools..."
 brew install lazygit git-delta

@@ -117,7 +117,12 @@ bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down
 
 # ---------- fzf + zoxide ----------
-# fzf shell integration: fuzzy Ctrl+R (history), Ctrl+T (files), Alt+C (cd)
+# fzf shell integration: fuzzy Ctrl+R (history — overridden by atuin below), Ctrl+T (files), Alt+C (cd)
 command -v fzf >/dev/null && source <(fzf --zsh)
 # zoxide: `z <fragment>` jumps to frecent dirs, `zi` opens interactive picker
 command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
+
+# ---------- atuin ----------
+# Replaces Ctrl+R with a proper shell-history database (fuzzy search, synced, timestamped).
+# --disable-up-arrow keeps the existing history-substring-search binding on ↑/↓.
+command -v atuin >/dev/null && eval "$(atuin init zsh --disable-up-arrow)"
