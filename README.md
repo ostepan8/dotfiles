@@ -10,8 +10,6 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **starship/** — minimal prompt with git info
 - **ghostty/** — Ghostty terminal config (Gruvbox Dark Hard, JetBrainsMono Nerd Font, transparent titlebar, drop-down quick terminal on `Opt+\``)
 - **skhd/** — global hotkey daemon config + `OpenGhostty.app` launcher (`Opt+Space` opens a new Ghostty window from anywhere — launches Ghostty if dead, sends Cmd+N if running)
-- **aerospace/** — i3-style tiling window manager config (workspaces on `Alt+1-9`, vim-style window focus on `Alt+h/j/k/l`)
-- **borders/** — JankyBorders config (orange Gruvbox outline on the focused window)
 - **mac/setup.sh** — macOS installer (Homebrew)
 - **linux/setup.sh** — Linux installer (apt/dnf/pacman)
 
@@ -43,8 +41,7 @@ After install:
 | tmux | Terminal multiplexer |
 | ghostty | Terminal emulator (replaces Terminal.app; default handler for `.sh`/`.command`/`.tool`/`.zsh`/`.bash`) |
 | skhd | Global hotkey daemon (`Opt+Space` → open Ghostty) |
-| aerospace | Tiling window manager (keyboard-driven workspaces + window arrangement) |
-| borders | JankyBorders — colored outline on focused window |
+| loop | Drag-to-snap window management with ghost preview overlay |
 | duti | Set default app handlers for file types (used to make Ghostty the default terminal) |
 | dockutil | Manage Dock items from the command line |
 | starship | Shell prompt |
@@ -102,33 +99,18 @@ After install:
 | `Opt+Space` | Open new Ghostty window (launches Ghostty if dead) |
 | `` Opt+` `` | Toggle Ghostty drop-down quick terminal (only while Ghostty is running) |
 
-### Aerospace (tiling window manager)
+### Loop (drag-to-snap window manager)
 
-| Key | Action |
-|-----|--------|
-| `Alt+1..9` | Jump to workspace 1..9 |
-| `Alt+Shift+1..9` | Move current window to workspace N |
-| `Alt+H/J/K/L` | Focus window left/down/up/right |
-| `Alt+Shift+H/J/K/L` | Move window in that direction |
-| `Alt+-` / `Alt+=` | Shrink / grow focused window |
-| `Alt+Shift+=` | Balance window sizes |
-| `Alt+/` | Toggle tile orientation (horizontal/vertical) |
-| `Alt+,` | Accordion stack layout |
-| `Alt+F` | Fullscreen focused window |
-| `Alt+Shift+Space` | Toggle float/tile on focused window |
-| `Alt+Tab` | Jump to previous workspace (last-used) |
-| `Alt+Shift+C` | Reload Aerospace config |
+Hold the configured trigger key (default: Globe/🌐) and drag a window toward a screen edge or corner. A ghost overlay previews where the window will land. Release to snap.
 
-**Conflicts with the tmux config:**
-- tmux `Alt+1-9` (window switch) → shadowed by Aerospace. Use tmux's `prefix + N` instead.
-- tmux `Alt+h/j/k/l` (pane switch) → shadowed by Aerospace. Use `Ctrl+h/j/k/l` (vim-tmux-navigator) instead.
+Configure trigger key and per-direction keybindings in Loop settings (menu bar icon).
 
 ### Accessibility permissions
 
 After installing, grant **Accessibility** permission (System Settings → Privacy & Security → Accessibility) to:
 - `skhd` (at `/opt/homebrew/bin/skhd`)
 - `OpenGhostty` (at `~/Applications/OpenGhostty.app`)
-- `AeroSpace` (at `/Applications/AeroSpace.app`)
+- `Loop` (at `/Applications/Loop.app`) — plus **Screen Recording** (needed for window previews)
 - `applet` (generic AppleScript runner — usually auto-added after first launch)
 
 ### Making Ghostty the default terminal everywhere
