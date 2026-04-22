@@ -3,13 +3,19 @@
 # alt+shift+*, alt+minus, alt+equal, alt+slash, alt+comma.
 
 # ---------- Terminal ----------
-# Opt+Space → open a new Ghostty window on the CURRENT Aerospace workspace.
-# `-n` forces a new instance so macOS doesn't "activate" existing Ghostty windows
-# on another workspace and yank focus there. New window lands where you are.
+# Opt+Space → new Ghostty window on the CURRENT workspace.
+# `-n` forces a new instance so macOS doesn't pull focus to existing Ghostty windows.
 alt - space : open -na Ghostty
 
-# ---------- App launchers ----------
-alt - b : open -a "Google Chrome"
+# ---------- App launchers: new-window semantics ----------
+# Opt+B → new Chrome window on current workspace (uses Chrome's own `--new-window`
+# flag to create a fresh window in the existing Chrome process, no focus jump)
+alt - b : open -a "Google Chrome" --new --args --new-window
+
+# Opt+E → new Finder window (Finder supports new-window via its AppleScript dictionary)
+alt - e : osascript -e 'tell application "Finder" to make new Finder window' -e 'tell application "Finder" to activate'
+
+# ---------- App launchers: single-window apps (just activate/reveal) ----------
+# Slack and Spotify are single-window-per-account apps; activate is the right behavior.
 alt - s : open -a Slack
 alt - m : open -a Spotify
-alt - e : open -a Finder
