@@ -8,6 +8,8 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **nvim/** — Neovim config (gruvbox, telescope, treesitter, LSP, autocomplete, format-on-save)
 - **tmux/** — tmux config (Alt+number window switching, vim-style pane nav, mouse, plugins)
 - **starship/** — minimal prompt with git info
+- **ghostty/** — Ghostty terminal config (Gruvbox Dark Hard, JetBrainsMono Nerd Font, transparent titlebar, drop-down quick terminal on `Opt+\``)
+- **skhd/** — global hotkey daemon config + `OpenGhostty.app` launcher (`Opt+Space` opens a new Ghostty window from anywhere — launches Ghostty if dead, sends Cmd+N if running)
 - **mac/setup.sh** — macOS installer (Homebrew)
 - **linux/setup.sh** — Linux installer (apt/dnf/pacman)
 
@@ -37,6 +39,8 @@ After install:
 |------|---------|
 | neovim | Editor |
 | tmux | Terminal multiplexer |
+| ghostty | Terminal emulator (replaces Terminal.app) |
+| skhd | Global hotkey daemon (`Opt+Space` → open Ghostty) |
 | starship | Shell prompt |
 | antidote | zsh plugin manager |
 | fzf | Fuzzy finder (Ctrl+R, Ctrl+T, Alt+C) |
@@ -84,6 +88,18 @@ After install:
 | `ccd` / `ccrd` | `claude --dangerously-skip-permissions` (new / resume) |
 
 ## Key bindings
+
+### Global (skhd + Ghostty)
+
+| Key | Action |
+|-----|--------|
+| `Opt+Space` | Open new Ghostty window (launches Ghostty if dead) |
+| `` Opt+` `` | Toggle Ghostty drop-down quick terminal (only while Ghostty is running) |
+
+After installing, grant **Accessibility** permission (System Settings → Privacy & Security → Accessibility) to:
+- `skhd` (at `/opt/homebrew/bin/skhd`)
+- `OpenGhostty` (at `~/Applications/OpenGhostty.app`)
+- `applet` (generic AppleScript runner — usually auto-added after first launch)
 
 ### tmux
 
