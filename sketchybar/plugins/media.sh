@@ -18,7 +18,6 @@ fi
 TRACK=$(osascript -e 'tell application "Spotify" to name of current track as string' 2>/dev/null)
 ARTIST=$(osascript -e 'tell application "Spotify" to artist of current track as string' 2>/dev/null)
 
-# Truncate if too long
 COMBINED="$ARTIST — $TRACK"
 if [ "${#COMBINED}" -gt 40 ]; then
     COMBINED="${COMBINED:0:37}..."
@@ -26,6 +25,5 @@ fi
 
 sketchybar --set "$NAME" \
     drawing=on \
-    icon="" \
-    icon.color=0xff98971a \
+    icon="🎵" \
     label="$COMBINED"

@@ -13,4 +13,4 @@ USED_PAGES=$(vm_stat | awk '
 USED=$(( USED_PAGES * PAGESIZE ))
 PCT=$(( USED * 100 / TOTAL ))
 
-sketchybar --set "$NAME" label="${PCT}%"
+sketchybar --set "$NAME" icon="🧠" label="${PCT}%"

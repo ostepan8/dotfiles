@@ -4,7 +4,7 @@
 STATUS=$(defaults read /Library/Preferences/com.apple.Bluetooth ControllerPowerState 2>/dev/null)
 
 if [ "$STATUS" = "1" ]; then
-    sketchybar --set "$NAME" icon="" icon.color=0xff458588
+    sketchybar --set "$NAME" icon="🔵" label="on"
 else
-    sketchybar --set "$NAME" icon="" icon.color=0xffa89984
+    sketchybar --set "$NAME" icon="⚫" label="off"
 fi

@@ -93,8 +93,7 @@ sketchybar --add item clock right \
     --set clock \
         update_freq=10 \
         background.color=$BG1 \
-        icon="" \
-        icon.color=$ORANGE \
+        icon="🕐" \
         icon.padding_left=10 \
         label.padding_right=10 \
         script="$PLUGIN_DIR/clock.sh"
@@ -139,8 +138,6 @@ sketchybar --add item cpu right \
     --set cpu \
         update_freq=5 \
         background.color=$BG1 \
-        icon="" \
-        icon.color=$AQUA \
         icon.padding_left=10 \
         label.padding_right=10 \
         script="$PLUGIN_DIR/cpu.sh"
@@ -149,8 +146,6 @@ sketchybar --add item ram right \
     --set ram \
         update_freq=10 \
         background.color=$BG1 \
-        icon="" \
-        icon.color=$YELLOW \
         icon.padding_left=10 \
         label.padding_right=10 \
         script="$PLUGIN_DIR/ram.sh"
@@ -159,8 +154,7 @@ sketchybar --add item network right \
     --set network \
         update_freq=3 \
         background.color=$BG1 \
-        icon="" \
-        icon.color=$BLUE \
+        icon="🌐" \
         icon.padding_left=10 \
         label.padding_right=10 \
         script="$PLUGIN_DIR/network.sh"
