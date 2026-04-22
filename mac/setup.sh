@@ -28,9 +28,9 @@ brew install lazygit git-delta
 echo "[6/13] Installing zsh plugin manager..."
 brew install antidote
 
-echo "[7/13] Installing Ghostty + skhd + Loop (drag-to-snap) + CLI utilities..."
+echo "[7/13] Installing Ghostty + skhd + aerospace + CLI utilities..."
 brew install --cask ghostty
-brew install --cask loop
+brew install --cask nikitabobko/tap/aerospace
 brew install koekeishiya/formulae/skhd duti dockutil
 
 echo "[8/13] Installing lazy.nvim..."
@@ -40,11 +40,12 @@ if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
 fi
 
 echo "[9/13] Linking configs..."
-mkdir -p ~/.config/nvim ~/.config/ghostty ~/Applications
+mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/Applications
 cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua
 cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
 cp -f "$REPO_DIR/ghostty/config" ~/.config/ghostty/config
 cp -f "$REPO_DIR/skhd/skhdrc" ~/.skhdrc
+cp -f "$REPO_DIR/aerospace/aerospace.toml" ~/.config/aerospace/aerospace.toml
 [ -f "$REPO_DIR/tmux/.tmux.conf" ] && cp -f "$REPO_DIR/tmux/.tmux.conf" ~/.tmux.conf
 
 echo "[10/13] Compiling OpenGhostty.app launcher..."
