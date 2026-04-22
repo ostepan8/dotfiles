@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
-# Wi-Fi status + SSID.
-
 SSID=$(system_profiler SPAirPortDataType 2>/dev/null | \
     awk '/Current Network Information:/ {getline; gsub(/^[[:space:]]+|:[[:space:]]*$/, "", $0); print; exit}')
-
 if [ -z "$SSID" ]; then
-    ICON="􀙈"
-    COLOR=0xff928374
-    LABEL="off"
+    sketchybar --set "$NAME" icon="WIFI" icon.font="SF Pro:Bold:11.0" icon.color=0xff928374 label="off"
 else
-    ICON="􀙇"
-    COLOR=0xff689d6a
-    LABEL="$SSID"
+    sketchybar --set "$NAME" icon="WIFI" icon.font="SF Pro:Bold:11.0" icon.color=0xff689d6a label="$SSID"
 fi
-
-sketchybar --set "$NAME" icon="$ICON" icon.color="$COLOR" label="$LABEL"

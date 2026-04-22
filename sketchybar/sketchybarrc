@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Sketchybar config — Gruvbox Dark Hard, minimal polish.
+# Icons: JetBrainsMono Nerd Font (Font Awesome / MDI classic glyphs that render reliably).
 # Docs: https://felixkratz.github.io/SketchyBar/
 
 PLUGIN_DIR="$HOME/.config/sketchybar/plugins"
@@ -32,27 +33,25 @@ sketchybar --bar \
     margin=0 \
     sticky=on
 
-# ---------- Defaults applied to every item added below ----------
+# ---------- Defaults ----------
 sketchybar --default \
-    icon.font="SF Pro:Semibold:15.0" \
+    icon.font="JetBrainsMono Nerd Font:Bold:14.0" \
     icon.color=$FG \
     label.font="SF Pro:Semibold:13.0" \
     label.color=$FG \
     padding_left=6 \
     padding_right=6 \
-    icon.padding_left=6 \
+    icon.padding_left=8 \
     icon.padding_right=6 \
     label.padding_left=0 \
-    label.padding_right=6 \
+    label.padding_right=8 \
     background.color=$BG_TRANSPARENT \
     background.corner_radius=8 \
     background.height=24
 
 # ==============================================================
-# LEFT SIDE
+# LEFT: workspace indicators + front app
 # ==============================================================
-
-# ---------- Workspace indicators ----------
 sketchybar --add event aerospace_workspace_change
 
 for sid in $(aerospace list-workspaces --all); do
@@ -74,7 +73,6 @@ for sid in $(aerospace list-workspaces --all); do
             script="$PLUGIN_DIR/aerospace.sh $sid"
 done
 
-# ---------- Gap before front app ----------
 sketchybar --add item spacer.left left \
     --set spacer.left \
         background.drawing=off \
@@ -82,7 +80,6 @@ sketchybar --add item spacer.left left \
         label.drawing=off \
         width=12
 
-# ---------- Front app ----------
 sketchybar --add item front_app left \
     --set front_app \
         background.drawing=off \
@@ -92,8 +89,10 @@ sketchybar --add item front_app left \
         script="$PLUGIN_DIR/front_app.sh" \
     --subscribe front_app front_app_switched
 
-# ---------- Media / now-playing (hidden when nothing plays) ----------
-sketchybar --add item media left \
+# ==============================================================
+# CENTER: now-playing Spotify track (hidden when paused)
+# ==============================================================
+sketchybar --add item media center \
     --set media \
         update_freq=10 \
         background.color=$BG_ITEM \
@@ -102,28 +101,22 @@ sketchybar --add item media left \
         script="$PLUGIN_DIR/media.sh"
 
 # ==============================================================
-# RIGHT SIDE
-# Added in reverse order: first added appears rightmost.
+# RIGHT (added in reverse — first added appears rightmost)
 # ==============================================================
 
-# ---------- Clock (rightmost) ----------
+# Clock
 sketchybar --add item clock right \
     --set clock \
         update_freq=10 \
         background.color=$BG_ITEM \
-        icon="􀐫" \
+        icon="TIME" \
         icon.color=$PURPLE \
         script="$PLUGIN_DIR/clock.sh"
 
-# ---------- Item separator ----------
 sketchybar --add item sep.1 right \
-    --set sep.1 \
-        background.drawing=off \
-        icon.drawing=off \
-        label.drawing=off \
-        width=6
+    --set sep.1 background.drawing=off icon.drawing=off label.drawing=off width=8
 
-# ---------- Battery ----------
+# Battery
 sketchybar --add item battery right \
     --set battery \
         update_freq=120 \
@@ -131,15 +124,10 @@ sketchybar --add item battery right \
         script="$PLUGIN_DIR/battery.sh" \
     --subscribe battery system_woke power_source_change
 
-# ---------- Item separator ----------
 sketchybar --add item sep.2 right \
-    --set sep.2 \
-        background.drawing=off \
-        icon.drawing=off \
-        label.drawing=off \
-        width=6
+    --set sep.2 background.drawing=off icon.drawing=off label.drawing=off width=8
 
-# ---------- Volume ----------
+# Volume
 sketchybar --add item volume right \
     --set volume \
         background.color=$BG_ITEM \
@@ -147,15 +135,10 @@ sketchybar --add item volume right \
         click_script="open -a 'System Settings' --args 'Sound'" \
     --subscribe volume volume_change
 
-# ---------- Item separator ----------
 sketchybar --add item sep.3 right \
-    --set sep.3 \
-        background.drawing=off \
-        icon.drawing=off \
-        label.drawing=off \
-        width=6
+    --set sep.3 background.drawing=off icon.drawing=off label.drawing=off width=8
 
-# ---------- Wi-Fi ----------
+# Wi-Fi
 sketchybar --add item wifi right \
     --set wifi \
         update_freq=30 \
@@ -163,15 +146,10 @@ sketchybar --add item wifi right \
         script="$PLUGIN_DIR/wifi.sh" \
     --subscribe wifi wifi_change
 
-# ---------- Item separator ----------
 sketchybar --add item sep.4 right \
-    --set sep.4 \
-        background.drawing=off \
-        icon.drawing=off \
-        label.drawing=off \
-        width=6
+    --set sep.4 background.drawing=off icon.drawing=off label.drawing=off width=8
 
-# ---------- System stats group (cpu + ram) ----------
+# CPU + RAM
 sketchybar --add item cpu right \
     --set cpu \
         update_freq=5 \
