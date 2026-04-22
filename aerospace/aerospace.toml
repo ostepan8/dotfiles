@@ -125,3 +125,25 @@ run = 'layout floating'
 [[on-window-detected]]
 if.app-id = 'com.1password.1password'
 run = 'layout floating'
+
+# Apps that pop up / stay on top — let them float instead of fighting tiling
+[[on-window-detected]]
+if.app-id = 'com.grammarly.ProjectLlama'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.grammarly.macgap'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.docker.docker'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.loginwindow'
+run = 'layout floating'
+
+# Quick-terminal drop-downs and small panels
+[[on-window-detected]]
+if.window-title-regex-substring = '(?i)preferences'
+run = 'layout floating'
