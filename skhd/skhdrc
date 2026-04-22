@@ -3,12 +3,12 @@
 # alt+shift+*, alt+minus, alt+equal, alt+slash, alt+comma.
 
 # ---------- Terminal ----------
-# Opt+Space → open a new Ghostty window via OpenGhostty.app
-# (launches Ghostty if dead, sends Cmd+N if already running)
-alt - space : open -a OpenGhostty
+# Opt+Space → open a new Ghostty window on the CURRENT Aerospace workspace.
+# `-n` forces a new instance so macOS doesn't "activate" existing Ghostty windows
+# on another workspace and yank focus there. New window lands where you are.
+alt - space : open -na Ghostty
 
 # ---------- App launchers ----------
-alt - c : open -a Cursor
 alt - b : open -a "Google Chrome"
 alt - s : open -a Slack
 alt - m : open -a Spotify

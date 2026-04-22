@@ -9,7 +9,7 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **tmux/** — tmux config (Alt+number window switching, vim-style pane nav, mouse, plugins)
 - **starship/** — minimal prompt with git info
 - **ghostty/** — Ghostty terminal config (Gruvbox Dark Hard, JetBrainsMono Nerd Font, transparent titlebar, drop-down quick terminal on `Opt+\``)
-- **skhd/** — global hotkey daemon config + `OpenGhostty.app` launcher (`Opt+Space` opens a new Ghostty window from anywhere — launches Ghostty if dead, sends Cmd+N if running)
+- **skhd/** — global hotkey daemon config (`Opt+Space` opens a new Ghostty window on the current workspace; `Opt+B/S/M/E` launch Chrome/Slack/Spotify/Finder)
 - **aerospace/** — i3-style tiling window manager config (workspaces on `Alt+1-9`, vim-style window focus on `Alt+h/j/k/l`)
 - **mac/setup.sh** — macOS installer (Homebrew)
 - **linux/setup.sh** — Linux installer (apt/dnf/pacman)
@@ -131,9 +131,7 @@ After install:
 
 After installing, grant **Accessibility** permission (System Settings → Privacy & Security → Accessibility) to:
 - `skhd` (at `/opt/homebrew/bin/skhd`)
-- `OpenGhostty` (at `~/Applications/OpenGhostty.app`)
 - `AeroSpace` (at `/Applications/AeroSpace.app`)
-- `applet` (generic AppleScript runner — usually auto-added after first launch)
 
 ### Making Ghostty the default terminal everywhere
 
