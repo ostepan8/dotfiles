@@ -30,7 +30,7 @@ brew install antidote
 
 echo "[7/13] Installing Ghostty terminal + skhd hotkey daemon..."
 brew install --cask ghostty
-brew install koekeishiya/formulae/skhd duti
+brew install koekeishiya/formulae/skhd duti dockutil
 
 echo "[8/13] Installing lazy.nvim..."
 if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then

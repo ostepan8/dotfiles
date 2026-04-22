@@ -42,6 +42,7 @@ After install:
 | ghostty | Terminal emulator (replaces Terminal.app; default handler for `.sh`/`.command`/`.tool`/`.zsh`/`.bash`) |
 | skhd | Global hotkey daemon (`Opt+Space` → open Ghostty) |
 | duti | Set default app handlers for file types (used to make Ghostty the default terminal) |
+| dockutil | Manage Dock items from the command line |
 | starship | Shell prompt |
 | antidote | zsh plugin manager |
 | fzf | Fuzzy finder (Ctrl+R, Ctrl+T, Alt+C) |
@@ -101,6 +102,20 @@ After installing, grant **Accessibility** permission (System Settings → Privac
 - `skhd` (at `/opt/homebrew/bin/skhd`)
 - `OpenGhostty` (at `~/Applications/OpenGhostty.app`)
 - `applet` (generic AppleScript runner — usually auto-added after first launch)
+
+### Making Ghostty the default terminal everywhere
+
+`mac/setup.sh` sets Ghostty as the default app for `.sh`/`.command`/`.tool`/`.zsh`/`.bash` files automatically (via `duti`). To also make Ghostty the external terminal in editors:
+
+**Cursor / VS Code** — add to `settings.json`:
+```json
+"terminal.external.osxExec": "Ghostty.app",
+"terminal.explorerKind": "external"
+```
+
+**IntelliJ IDEA / JetBrains** — Preferences → Tools → Terminal → set *Shell path* to `/Applications/Ghostty.app/Contents/MacOS/ghostty` (affects internal terminal). For "Open in Terminal" external calls, create an External Tool pointing at Ghostty.
+
+**Dock** — remove Terminal.app, add Ghostty: `dockutil --remove Terminal; dockutil --add /Applications/Ghostty.app`.
 
 ### tmux
 
