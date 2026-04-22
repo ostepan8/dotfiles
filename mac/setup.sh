@@ -64,7 +64,8 @@ if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
   git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 fi
 
-echo "[12/12] Setting Ghostty as default terminal file handler + starting services..."
+echo "[12/12] Applying macOS defaults + setting default file handlers + starting services..."
+bash "$SCRIPT_DIR/defaults.sh"
 for ext in sh command tool zsh bash; do
   duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true
 done

@@ -12,7 +12,8 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **skhd/** — global hotkey daemon config (`Opt+Space` opens a new Ghostty window on the current workspace; `Opt+B/S/M/E` launch Chrome/Slack/Spotify/Finder)
 - **aerospace/** — i3-style tiling window manager config (workspaces on `Alt+1-9`, vim-style window focus on `Alt+h/j/k/l`)
 - **sketchybar/** — custom top bar (Gruvbox theme) with Aerospace workspace indicators, front-app, CPU, battery, clock
-- **mac/setup.sh** — macOS installer (Homebrew)
+- **mac/setup.sh** — macOS installer (Homebrew) — also runs `mac/defaults.sh`
+- **mac/defaults.sh** — macOS system tweaks (Finder, Dock, keyboard, trackpad, screenshot location, etc.)
 - **linux/setup.sh** — Linux installer (apt/dnf/pacman)
 
 ## Install
