@@ -1,0 +1,125 @@
+# Aerospace config — tiling window manager for macOS.
+# Docs: https://github.com/nikitabobko/AeroSpace
+#
+# Known conflicts with the tmux config in this repo:
+#   - Alt+1-9    used by tmux for window switching  → Aerospace takes priority (use `prefix + N` in tmux)
+#   - Alt+h/j/k/l used by tmux for pane switching   → Aerospace takes priority (use Ctrl+h/j/k/l via vim-tmux-navigator)
+# If you prefer to keep tmux's Alt bindings, rebind Aerospace to cmd-alt-* below.
+
+start-at-login = true
+
+# Normalize container structure — avoids weird nested layouts after windows move.
+enable-normalization-flatten-containers = true
+enable-normalization-opposite-orientation-for-nested-containers = true
+
+# Accordion layout stays mostly-collapsed (better for stacks of code editors)
+accordion-padding = 30
+
+# Auto-pick horizontal vs vertical split based on window dimensions
+default-root-container-layout = 'tiles'
+default-root-container-orientation = 'auto'
+
+# Don't let windows animate off-screen when switching workspaces
+on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+
+# ==========================
+# Mouse / key interaction
+# ==========================
+automatically-unhide-macos-hidden-apps = false
+
+[key-mapping]
+preset = 'qwerty'
+
+# ==========================
+# Gaps between windows + from screen edge
+# ==========================
+[gaps]
+inner.horizontal = 8
+inner.vertical   = 8
+outer.left       = 8
+outer.bottom     = 8
+outer.top        = 8
+outer.right      = 8
+
+# ==========================
+# Main mode bindings
+# ==========================
+[mode.main.binding]
+
+# --- Focus (vim-style) ---
+alt-h = 'focus left'
+alt-j = 'focus down'
+alt-k = 'focus up'
+alt-l = 'focus right'
+
+# --- Move window in current workspace ---
+alt-shift-h = 'move left'
+alt-shift-j = 'move down'
+alt-shift-k = 'move up'
+alt-shift-l = 'move right'
+
+# --- Resize focused window ---
+alt-minus = 'resize smart -50'
+alt-equal = 'resize smart +50'
+alt-shift-equal = 'balance-sizes'
+
+# --- Layout tweaks ---
+alt-slash = 'layout tiles horizontal vertical'   # toggle tile orientation
+alt-comma = 'layout accordion horizontal vertical' # stack view
+alt-f     = 'fullscreen'
+alt-shift-space = 'layout floating tiling'        # toggle float/tile
+
+# --- Workspaces (jump to) ---
+alt-1 = 'workspace 1'
+alt-2 = 'workspace 2'
+alt-3 = 'workspace 3'
+alt-4 = 'workspace 4'
+alt-5 = 'workspace 5'
+alt-6 = 'workspace 6'
+alt-7 = 'workspace 7'
+alt-8 = 'workspace 8'
+alt-9 = 'workspace 9'
+
+# --- Move current window to workspace N ---
+alt-shift-1 = 'move-node-to-workspace 1'
+alt-shift-2 = 'move-node-to-workspace 2'
+alt-shift-3 = 'move-node-to-workspace 3'
+alt-shift-4 = 'move-node-to-workspace 4'
+alt-shift-5 = 'move-node-to-workspace 5'
+alt-shift-6 = 'move-node-to-workspace 6'
+alt-shift-7 = 'move-node-to-workspace 7'
+alt-shift-8 = 'move-node-to-workspace 8'
+alt-shift-9 = 'move-node-to-workspace 9'
+
+# --- Workspace "back and forth" (like tmux last-window) ---
+alt-tab = 'workspace-back-and-forth'
+
+# --- Reload Aerospace config ---
+alt-shift-c = 'reload-config'
+
+# ==========================
+# Apps that should always float (not tile)
+# ==========================
+[[on-window-detected]]
+if.app-id = 'com.apple.systempreferences'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.finder'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'us.zoom.xos'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.ActivityMonitor'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.archiveutility'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.1password.1password'
+run = 'layout floating'
