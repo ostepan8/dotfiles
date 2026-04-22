@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# macOS output volume + mute state.
+# macOS output volume + mute state (SF Symbols speaker icons).
 
 if [ "$SENDER" = "volume_change" ]; then
     VOL="$INFO"
@@ -10,13 +10,17 @@ fi
 MUTED=$(osascript -e 'output muted of (get volume settings)' 2>/dev/null)
 
 if [ "$MUTED" = "true" ] || [ "$VOL" = "0" ] || [ -z "$VOL" ]; then
-    ICON="🔇"
+    ICON="􀊠"             # speaker.slash
+    COLOR=0xff928374
 elif [ "$VOL" -ge 60 ]; then
-    ICON="🔊"
+    ICON="􀊩"             # speaker.wave.3
+    COLOR=0xffebdbb2
 elif [ "$VOL" -ge 30 ]; then
-    ICON="🔉"
+    ICON="􀊧"             # speaker.wave.2
+    COLOR=0xffebdbb2
 else
-    ICON="🔈"
+    ICON="􀊥"             # speaker.wave.1
+    COLOR=0xffebdbb2
 fi
 
-sketchybar --set "$NAME" icon="$ICON" label="${VOL}%"
+sketchybar --set "$NAME" icon="$ICON" icon.color="$COLOR" label="${VOL}%"

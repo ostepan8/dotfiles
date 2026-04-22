@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Currently playing Spotify track. Hidden when Spotify isn't running or paused.
+# Currently playing Spotify track. Hidden when not running or paused.
 
 IS_RUNNING=$(osascript -e 'application "Spotify" is running' 2>/dev/null)
 
@@ -19,11 +19,12 @@ TRACK=$(osascript -e 'tell application "Spotify" to name of current track as str
 ARTIST=$(osascript -e 'tell application "Spotify" to artist of current track as string' 2>/dev/null)
 
 COMBINED="$ARTIST — $TRACK"
-if [ "${#COMBINED}" -gt 40 ]; then
-    COMBINED="${COMBINED:0:37}..."
+if [ "${#COMBINED}" -gt 42 ]; then
+    COMBINED="${COMBINED:0:39}..."
 fi
 
 sketchybar --set "$NAME" \
     drawing=on \
-    icon="🎵" \
+    icon="􀑪" \
+    icon.color=0xff98971a \
     label="$COMBINED"

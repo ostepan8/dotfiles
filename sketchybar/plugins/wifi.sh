@@ -5,11 +5,13 @@ SSID=$(system_profiler SPAirPortDataType 2>/dev/null | \
     awk '/Current Network Information:/ {getline; gsub(/^[[:space:]]+|:[[:space:]]*$/, "", $0); print; exit}')
 
 if [ -z "$SSID" ]; then
-    ICON="❌"
+    ICON="􀙈"
+    COLOR=0xff928374
     LABEL="off"
 else
-    ICON="📶"
+    ICON="􀙇"
+    COLOR=0xff689d6a
     LABEL="$SSID"
 fi
 
-sketchybar --set "$NAME" icon="$ICON" label="$LABEL"
+sketchybar --set "$NAME" icon="$ICON" icon.color="$COLOR" label="$LABEL"
