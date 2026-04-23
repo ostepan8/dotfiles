@@ -32,6 +32,30 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 # ==========================
 automatically-unhide-macos-hidden-apps = false
 
+# ==========================
+# Pin every workspace to the built-in laptop display.
+# Prevents "phantom" workspaces (11, 12…) from auto-spawning on external
+# monitors when windows get dragged across displays. Each external monitor
+# becomes overflow real estate for floating windows; workspaces themselves
+# always live on the laptop screen.
+# ==========================
+[workspace-to-monitor-force-assignment]
+1 = 'built-in'
+2 = 'built-in'
+3 = 'built-in'
+4 = 'built-in'
+5 = 'built-in'
+6 = 'built-in'
+7 = 'built-in'
+8 = 'built-in'
+9 = 'built-in'
+10 = 'built-in'
+11 = 'built-in'
+12 = 'built-in'
+13 = 'built-in'
+14 = 'built-in'
+15 = 'built-in'
+
 [key-mapping]
 preset = 'qwerty'
 
