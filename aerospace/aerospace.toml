@@ -32,24 +32,9 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 # ==========================
 automatically-unhide-macos-hidden-apps = false
 
-# ==========================
-# Workspace-to-monitor assignment
-# ==========================
-# Most workspaces live on the laptop. Workspace 10 is reserved for the
-# external monitor — this is where windows land when you move them via Alt+\.
-# (With externals arranged to the LEFT of main in macOS, the flickering
-# doesn't come back.)
-[workspace-to-monitor-force-assignment]
-1 = 'built-in'
-2 = 'built-in'
-3 = 'built-in'
-4 = 'built-in'
-5 = 'built-in'
-6 = 'built-in'
-7 = 'built-in'
-8 = 'built-in'
-9 = 'built-in'
-10 = ['HP 327se (1)', 'HP 327se (2)', 'built-in']
+# (No workspace-to-monitor-force-assignment — workspaces roam freely across
+# monitors. Glitching is prevented by arranging externals to the LEFT of
+# the main display in System Settings → Displays.)
 
 [key-mapping]
 preset = 'qwerty'
