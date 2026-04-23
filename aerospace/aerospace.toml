@@ -47,8 +47,10 @@ inner.horizontal = 8
 inner.vertical   = 8
 outer.left       = 8
 outer.bottom     = 8
-outer.top        = 40    # reserves space for sketchybar (32px bar + 8px margin)
 outer.right      = 8
+# Top gap: 40px on laptop (reserves room for sketchybar), 8px on externals
+# (no bar there, so windows can tile edge-to-edge for more screen real estate)
+outer.top        = [{ monitor.'built-in' = 40 }, 8]
 
 # ==========================
 # Main mode bindings
