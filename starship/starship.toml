@@ -10,7 +10,7 @@ style = "bold white"
 format = " [$path]($style)"
 
 [git_branch]
-symbol = " "
+symbol = " "
 style = "bold magenta"
 format = "  [$symbol$branch]($style)"
 
@@ -20,5 +20,6 @@ format = " [$all_status$ahead_behind]($style)"
 
 
 [character]
-success_symbol = "[>](bold white)"
-error_symbol   = "[>](bold red)"
+success_symbol = "[❯](bold white)"
+error_symbol   = "[❯](bold red)"
+
