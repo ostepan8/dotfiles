@@ -136,6 +136,24 @@ run = 'layout floating'
 if.app-id = 'com.grammarly.ProjectLlama'
 run = 'layout floating'
 
+# Spotify — persistent media player window glitches when tiled across monitors
+[[on-window-detected]]
+if.app-id = 'com.spotify.client'
+run = 'layout floating'
+
+# Apple Music + Messages have the same "persistent floating" feel
+[[on-window-detected]]
+if.app-id = 'com.apple.Music'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.MobileSMS'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-id = 'com.apple.FaceTime'
+run = 'layout floating'
+
 [[on-window-detected]]
 if.app-id = 'com.grammarly.macgap'
 run = 'layout floating'
