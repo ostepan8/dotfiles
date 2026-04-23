@@ -94,6 +94,7 @@ alias gd='git diff'
 alias gco='git checkout'
 alias gl='git log --oneline --graph --decorate -20'
 alias reload='source ~/.zshrc'
+alias e='exit'
 
 # ---------- completions + plugins ----------
 # compinit must run before fzf-tab; antidote loads plugins listed in ~/.zsh_plugins.txt
