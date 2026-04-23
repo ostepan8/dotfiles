@@ -222,11 +222,11 @@
     </div>
     <div class="card">
       <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">[</kbd> / <kbd class="sym">]</kbd></div>
-      <div class="desc">Focus laptop / external monitor</div>
+      <div class="desc">Focus left / right external monitor</div>
     </div>
     <div class="card">
-      <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">\</kbd></div>
-      <div class="desc">Move window to other monitor (+ follow)</div>
+      <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="wide">Enter</kbd></div>
+      <div class="desc">Home — back to laptop</div>
     </div>
     <div class="card">
       <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>R</kbd></div>
@@ -303,13 +303,22 @@
   <p class="desc">Arrange externals to the <strong>left</strong> of main in System Settings → Displays. Prevents flickering.</p>
   <div class="grid">
     <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">[</kbd></div>
-    <div class="desc-cell">Focus <strong>laptop</strong> (built-in display)</div>
+    <div class="desc-cell">Focus <strong>LEFT</strong> external monitor (workspace 10)</div>
 
     <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">]</kbd></div>
-    <div class="desc-cell">Focus <strong>external</strong> monitor</div>
+    <div class="desc-cell">Focus <strong>RIGHT</strong> external monitor (workspace 9)</div>
 
-    <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">\</kbd></div>
-    <div class="desc-cell"><strong>Move</strong> current window to other monitor + follow it there</div>
+    <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="wide">Enter</kbd></div>
+    <div class="desc-cell"><strong>Home</strong> — jump back to the laptop's current workspace</div>
+
+    <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd class="sym">[</kbd></div>
+    <div class="desc-cell"><strong>Send</strong> focused window to left external (+ follow)</div>
+
+    <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd class="sym">]</kbd></div>
+    <div class="desc-cell"><strong>Send</strong> focused window to right external (+ follow)</div>
+  </div>
+  <div class="callout">
+    <strong>Mental model:</strong> <code>[</code> = left, <code>]</code> = right, <kbd class="wide">Enter</kbd> = home. Hold <kbd class="mod">Shift</kbd> to <em>send the window</em> instead of just focus — same pattern as workspace navigation (<code>Alt+N</code> focus, <code>Alt+Shift+N</code> send).
   </div>
 </section>
 
