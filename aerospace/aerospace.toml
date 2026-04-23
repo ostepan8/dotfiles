@@ -125,10 +125,12 @@ alt-shift-0 = 'move-node-to-workspace 10'
 # --- Workspace "back and forth" (like tmux last-window) ---
 alt-tab = 'workspace-back-and-forth'
 
-# --- Monitor navigation (2-monitor setup) ---
-alt-leftSquareBracket  = 'focus-monitor --wrap-around left'
-alt-rightSquareBracket = 'focus-monitor --wrap-around right'
-# Move focused window to the other monitor (\ sits right next to the brackets)
+# --- Monitor navigation ---
+# [ = home (laptop / built-in display) — always goes there regardless of where you are
+alt-leftSquareBracket  = 'focus-monitor built-in'
+# ] = the OTHER monitor (external). With multiple externals, keep pressing to cycle.
+alt-rightSquareBracket = 'focus-monitor --wrap-around next'
+# \ = move focused window to the other monitor
 alt-backslash = 'move-node-to-monitor --wrap-around next'
 
 # --- Reload Aerospace config ---
