@@ -36,13 +36,13 @@ cursor-style = block
 cursor-style-blink = true
 
 # ============================
-# Global: drop-down quick terminal (Opt+` — only works while Ghostty is running)
+# Global: drop-down quick terminal
 # ============================
-# Global binding opens it from anywhere. Non-global duplicate ensures the
-# same key closes it when the quick terminal itself has focus (global
-# hotkeys don't re-fire while the receiving app is already foregrounded).
+# Opt+` from ANYWHERE → opens the quick terminal.
+# From inside the quick terminal, use Cmd+W to close (Ghostty's toggle
+# action doesn't fire when the quick-terminal surface is the focused one).
+# Clicking outside the quick terminal also auto-hides it.
 keybind = global:opt+grave_accent=toggle_quick_terminal
-keybind = opt+grave_accent=toggle_quick_terminal
 quick-terminal-position = top
 quick-terminal-screen = main
 quick-terminal-animation-duration = 0.15
