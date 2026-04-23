@@ -84,16 +84,19 @@ alt-f     = 'fullscreen'
 alt-shift-space = 'layout floating tiling'        # toggle float/tile
 
 # --- Workspaces (jump to) ---
-alt-1 = 'workspace 1'
-alt-2 = 'workspace 2'
-alt-3 = 'workspace 3'
-alt-4 = 'workspace 4'
-alt-5 = 'workspace 5'
-alt-6 = 'workspace 6'
-alt-7 = 'workspace 7'
-alt-8 = 'workspace 8'
-alt-9 = 'workspace 9'
-alt-0 = 'workspace 10'
+# Chaining 'move-mouse monitor-lazy-center' pulls the cursor onto the new
+# workspace's monitor — needed because on-focused-monitor-changed doesn't
+# always fire reliably when switching workspaces across monitors.
+alt-1 = ['workspace 1',  'move-mouse monitor-lazy-center']
+alt-2 = ['workspace 2',  'move-mouse monitor-lazy-center']
+alt-3 = ['workspace 3',  'move-mouse monitor-lazy-center']
+alt-4 = ['workspace 4',  'move-mouse monitor-lazy-center']
+alt-5 = ['workspace 5',  'move-mouse monitor-lazy-center']
+alt-6 = ['workspace 6',  'move-mouse monitor-lazy-center']
+alt-7 = ['workspace 7',  'move-mouse monitor-lazy-center']
+alt-8 = ['workspace 8',  'move-mouse monitor-lazy-center']
+alt-9 = ['workspace 9',  'move-mouse monitor-lazy-center']
+alt-0 = ['workspace 10', 'move-mouse monitor-lazy-center']
 
 # --- Move current window to workspace N ---
 alt-shift-1 = 'move-node-to-workspace 1'
@@ -116,11 +119,11 @@ alt-tab = 'workspace-back-and-forth'
 #   Alt+Enter    → home (laptop — always goes to laptop's currently-visible workspace)
 #   Alt+Shift+[  → send focused window to LEFT external + follow
 #   Alt+Shift+]  → send focused window to RIGHT external + follow
-alt-leftSquareBracket        = 'workspace 10'
-alt-rightSquareBracket       = 'workspace 9'
+alt-leftSquareBracket        = ['workspace 10', 'move-mouse monitor-lazy-center']
+alt-rightSquareBracket       = ['workspace 9',  'move-mouse monitor-lazy-center']
 alt-enter                    = 'exec-and-forget ~/.config/aerospace/focus-home.sh'
-alt-shift-leftSquareBracket  = ['move-node-to-workspace 10', 'workspace 10']
-alt-shift-rightSquareBracket = ['move-node-to-workspace 9',  'workspace 9']
+alt-shift-leftSquareBracket  = ['move-node-to-workspace 10', 'workspace 10', 'move-mouse monitor-lazy-center']
+alt-shift-rightSquareBracket = ['move-node-to-workspace 9',  'workspace 9',  'move-mouse monitor-lazy-center']
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
