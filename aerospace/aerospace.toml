@@ -117,7 +117,7 @@ alt-tab = 'workspace-back-and-forth'
 #   [  → home — back to whatever laptop workspace you were on last
 #   \  → send focused window to external 1 + follow
 #   '  → send focused window to external 2 + follow
-alt-leftSquareBracket  = 'workspace-back-and-forth'
+alt-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/focus-home.sh'
 alt-rightSquareBracket = 'workspace 10'
 alt-semicolon          = 'workspace 9'
 alt-backslash          = ['move-node-to-workspace 10', 'workspace 10']
