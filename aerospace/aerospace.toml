@@ -33,12 +33,12 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 automatically-unhide-macos-hidden-apps = false
 
 # ==========================
-# Pin every workspace to the built-in laptop display.
-# Prevents "phantom" workspaces (11, 12…) from auto-spawning on external
-# monitors when windows get dragged across displays. Each external monitor
-# becomes overflow real estate for floating windows; workspaces themselves
-# always live on the laptop screen.
+# Workspace-to-monitor assignment
 # ==========================
+# Most workspaces live on the laptop. Workspace 10 is reserved for the
+# external monitor — this is where windows land when you move them via Alt+\.
+# (With externals arranged to the LEFT of main in macOS, the flickering
+# doesn't come back.)
 [workspace-to-monitor-force-assignment]
 1 = 'built-in'
 2 = 'built-in'
@@ -49,12 +49,7 @@ automatically-unhide-macos-hidden-apps = false
 7 = 'built-in'
 8 = 'built-in'
 9 = 'built-in'
-10 = 'built-in'
-11 = 'built-in'
-12 = 'built-in'
-13 = 'built-in'
-14 = 'built-in'
-15 = 'built-in'
+10 = ['HP 327se (1)', 'HP 327se (2)', 'built-in']
 
 [key-mapping]
 preset = 'qwerty'
@@ -130,8 +125,8 @@ alt-tab = 'workspace-back-and-forth'
 alt-leftSquareBracket  = 'focus-monitor built-in'
 # ] = the OTHER monitor (external). With multiple externals, keep pressing to cycle.
 alt-rightSquareBracket = 'focus-monitor --wrap-around next'
-# \ = move focused window to the other monitor
-alt-backslash = 'move-node-to-monitor --wrap-around next'
+# \ = move focused window to the other monitor AND follow it there
+alt-backslash = ['move-node-to-monitor --wrap-around next', 'focus-monitor --wrap-around next']
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
