@@ -32,9 +32,11 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 # ==========================
 automatically-unhide-macos-hidden-apps = false
 
-# (No workspace-to-monitor-force-assignment — workspaces roam freely across
-# monitors. Glitching is prevented by arranging externals to the LEFT of
-# the main display in System Settings → Displays.)
+# Pin workspace 10 to an external monitor. Makes Alt+] reliably jump there
+# regardless of how macOS feels about cross-Space Chrome windows.
+# Lists try each match in order; first one that resolves wins.
+[workspace-to-monitor-force-assignment]
+10 = '^HP .*'
 
 [key-mapping]
 preset = 'qwerty'
@@ -108,13 +110,13 @@ alt-shift-0 = 'move-node-to-workspace 10'
 alt-tab = 'workspace-back-and-forth'
 
 # --- Monitor navigation ---
-# Uses helper scripts that switch workspaces (not focus-monitor) to avoid
-# macOS's activate-app quirk that would otherwise pull us to the workspace
-# holding "same-app" windows (e.g., Chrome) when switching monitors.
-alt-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/focus-home-monitor.sh'
-alt-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/focus-other-monitor.sh'
-# \ = move focused window to the other monitor AND follow it there
-alt-backslash = ['move-node-to-monitor --wrap-around next', 'focus-monitor --wrap-around next']
+# ] = jump to workspace 10, which is pinned to the external monitor.
+#     Direct workspace switch — no focus-monitor, no macOS app-activation quirk.
+alt-rightSquareBracket = 'workspace 10'
+# [ = home (back to whatever laptop workspace you were on most recently)
+alt-leftSquareBracket  = 'workspace-back-and-forth'
+# \ = send focused window to workspace 10 (external) and follow it there
+alt-backslash = ['move-node-to-workspace 10', 'workspace 10']
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
