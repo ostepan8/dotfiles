@@ -32,11 +32,12 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 # ==========================
 automatically-unhide-macos-hidden-apps = false
 
-# Pin workspace 10 to an external monitor. Makes Alt+] reliably jump there
-# regardless of how macOS feels about cross-Space Chrome windows.
-# Lists try each match in order; first one that resolves wins.
+# Pin workspaces 9 and 10 to the two external monitors.
+# Aerospace quirk: the 'external' / 'secondary' keywords don't match HP
+# displays on this machine, but regex does.
 [workspace-to-monitor-force-assignment]
-10 = '^HP .*'
+9  = '^HP 327se \(1\)$'
+10 = '^HP 327se \(2\)$'
 
 [key-mapping]
 preset = 'qwerty'
@@ -110,13 +111,17 @@ alt-shift-0 = 'move-node-to-workspace 10'
 alt-tab = 'workspace-back-and-forth'
 
 # --- Monitor navigation ---
-# ] = jump to workspace 10, which is pinned to the external monitor.
-#     Direct workspace switch — no focus-monitor, no macOS app-activation quirk.
-alt-rightSquareBracket = 'workspace 10'
-# [ = home (back to whatever laptop workspace you were on most recently)
+# Right-hand key cluster (] ; \ '):
+#   ]  → external monitor 1 (workspace 10 pinned to HP 327se (2))
+#   ;  → external monitor 2 (workspace 9  pinned to HP 327se (1))
+#   [  → home — back to whatever laptop workspace you were on last
+#   \  → send focused window to external 1 + follow
+#   '  → send focused window to external 2 + follow
 alt-leftSquareBracket  = 'workspace-back-and-forth'
-# \ = send focused window to workspace 10 (external) and follow it there
-alt-backslash = ['move-node-to-workspace 10', 'workspace 10']
+alt-rightSquareBracket = 'workspace 10'
+alt-semicolon          = 'workspace 9'
+alt-backslash          = ['move-node-to-workspace 10', 'workspace 10']
+alt-quote              = ['move-node-to-workspace 9',  'workspace 9']
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
