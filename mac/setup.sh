@@ -48,6 +48,8 @@ cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
 cp -f "$REPO_DIR/ghostty/config" ~/.config/ghostty/config
 cp -f "$REPO_DIR/skhd/skhdrc" ~/.skhdrc
 cp -f "$REPO_DIR/aerospace/aerospace.toml" ~/.config/aerospace/aerospace.toml
+cp -f "$REPO_DIR/aerospace/"*.sh ~/.config/aerospace/ 2>/dev/null || true
+chmod +x ~/.config/aerospace/*.sh 2>/dev/null || true
 cp -f "$REPO_DIR/sketchybar/sketchybarrc" ~/.config/sketchybar/sketchybarrc
 cp -f "$REPO_DIR/sketchybar/plugins/"*.sh ~/.config/sketchybar/plugins/
 chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
