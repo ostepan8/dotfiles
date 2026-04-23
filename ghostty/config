@@ -38,7 +38,11 @@ cursor-style-blink = true
 # ============================
 # Global: drop-down quick terminal (Opt+` — only works while Ghostty is running)
 # ============================
+# Global binding opens it from anywhere. Non-global duplicate ensures the
+# same key closes it when the quick terminal itself has focus (global
+# hotkeys don't re-fire while the receiving app is already foregrounded).
 keybind = global:opt+grave_accent=toggle_quick_terminal
+keybind = opt+grave_accent=toggle_quick_terminal
 quick-terminal-position = top
 quick-terminal-screen = main
 quick-terminal-animation-duration = 0.15
