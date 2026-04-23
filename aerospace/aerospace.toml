@@ -125,14 +125,9 @@ alt-shift-0 = 'move-node-to-workspace 10'
 # --- Workspace "back and forth" (like tmux last-window) ---
 alt-tab = 'workspace-back-and-forth'
 
-# --- Monitor navigation (Cmd+Alt+...) ---
-cmd-alt-h = 'focus-monitor --wrap-around left'
-cmd-alt-l = 'focus-monitor --wrap-around right'
-cmd-alt-tab = 'focus-monitor --wrap-around next'
-
-# --- Move focused window to another monitor ---
-cmd-alt-shift-h = 'move-node-to-monitor --wrap-around left'
-cmd-alt-shift-l = 'move-node-to-monitor --wrap-around right'
+# --- Monitor navigation ---
+alt-n = 'focus-monitor --wrap-around next'
+alt-shift-n = 'move-node-to-monitor --wrap-around next'
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
