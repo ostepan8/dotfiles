@@ -21,8 +21,12 @@ AQUA=0xff689d6a
 BLACK=0xff1d2021
 
 # ---------- Bar ----------
+# display=main pins it to the macOS "main display" only (set via System Settings
+# → Displays → drag the white bar to the desired monitor). Avoids per-monitor
+# glitches in multi-monitor setups. Use display=all if you want one per screen.
 sketchybar --bar \
     position=top \
+    display=main \
     height=32 \
     blur_radius=40 \
     color=$BG_BAR \
