@@ -136,6 +136,10 @@ After installing, grant **Accessibility** permission (System Settings → Privac
 - `skhd` (at `/opt/homebrew/bin/skhd`)
 - `AeroSpace` (at `/Applications/AeroSpace.app`)
 
+### Multi-monitor setup notes
+
+If using 2+ external monitors with Aerospace + sketchybar, **arrange all externals to the LEFT of the main laptop display** in System Settings → Displays. Externals positioned to the right of main tend to cause flickering / Spotify-type glitches during workspace switches. This is a macOS coordinate-system quirk (negative X coords work more reliably than positive ones for tiling WMs).
+
 ### Making Ghostty the default terminal everywhere
 
 `mac/setup.sh` sets Ghostty as the default app for `.sh`/`.command`/`.tool`/`.zsh`/`.bash` files automatically (via `duti`). To also make Ghostty the external terminal in editors:
