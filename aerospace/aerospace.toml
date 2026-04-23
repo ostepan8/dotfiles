@@ -110,17 +110,17 @@ alt-shift-0 = 'move-node-to-workspace 10'
 # --- Workspace "back and forth" (like tmux last-window) ---
 alt-tab = 'workspace-back-and-forth'
 
-# --- Monitor navigation (directional: [ = left, ] = right, Enter = home) ---
-#   [      → LEFT external monitor  (workspace 10, pinned to HP 327se (2))
-#   ]      → RIGHT external monitor (workspace 9,  pinned to HP 327se (1))
-#   Enter  → home (laptop — always goes to the laptop's currently-visible workspace)
-#   \      → send focused window to LEFT external + follow
-#   '      → send focused window to RIGHT external + follow
-alt-leftSquareBracket  = 'workspace 10'
-alt-rightSquareBracket = 'workspace 9'
-alt-enter              = 'exec-and-forget ~/.config/aerospace/focus-home.sh'
-alt-backslash          = ['move-node-to-workspace 10', 'workspace 10']
-alt-quote              = ['move-node-to-workspace 9',  'workspace 9']
+# --- Monitor navigation ---
+#   Alt+[        → focus LEFT external  (workspace 10, pinned to HP 327se (2))
+#   Alt+]        → focus RIGHT external (workspace 9,  pinned to HP 327se (1))
+#   Alt+Enter    → home (laptop — always goes to laptop's currently-visible workspace)
+#   Alt+Shift+[  → send focused window to LEFT external + follow
+#   Alt+Shift+]  → send focused window to RIGHT external + follow
+alt-leftSquareBracket        = 'workspace 10'
+alt-rightSquareBracket       = 'workspace 9'
+alt-enter                    = 'exec-and-forget ~/.config/aerospace/focus-home.sh'
+alt-shift-leftSquareBracket  = ['move-node-to-workspace 10', 'workspace 10']
+alt-shift-rightSquareBracket = ['move-node-to-workspace 9',  'workspace 9']
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
