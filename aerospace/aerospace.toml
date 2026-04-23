@@ -108,10 +108,11 @@ alt-shift-0 = 'move-node-to-workspace 10'
 alt-tab = 'workspace-back-and-forth'
 
 # --- Monitor navigation ---
-# [ = home (laptop / built-in display) — always goes there regardless of where you are
-alt-leftSquareBracket  = 'focus-monitor built-in'
-# ] = the OTHER monitor (external). With multiple externals, keep pressing to cycle.
-alt-rightSquareBracket = 'focus-monitor --wrap-around next'
+# Uses helper scripts that switch workspaces (not focus-monitor) to avoid
+# macOS's activate-app quirk that would otherwise pull us to the workspace
+# holding "same-app" windows (e.g., Chrome) when switching monitors.
+alt-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/focus-home-monitor.sh'
+alt-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/focus-other-monitor.sh'
 # \ = move focused window to the other monitor AND follow it there
 alt-backslash = ['move-node-to-monitor --wrap-around next', 'focus-monitor --wrap-around next']
 
