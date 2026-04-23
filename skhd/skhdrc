@@ -7,15 +7,17 @@
 # `-n` forces a new instance so macOS doesn't pull focus to existing Ghostty windows.
 alt - space : open -na Ghostty
 
-# ---------- App launchers: new-window semantics ----------
-# Opt+B → new Chrome window on current workspace (uses Chrome's own `--new-window`
-# flag to create a fresh window in the existing Chrome process, no focus jump)
-alt - b : open -a "Google Chrome" --new --args --new-window
+# ---------- Chrome profiles (new window, stays on current workspace) ----------
+# Opt+B → personal Chrome (Owen, ohstep23@gmail.com)
+alt - b : open -a "Google Chrome" --new --args --profile-directory="Profile 1" --new-window
 
-# Opt+E → new Finder window (Finder supports new-window via its AppleScript dictionary)
+# Opt+W → work Chrome (owen@subconscious.dev)
+alt - w : open -a "Google Chrome" --new --args --profile-directory="Profile 13" --new-window
+
+# ---------- Other apps ----------
+# Opt+E → new Finder window
 alt - e : osascript -e 'tell application "Finder" to make new Finder window' -e 'tell application "Finder" to activate'
 
-# ---------- App launchers: single-window apps (just activate/reveal) ----------
-# Slack and Spotify are single-window-per-account apps; activate is the right behavior.
+# Slack and Spotify are single-window apps; activate is the right behavior.
 alt - s : open -a Slack
 alt - m : open -a Spotify

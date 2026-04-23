@@ -9,7 +9,7 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **tmux/** — tmux config (Alt+number window switching, vim-style pane nav, mouse, plugins)
 - **starship/** — minimal prompt with git info
 - **ghostty/** — Ghostty terminal config (Gruvbox Dark Hard, JetBrainsMono Nerd Font, transparent titlebar, drop-down quick terminal on `Opt+\``)
-- **skhd/** — global hotkey daemon config (`Opt+Space` opens a new Ghostty window on the current workspace; `Opt+B/S/M/E` launch Chrome/Slack/Spotify/Finder)
+- **skhd/** — global hotkey daemon config (`Opt+Space` opens a new Ghostty window on the current workspace; `Opt+B`/`Opt+W` launch Chrome with personal/work profiles; `Opt+S/M/E` launch Slack/Spotify/Finder)
 - **aerospace/** — i3-style tiling window manager config (workspaces on `Alt+1-9`, vim-style window focus on `Alt+h/j/k/l`)
 - **sketchybar/** — custom top bar (Gruvbox theme) with Aerospace workspace indicators, front-app, CPU, battery, clock
 - **mac/setup.sh** — macOS installer (Homebrew) — also runs `mac/defaults.sh`
@@ -103,11 +103,11 @@ After install:
 |-----|--------|
 | `Opt+Space` | Open new Ghostty window (launches Ghostty if dead) |
 | `` Opt+` `` | Toggle Ghostty drop-down quick terminal (only while Ghostty is running) |
-| `Opt+C` | Cursor |
-| `Opt+B` | Chrome |
+| `Opt+B` | Chrome — personal profile (new window on current workspace) |
+| `Opt+W` | Chrome — work profile (new window on current workspace) |
 | `Opt+S` | Slack |
 | `Opt+M` | Spotify |
-| `Opt+E` | Finder |
+| `Opt+E` | New Finder window |
 
 ### Aerospace (tiling window manager)
 
