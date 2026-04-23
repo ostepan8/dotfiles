@@ -126,8 +126,13 @@ alt-shift-0 = 'move-node-to-workspace 10'
 alt-tab = 'workspace-back-and-forth'
 
 # --- Monitor navigation ---
+# Bracket keys = directional (they physically look like arrows on the keyboard)
+alt-leftSquareBracket  = 'focus-monitor --wrap-around left'
+alt-rightSquareBracket = 'focus-monitor --wrap-around right'
+# \ = move the focused window to the next monitor (sits right next to the brackets)
+alt-backslash = 'move-node-to-monitor --wrap-around next'
+# Keep `alt-n` as a quick "cycle through all monitors" option
 alt-n = 'focus-monitor --wrap-around next'
-alt-shift-n = 'move-node-to-monitor --wrap-around next'
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
