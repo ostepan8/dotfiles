@@ -51,9 +51,11 @@ inner.vertical   = 8
 outer.left       = 8
 outer.bottom     = 8
 outer.right      = 8
-# Top gap: 40px on laptop (reserves room for sketchybar), 8px on externals
-# (no bar there, so windows can tile edge-to-edge for more screen real estate)
-outer.top        = [{ monitor.'built-in' = 40 }, 8]
+# Top gap: 40px on whichever monitor hosts sketchybar, 8px on monitors
+# without a bar (so windows tile edge-to-edge for more screen real estate).
+# - 'built-in'   : MacBook display (sketchybar pinned there on the laptop)
+# - 'ED340CU S3' : Mac Studio's main display (no built-in monitor on a Studio)
+outer.top        = [{ monitor.'built-in' = 40 }, { monitor.'ED340CU S3' = 40 }, 8]
 
 # ==========================
 # Main mode bindings
