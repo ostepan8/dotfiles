@@ -29,7 +29,7 @@ echo "[6/12] Installing zsh plugin manager..."
 brew install antidote
 
 echo "[7/12] Installing Ghostty + skhd + aerospace + sketchybar + CLI utilities..."
-brew install --cask ghostty
+brew install --cask ghostty google-chrome
 brew install --cask nikitabobko/tap/aerospace
 brew tap FelixKratz/formulae
 brew install sketchybar
