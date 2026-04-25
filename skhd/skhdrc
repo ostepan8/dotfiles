@@ -9,7 +9,7 @@ alt - space : open -na Ghostty
 
 # ---------- Chrome profiles (new window, stays on current workspace) ----------
 # Opt+B → personal Chrome (Owen, ohstep23@gmail.com)
-alt - b : open -a "Google Chrome" --new --args --profile-directory="Profile 1" --new-window
+alt - b : open -a "Google Chrome" --new --args --profile-directory="Default" --new-window
 
 # Opt+W → work Chrome (owen@subconscious.dev)
 alt - w : open -a "Google Chrome" --new --args --profile-directory="Profile 13" --new-window
