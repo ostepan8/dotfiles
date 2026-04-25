@@ -73,6 +73,7 @@ for ext in sh command tool zsh bash; do
 done
 skhd --start-service 2>/dev/null || true
 brew services start felixkratz/formulae/sketchybar 2>/dev/null || true
+open -a AeroSpace 2>/dev/null || true
 nvim --headless +qa 2>/dev/null || true
 
 echo ""
@@ -83,9 +84,16 @@ echo "  1. Open a new terminal (first load will clone zsh plugins — ~10s one-t
 echo "  2. In tmux, press prefix + I to install tmux plugins"
 echo "  3. Launch nvim to finish plugin installation"
 echo ""
-echo "Opt+Space hotkey — grant Accessibility permission to skhd:"
+echo "IMPORTANT: hotkeys + window manager need Accessibility permission."
 echo "    System Settings → Privacy & Security → Accessibility"
-echo "      - skhd   (/opt/homebrew/bin/skhd)"
+echo "      - skhd       (/opt/homebrew/bin/skhd)         ← Opt+Space, Opt+B/W/S/M/E"
+echo "      - AeroSpace  (/Applications/AeroSpace.app)    ← Alt+1-9 workspaces, Alt+h/j/k/l"
 echo ""
-echo "Then press Opt+Space from anywhere to launch a new Ghostty window."
-echo "Opt+\` (Opt+backtick) toggles the Ghostty drop-down quick terminal."
+echo "After toggling them ON, restart both so the new perms take effect:"
+echo "    skhd --restart-service"
+echo "    killall AeroSpace 2>/dev/null; open -a AeroSpace"
+echo ""
+echo "Then test:"
+echo "  Opt+Space     → new Ghostty window"
+echo "  Opt+\` (tick)  → toggle Ghostty drop-down terminal"
+echo "  Alt+1..9      → switch AeroSpace workspaces"
