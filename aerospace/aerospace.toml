@@ -211,19 +211,22 @@ run = 'layout floating'
 if.app-id = 'com.apple.loginwindow'
 run = 'layout floating'
 
-# Minecraft — the launcher (Chromium-based) and the game itself (Java/LWJGL,
-# bundle id is NULL because it's spawned via the JRE). Both float so the
-# game can drive its own window sizing/fullscreen without AeroSpace tiling
-# fighting it. The game window also auto-fullscreens so Cmd+Tab away and
-# back lands you straight back on a full-screen Minecraft.
+# Minecraft — pin both the launcher (Chromium) and the game itself
+# (Java/LWJGL — bundle id is NULL because it's spawned via the JRE) to
+# workspace 8 and float them. Pinning keeps the game from following on
+# workspace switches; floating keeps AeroSpace's tiling out of the
+# game's way. We deliberately do NOT auto-fullscreen — AeroSpace's
+# `fullscreen` can promote the window into macOS-native fullscreen,
+# which gives it its own Space and pulls you over to it whenever the
+# focus changes. Use Alt+F manually inside the game if wanted.
 [[on-window-detected]]
 if.app-id = 'com.mojang.minecraftlauncher'
-run = 'layout floating'
+run = ['move-node-to-workspace 8', 'layout floating']
 
 [[on-window-detected]]
 if.app-name-regex-substring = '^java$'
 if.window-title-regex-substring = '(?i)minecraft'
-run = ['layout floating', 'fullscreen']
+run = ['move-node-to-workspace 8', 'layout floating']
 
 # Quick-terminal drop-downs and small panels
 [[on-window-detected]]
