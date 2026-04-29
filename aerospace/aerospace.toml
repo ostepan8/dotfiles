@@ -140,6 +140,12 @@ alt-shift-backslash          = 'exec-and-forget ~/.config/aerospace/move-home.sh
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
 
+# --- Manually run the phantom-window watchdog ---
+# Same script the launchd job runs every 60s; bind it to a hotkey so
+# whenever tiles look misaligned (shadow window from a closed-but-not-
+# released app window) you can press once and it cleans the tree.
+alt-shift-r = 'exec-and-forget ~/.config/aerospace/cleanup-phantoms.sh'
+
 # --- Swap macOS "main display" (where the menu bar + sketchybar live) ---
 #   Cmd+Opt+[   → make LEFT external the main display    (⌘ ⌥ [)
 #   Cmd+Opt+]   → make RIGHT external the main display   (⌘ ⌥ ])
