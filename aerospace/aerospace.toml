@@ -58,7 +58,7 @@ outer.right      = 8
 # line is rewritten by set-main-display.sh on every Cmd+Opt+[/]/\ swap to
 # track whichever monitor is currently main. Hand-edit only the "40" or "8"
 # values — the monitor pattern is overwritten by the script.
-outer.top        = [{ monitor.'HP 327se \(2\)' = 40 }, 8]
+outer.top        = [{ monitor.'built-in' = 40 }, 8]
 
 # ==========================
 # Main mode bindings
@@ -190,14 +190,10 @@ run = 'layout floating'
 # slot like any other app. The earlier "glitches when tiled" note was from
 # an older AeroSpace version; 0.20.x handles it fine.
 
-# Apple Music + Messages have the same "persistent floating" feel
-[[on-window-detected]]
-if.app-id = 'com.apple.Music'
-run = 'layout floating'
-
-[[on-window-detected]]
-if.app-id = 'com.apple.MobileSMS'
-run = 'layout floating'
+# Apple Music + Messages intentionally tile — same reason as Spotify above:
+# floating left them stuck at their previous geometry whenever the monitor
+# changed (AeroSpace doesn't auto-resize floats), so they'd land tiny and
+# behind other windows. Tiling gives them a real slot every time.
 
 [[on-window-detected]]
 if.app-id = 'com.apple.FaceTime'
@@ -214,6 +210,20 @@ run = 'layout floating'
 [[on-window-detected]]
 if.app-id = 'com.apple.loginwindow'
 run = 'layout floating'
+
+# Minecraft — the launcher (Chromium-based) and the game itself (Java/LWJGL,
+# bundle id is NULL because it's spawned via the JRE). Both float so the
+# game can drive its own window sizing/fullscreen without AeroSpace tiling
+# fighting it. The game window also auto-fullscreens so Cmd+Tab away and
+# back lands you straight back on a full-screen Minecraft.
+[[on-window-detected]]
+if.app-id = 'com.mojang.minecraftlauncher'
+run = 'layout floating'
+
+[[on-window-detected]]
+if.app-name-regex-substring = '^java$'
+if.window-title-regex-substring = '(?i)minecraft'
+run = ['layout floating', 'fullscreen']
 
 # Quick-terminal drop-downs and small panels
 [[on-window-detected]]
