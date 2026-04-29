@@ -108,6 +108,16 @@ defaults write com.apple.screencapture disable-shadow -bool true
 # Speed up window resize animation
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 
+# Disable window open/close animations entirely — apps appear/disappear
+# instantly instead of fading. Combined with the items below, makes the
+# system feel much snappier when GPU is contended (e.g. Cmd+Tab while a
+# game is rendering).
+defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
+
+# Speed up the Mission Control / Spaces / Exposé slide animation.
+# Default ~0.25s; 0.1s is fast but still readable as a transition.
+defaults write com.apple.dock expose-animation-duration -float 0.1
+
 # Don't group windows by app in Mission Control (we tile, each window is its own)
 defaults write com.apple.dock expose-group-apps -bool false
 
