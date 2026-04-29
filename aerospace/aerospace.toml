@@ -133,15 +133,16 @@ alt-shift-rightSquareBracket = ['move-node-to-workspace 9',  'workspace 9',  'mo
 alt-shift-c = 'reload-config'
 
 # --- Swap macOS "main display" (where the menu bar + sketchybar live) ---
-# Mirrors the alt+[/]/enter focus-monitor scheme but with cmd added:
-#   Cmd+Opt+[      → make LEFT external the main display      (⌘ ⌥ [)
-#   Cmd+Opt+]      → make RIGHT external the main display     (⌘ ⌥ ])
-#   Cmd+Opt+Enter  → make laptop the main display             (⌘ ⌥ ↩)
+#   Cmd+Opt+[   → make LEFT external the main display    (⌘ ⌥ [)
+#   Cmd+Opt+]   → make RIGHT external the main display   (⌘ ⌥ ])
+#   Cmd+Opt+M   → make laptop the main display           (⌘ ⌥ M  — m for MacBook)
+# Note: avoiding Cmd+Opt+Enter because terminal apps (Ghostty, Claude Code)
+# treat Enter+modifier as multi-line input.
 # Persistent display IDs come from ~/.config/aerospace/displays.env.
 # Requires `displayplacer` (brew install jakehilborn/jakehilborn/displayplacer).
 cmd-alt-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/set-main-display.sh left'
 cmd-alt-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/set-main-display.sh right'
-cmd-alt-enter              = 'exec-and-forget ~/.config/aerospace/set-main-display.sh laptop'
+cmd-alt-m                  = 'exec-and-forget ~/.config/aerospace/set-main-display.sh laptop'
 
 # ==========================
 # Apps that should always float (not tile)
