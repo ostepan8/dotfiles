@@ -30,10 +30,18 @@ if ! command -v aerospace >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! pgrep -x AeroSpace >/dev/null 2>&1; then
-  echo "$(ts) AeroSpace not running, exiting" >>"$LOG"
+# Probe the AeroSpace server via its own CLI rather than pgrep — pgrep
+# can briefly return empty during config reloads even though the daemon
+# is alive, leading to spurious "not running" log spam. If the CLI gets
+# a real response, the server is up.
+if ! aerospace list-workspaces --focused >/dev/null 2>&1; then
+  echo "$(ts) AeroSpace server not responding, exiting" >>"$LOG"
   exit 0
 fi
+
+# Always log invocation start so a hotkey press leaves a visible trace
+# even when no phantoms exist.
+echo "$(ts) running" >>"$LOG"
 
 # Lazy-compile the AX-window-count helper if missing or out-of-date.
 if [ ! -x "$HELPER" ] || [ "$HELPER_SRC" -nt "$HELPER" ]; then
@@ -120,6 +128,4 @@ if [ -s "$real_snapshot" ]; then
   fi
 fi
 
-if [ "$closed" -gt 0 ] || [ "$failed" -gt 0 ]; then
-  echo "$(ts) summary: closed=$closed failed=$failed" >>"$LOG"
-fi
+echo "$(ts) summary: closed=$closed failed=$failed" >>"$LOG"
