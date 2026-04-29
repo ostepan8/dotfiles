@@ -243,3 +243,20 @@ run = ['move-node-to-workspace 8', 'layout floating']
 [[on-window-detected]]
 if.window-title-regex-substring = '(?i)preferences'
 run = 'layout floating'
+
+# ==========================
+# Phantom-window cleanup on every window open
+# ==========================
+# AeroSpace doesn't expose a window-CLOSED hook (that's the bug we're
+# working around — kAXUIElementDestroyedNotification is unreliable on
+# macOS 15+). It DOES fire on-window-detected on every open. Hooking
+# cleanup here means: any time anything new appears, we sweep stale
+# entries left behind by previous closes.
+#
+# All matching on-window-detected rules run in declaration order
+# (per AeroSpace docs), so this catch-all runs alongside the per-app
+# rules above without overriding them. The cleanup script is sub-100ms
+# and detached, so no perceptible launch lag for new windows.
+[[on-window-detected]]
+if.app-name-regex-substring = '.*'
+run = ['exec-and-forget ~/.config/aerospace/cleanup-phantoms.sh']
