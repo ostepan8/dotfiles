@@ -19,8 +19,10 @@ accordion-padding = 30
 default-root-container-layout = 'tiles'
 default-root-container-orientation = 'auto'
 
-# Don't let windows animate off-screen when switching workspaces
-on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+# Don't let windows animate off-screen when switching workspaces.
+# flatten-workspace-tree forces a retile so windows resize to the new monitor's
+# dimensions — fixes the "windows are wrong size after primary-display change" bug.
+on-focused-monitor-changed = ['move-mouse monitor-lazy-center', 'flatten-workspace-tree']
 
 # Notify sketchybar on workspace change so the workspace indicator highlights correctly
 exec-on-workspace-change = ['/bin/bash', '-c',
@@ -51,9 +53,11 @@ inner.vertical   = 8
 outer.left       = 8
 outer.bottom     = 8
 outer.right      = 8
-# Top gap: 40px on laptop (reserves room for sketchybar), 8px on externals
-# (no bar there, so windows can tile edge-to-edge for more screen real estate)
-outer.top        = [{ monitor.'built-in' = 40 }, 8]
+# Top gap: 40px on every monitor so sketchybar fits regardless of which display
+# macOS treats as "main" (sketchybar only renders on the main display, but it
+# can move between monitors). Costs ~32px of edge-to-edge tiling on the
+# non-main externals; cheap insurance that the bar never overlaps windows.
+outer.top        = 40
 
 # ==========================
 # Main mode bindings
@@ -127,6 +131,17 @@ alt-shift-rightSquareBracket = ['move-node-to-workspace 9',  'workspace 9',  'mo
 
 # --- Reload Aerospace config ---
 alt-shift-c = 'reload-config'
+
+# --- Swap macOS "main display" (where the menu bar + sketchybar live) ---
+# Mirrors the alt+[/]/enter focus-monitor scheme but with ctrl modifier:
+#   Alt+Ctrl+[      → make LEFT external the main display
+#   Alt+Ctrl+]      → make RIGHT external the main display
+#   Alt+Ctrl+Enter  → make laptop the main display
+# Persistent display IDs come from ~/.config/aerospace/displays.env.
+# Requires `displayplacer` (brew install jakehilborn/jakehilborn/displayplacer).
+alt-ctrl-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/set-main-display.sh left'
+alt-ctrl-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/set-main-display.sh right'
+alt-ctrl-enter              = 'exec-and-forget ~/.config/aerospace/set-main-display.sh laptop'
 
 # ==========================
 # Apps that should always float (not tile)

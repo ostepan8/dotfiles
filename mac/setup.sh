@@ -34,6 +34,10 @@ brew install --cask nikitabobko/tap/aerospace
 brew tap FelixKratz/formulae
 brew install sketchybar
 brew install koekeishiya/formulae/skhd duti dockutil
+# displayplacer powers the alt-ctrl-[/]/enter bindings that swap which monitor
+# is the macOS "main display". After install, run `displayplacer list` and
+# update aerospace/displays.env with the persistent IDs for this machine.
+brew install jakehilborn/jakehilborn/displayplacer
 
 echo "[8/12] Installing lazy.nvim..."
 if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
@@ -50,6 +54,9 @@ cp -f "$REPO_DIR/skhd/skhdrc" ~/.skhdrc
 cp -f "$REPO_DIR/aerospace/aerospace.toml" ~/.config/aerospace/aerospace.toml
 cp -f "$REPO_DIR/aerospace/"*.sh ~/.config/aerospace/ 2>/dev/null || true
 chmod +x ~/.config/aerospace/*.sh 2>/dev/null || true
+# displays.env holds machine-specific persistent display IDs. Don't overwrite an
+# existing one — those IDs only apply to this machine.
+[ -f ~/.config/aerospace/displays.env ] || cp -f "$REPO_DIR/aerospace/displays.env" ~/.config/aerospace/displays.env
 cp -f "$REPO_DIR/sketchybar/sketchybarrc" ~/.config/sketchybar/sketchybarrc
 cp -f "$REPO_DIR/sketchybar/plugins/"*.sh ~/.config/sketchybar/plugins/
 chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
