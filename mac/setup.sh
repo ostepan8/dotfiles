@@ -57,15 +57,29 @@ chmod +x ~/.config/aerospace/*.sh 2>/dev/null || true
 # displays.env holds machine-specific persistent display IDs. Don't overwrite an
 # existing one — those IDs only apply to this machine.
 [ -f ~/.config/aerospace/displays.env ] || cp -f "$REPO_DIR/aerospace/displays.env" ~/.config/aerospace/displays.env
+# Phantom-window watchdog helper — Swift program that asks each running
+# app via the AX API how many windows it really has, so cleanup-phantoms.sh
+# can detect stale-window phantoms (process alive but window already closed).
+# Lazy-compiled by cleanup-phantoms.sh on first run if missing, but we
+# build it eagerly at setup time so the very first cleanup is fast.
+if [ -f "$REPO_DIR/aerospace/list-real-windows.swift" ]; then
+  cp -f "$REPO_DIR/aerospace/list-real-windows.swift" ~/.config/aerospace/list-real-windows.swift
+  if command -v swiftc >/dev/null 2>&1; then
+    swiftc -O ~/.config/aerospace/list-real-windows.swift -o ~/.config/aerospace/list-real-windows \
+      && echo "  compiled aerospace/list-real-windows"
+  fi
+fi
 cp -f "$REPO_DIR/sketchybar/sketchybarrc" ~/.config/sketchybar/sketchybarrc
 cp -f "$REPO_DIR/sketchybar/plugins/"*.sh ~/.config/sketchybar/plugins/
 chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
 [ -f "$REPO_DIR/tmux/.tmux.conf" ] && cp -f "$REPO_DIR/tmux/.tmux.conf" ~/.tmux.conf
 
 # Install LaunchAgents (per-user background services). The aerospace-cleanup
-# agent watches for phantom windows from dead processes and restarts AeroSpace
-# if any are detected — fixes the "new app opens at 1/N of the screen" bug
-# where the tiling tree counts ghost windows from already-closed apps.
+# agent runs every 60s and surgically drops phantom windows from AeroSpace's
+# tiling tree (both dead-PID phantoms and stale-window phantoms where the
+# process is alive but the window was closed without notifying AeroSpace).
+# Fixes the "new app opens at 1/N of the screen" bug where the tiling tree
+# counts ghost windows from already-closed apps.
 mkdir -p ~/Library/LaunchAgents
 for plist in "$REPO_DIR/mac/LaunchAgents/"*.plist; do
   [ -f "$plist" ] || continue
