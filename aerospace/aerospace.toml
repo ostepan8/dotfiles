@@ -53,11 +53,12 @@ inner.vertical   = 8
 outer.left       = 8
 outer.bottom     = 8
 outer.right      = 8
-# Top gap: 40px on every monitor so sketchybar fits regardless of which display
-# macOS treats as "main" (sketchybar only renders on the main display, but it
-# can move between monitors). Costs ~32px of edge-to-edge tiling on the
-# non-main externals; cheap insurance that the bar never overlaps windows.
-outer.top        = 40
+# Top gap: 40px reserved on the macOS main display only (where sketchybar
+# lives), 8px on the others (edge-to-edge tiling — no bar to clear). This
+# line is rewritten by set-main-display.sh on every Cmd+Opt+[/]/\ swap to
+# track whichever monitor is currently main. Hand-edit only the "40" or "8"
+# values — the monitor pattern is overwritten by the script.
+outer.top        = [{ monitor.'built-in' = 40 }, 8]
 
 # ==========================
 # Main mode bindings

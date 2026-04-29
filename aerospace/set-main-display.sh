@@ -19,9 +19,9 @@ fi
 source "$CONFIG"
 
 case "${1:-}" in
-    laptop) TARGET_ID="${LAPTOP_ID:-}" ;;
-    left)   TARGET_ID="${LEFT_HP_ID:-}" ;;
-    right)  TARGET_ID="${RIGHT_HP_ID:-}" ;;
+    laptop) TARGET_ID="${LAPTOP_ID:-}";  GAP_PATTERN='built-in' ;;
+    left)   TARGET_ID="${LEFT_HP_ID:-}"; GAP_PATTERN='HP 327se \(2\)' ;;
+    right)  TARGET_ID="${RIGHT_HP_ID:-}"; GAP_PATTERN='HP 327se \(1\)' ;;
     *)      echo "usage: $0 <laptop|left|right>" >&2; exit 1 ;;
 esac
 
@@ -36,13 +36,19 @@ if ! command -v "$DP" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Pass dp path + target id as env vars; Python will run displayplacer itself
-# to avoid the "stdin is already consumed by the heredoc" trap.
-DP="$DP" TARGET_ID="$TARGET_ID" /usr/bin/python3 <<'PY'
+# Pass dp path + target id + gap pattern + config path as env vars; Python
+# runs displayplacer itself to avoid the "stdin already consumed by heredoc" trap.
+DP="$DP" \
+TARGET_ID="$TARGET_ID" \
+GAP_PATTERN="$GAP_PATTERN" \
+AEROSPACE_TOML="${HOME}/.config/aerospace/aerospace.toml" \
+    /usr/bin/python3 <<'PY'
 import os, re, subprocess, sys
 
 dp = os.environ["DP"]
 target_id = os.environ["TARGET_ID"]
+gap_pattern = os.environ["GAP_PATTERN"]
+aerospace_toml = os.environ["AEROSPACE_TOML"]
 
 text = subprocess.check_output([dp, "list"], text=True)
 
@@ -77,17 +83,39 @@ if not target:
     sys.exit(0)
 
 tx, ty = target["ox"], target["oy"]
-if tx == 0 and ty == 0:
-    print("target is already main — no-op", file=sys.stderr)
-    sys.exit(0)
+already_main = (tx == 0 and ty == 0)
 
-parts = [
-    f'id:{s["id"]} res:{s["res"]} hz:{s["hz"]} color_depth:{s["depth"]} '
-    f'enabled:true scaling:{s["scaling"]} origin:({s["ox"]-tx},{s["oy"]-ty}) degree:{s["rotation"]}'
-    for s in screens
-]
-subprocess.run([dp, *parts], check=True)
+if not already_main:
+    parts = [
+        f'id:{s["id"]} res:{s["res"]} hz:{s["hz"]} color_depth:{s["depth"]} '
+        f'enabled:true scaling:{s["scaling"]} origin:({s["ox"]-tx},{s["oy"]-ty}) degree:{s["rotation"]}'
+        for s in screens
+    ]
+    subprocess.run([dp, *parts], check=True)
+
+# Rewrite outer.top in aerospace.toml so 40px is reserved ONLY on the new
+# main display (other monitors get 8px since no bar lives there). Aerospace's
+# gap config is static at parse time, so the only way to get per-main gaps
+# is to mutate the file and reload. We always rewrite — even on the no-op
+# "already main" path — to recover from out-of-band main-display changes
+# (e.g. user dragged the white bar in System Settings).
+new_line = f"outer.top        = [{{ monitor.'{gap_pattern}' = 40 }}, 8]"
+with open(aerospace_toml) as f:
+    content = f.read()
+new_content = re.sub(
+    r"^outer\.top\s*=.*$",
+    new_line,
+    content,
+    count=1,
+    flags=re.MULTILINE,
+)
+if new_content != content:
+    with open(aerospace_toml, "w") as f:
+        f.write(new_content)
 PY
+
+# Reload aerospace so the new gap config takes effect immediately.
+/opt/homebrew/bin/aerospace reload-config >/dev/null 2>&1 || true
 
 # Sketchybar sizes itself to the macOS main display *at startup*. `--reload`
 # re-runs sketchybarrc but doesn't re-create the bar window, so a smaller
