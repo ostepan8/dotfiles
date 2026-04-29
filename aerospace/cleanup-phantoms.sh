@@ -1,14 +1,19 @@
 #!/bin/bash
-# Detect and clear phantom windows in AeroSpace.
+# Surgically drop phantom windows from AeroSpace's tiling tree.
 #
-# Bug: when an app process dies (e.g. Ghostty crash, force-quit), AeroSpace
-# can fail to GC its window from the tiling tree. Phantom windows shrink
-# every other window in the workspace — a "new" terminal on a "blank"
-# workspace ends up at 1/N of the screen.
+# Bug: AeroSpace 0.20.x relies on the macOS Accessibility
+# kAXUIElementDestroyedNotification to GC closed windows. The notification
+# is unreliable (more so on macOS 15+) — when an app process dies abruptly
+# (Ghostty force-quit, crash, hung Mail.app, etc.), the dead window stays
+# in the tiling tree forever. Each phantom shrinks every other tile in the
+# workspace, so a "new" terminal on a "blank" workspace ends up at 1/N.
+# Tracking issue: https://github.com/nikitabobko/AeroSpace/issues/1615
 #
-# This script scans every tracked window's PID. If the PID is gone from
-# the OS process table, AeroSpace is holding a phantom and we restart it
-# to rebuild a clean window tree.
+# Fix: for every tracked window whose backing PID no longer exists in the
+# OS process table, call `aerospace close --window-id <N>`. This drops the
+# phantom from the tree without disturbing any live window or workspace
+# assignment — much less destructive than restarting AeroSpace (which
+# loses every window-to-workspace mapping).
 
 set -euo pipefail
 
@@ -25,43 +30,33 @@ if ! pgrep -x AeroSpace >/dev/null 2>&1; then
   exit 0
 fi
 
-phantoms=0
-while IFS= read -r pid; do
+# Snapshot tracked windows once, then probe PIDs locally. Portable across
+# macOS's stock bash 3.2 (no `mapfile`) — read a temp file line by line.
+snapshot=$(mktemp -t aerospace-cleanup-XXXXXX) || exit 0
+trap 'rm -f "$snapshot"' EXIT
+aerospace list-windows --all --format '%{window-id} %{app-pid} %{app-name}' >"$snapshot" 2>/dev/null || true
+
+closed=0
+failed=0
+while IFS= read -r row; do
+  [ -z "$row" ] && continue
+  wid=$(awk '{print $1}' <<<"$row")
+  pid=$(awk '{print $2}' <<<"$row")
+  app=$(cut -d' ' -f3- <<<"$row")
+  [ -z "$wid" ] && continue
   [ -z "$pid" ] && continue
-  if ! kill -0 "$pid" 2>/dev/null; then
-    phantoms=$((phantoms + 1))
+  if kill -0 "$pid" 2>/dev/null; then
+    continue
   fi
-done < <(aerospace list-windows --all --format '%{app-pid}' 2>/dev/null | sort -u)
-
-if [ "$phantoms" -eq 0 ]; then
-  exit 0
-fi
-
-echo "$(ts) detected $phantoms phantom PID(s), restarting AeroSpace" >>"$LOG"
-
-# Snapshot the focused workspace so we can restore focus after restart.
-focused_ws=$(aerospace list-workspaces --focused 2>/dev/null || echo "")
-
-pkill -x AeroSpace || true
-
-# Wait for the process to actually exit before relaunching.
-for _ in $(seq 1 20); do
-  pgrep -x AeroSpace >/dev/null 2>&1 || break
-  sleep 0.1
-done
-
-open -a AeroSpace
-
-# Wait for AeroSpace to come back up before issuing commands.
-for _ in $(seq 1 30); do
-  if aerospace list-workspaces --focused >/dev/null 2>&1; then
-    break
+  if aerospace close --window-id "$wid" >/dev/null 2>&1; then
+    closed=$((closed + 1))
+    echo "$(ts) closed phantom window-id=$wid pid=$pid app=$app" >>"$LOG"
+  else
+    failed=$((failed + 1))
+    echo "$(ts) FAILED to close window-id=$wid pid=$pid app=$app" >>"$LOG"
   fi
-  sleep 0.2
-done
+done <"$snapshot"
 
-if [ -n "$focused_ws" ]; then
-  aerospace workspace "$focused_ws" 2>/dev/null || true
+if [ "$closed" -gt 0 ] || [ "$failed" -gt 0 ]; then
+  echo "$(ts) summary: closed=$closed failed=$failed" >>"$LOG"
 fi
-
-echo "$(ts) restart complete" >>"$LOG"
