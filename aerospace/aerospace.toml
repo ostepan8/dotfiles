@@ -58,7 +58,7 @@ outer.right      = 8
 # line is rewritten by set-main-display.sh on every Cmd+Opt+[/]/\ swap to
 # track whichever monitor is currently main. Hand-edit only the "40" or "8"
 # values — the monitor pattern is overwritten by the script.
-outer.top        = [{ monitor.'built-in' = 40 }, 8]
+outer.top        = [{ monitor.'HP 327se \(2\)' = 40 }, 8]
 
 # ==========================
 # Main mode bindings
@@ -184,10 +184,11 @@ run = 'layout floating'
 if.app-id = 'com.grammarly.ProjectLlama'
 run = 'layout floating'
 
-# Spotify — persistent media player window glitches when tiled across monitors
-[[on-window-detected]]
-if.app-id = 'com.spotify.client'
-run = 'layout floating'
+# Spotify intentionally tiles. Floating left it stuck at its previous size
+# whenever the monitor changed (AeroSpace doesn't auto-resize floats), so
+# Spotify would land tiny + behind other windows. Tiling makes it fill its
+# slot like any other app. The earlier "glitches when tiled" note was from
+# an older AeroSpace version; 0.20.x handles it fine.
 
 # Apple Music + Messages have the same "persistent floating" feel
 [[on-window-detected]]
