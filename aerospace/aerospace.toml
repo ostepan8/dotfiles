@@ -24,9 +24,14 @@ default-root-container-orientation = 'auto'
 # dimensions — fixes the "windows are wrong size after primary-display change" bug.
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center', 'flatten-workspace-tree']
 
-# Notify sketchybar on workspace change so the workspace indicator highlights correctly
+# On workspace change:
+#   1. notify sketchybar so the workspace indicator highlights correctly
+#   2. fire the phantom-window cleanup in the background — apps like
+#      Messages frequently leave stale windows in AeroSpace's tree, and
+#      this self-heals the moment you'd actually notice misalignment.
+#      The script is sub-100ms and runs detached (`&`), so no input lag.
 exec-on-workspace-change = ['/bin/bash', '-c',
-    'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+    'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE; ~/.config/aerospace/cleanup-phantoms.sh &'
 ]
 
 # ==========================
