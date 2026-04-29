@@ -83,24 +83,26 @@ while IFS=$'\t' read -r wid pid app title; do
   fi
 done <"$ae_snapshot"
 
-# --- Pass 2: stale-window phantoms (process alive, window closed silently).
-# For each PID where AeroSpace tracks more windows than AX reports, close
-# the excess. Prefer rows whose window-title is empty — those are far more
-# likely to be the stale ones (a real window almost always has a title).
+# --- Pass 2: stale-window phantoms (process alive, window invisible).
+# AX snapshot is per-window: pid app title minimized hidden width height.
+# A window is "visible" iff minimized=0, hidden=0, and size is non-trivial.
+# If AeroSpace tracks more windows for a PID than AX considers visible,
+# the excess are phantoms — gone, minimized, hidden behind Cmd+H, or
+# zero-sized — but AeroSpace is still allocating tile space for them.
+# Prefer to close empty-title rows first; a real, visible window almost
+# always has a title.
 if [ -s "$real_snapshot" ]; then
-  # Build per-PID AX count via awk.
-  awk -F'\t' 'NR==FNR { real[$1]=$3; next }
-              kill_ok($2)' \
-    "$real_snapshot" /dev/null >/dev/null 2>&1 || true
-
-  # We want, for each PID present in BOTH snapshots: ae_count - ax_count > 0.
-  # Use awk to compute the per-PID excess and emit (pid, excess).
   excess_per_pid=$(awk -F'\t' '
-    NR==FNR { ax[$1]=$3; seen[$1]=1; next }
+    NR==FNR {
+      pid=$1; min=$4; hid=$5; w=$6; h=$7
+      if (min==0 && hid==0 && w > 100 && h > 100) ax_visible[pid]++
+      seen[pid]=1
+      next
+    }
     seen[$2] { ae[$2]++ }
     END {
       for (pid in seen) {
-        diff = ae[pid] - ax[pid]
+        diff = ae[pid] - ax_visible[pid]
         if (diff > 0) print pid"\t"diff
       }
     }
