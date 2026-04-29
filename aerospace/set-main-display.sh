@@ -36,12 +36,15 @@ if ! command -v "$DP" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Hand the current layout to Python — much easier to parse multi-line records there.
-"$DP" list | /usr/bin/python3 - "$TARGET_ID" "$DP" <<'PY'
-import re, subprocess, sys
+# Pass dp path + target id as env vars; Python will run displayplacer itself
+# to avoid the "stdin is already consumed by the heredoc" trap.
+DP="$DP" TARGET_ID="$TARGET_ID" /usr/bin/python3 <<'PY'
+import os, re, subprocess, sys
 
-target_id, dp = sys.argv[1], sys.argv[2]
-text = sys.stdin.read()
+dp = os.environ["DP"]
+target_id = os.environ["TARGET_ID"]
+
+text = subprocess.check_output([dp, "list"], text=True)
 
 blocks = [b for b in text.split("\n\n") if "Persistent screen id" in b]
 screens = []
@@ -69,7 +72,7 @@ for blk in blocks:
 
 target = next((s for s in screens if s["id"] == target_id), None)
 if not target:
-    # Target not connected right now — graceful no-op so a binding press doesn't error out.
+    # Target not connected right now — graceful no-op so a binding press doesn't error.
     print(f"target {target_id} not currently enabled — skipping", file=sys.stderr)
     sys.exit(0)
 
