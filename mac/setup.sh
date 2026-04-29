@@ -62,6 +62,20 @@ cp -f "$REPO_DIR/sketchybar/plugins/"*.sh ~/.config/sketchybar/plugins/
 chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
 [ -f "$REPO_DIR/tmux/.tmux.conf" ] && cp -f "$REPO_DIR/tmux/.tmux.conf" ~/.tmux.conf
 
+# Install LaunchAgents (per-user background services). The aerospace-cleanup
+# agent watches for phantom windows from dead processes and restarts AeroSpace
+# if any are detected — fixes the "new app opens at 1/N of the screen" bug
+# where the tiling tree counts ghost windows from already-closed apps.
+mkdir -p ~/Library/LaunchAgents
+for plist in "$REPO_DIR/mac/LaunchAgents/"*.plist; do
+  [ -f "$plist" ] || continue
+  label="$(basename "$plist" .plist)"
+  cp -f "$plist" "$HOME/Library/LaunchAgents/$(basename "$plist")"
+  launchctl unload "$HOME/Library/LaunchAgents/$(basename "$plist")" 2>/dev/null || true
+  launchctl load    "$HOME/Library/LaunchAgents/$(basename "$plist")"
+  echo "  loaded LaunchAgent: $label"
+done
+
 echo "[10/12] Linking zsh config..."
 # Back up any existing .zshrc once
 [ -f "$HOME/.zshrc" ] && [ ! -f "$HOME/.zshrc.backup" ] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup"
