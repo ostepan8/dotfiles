@@ -89,7 +89,12 @@ parts = [
 subprocess.run([dp, *parts], check=True)
 PY
 
-# Nudge sketchybar to re-render on whichever display is now main.
+# Sketchybar sizes itself to the macOS main display *at startup*. `--reload`
+# re-runs sketchybarrc but doesn't re-create the bar window, so a smaller
+# laptop screen ends up with a bar still sized for the larger HP. Full
+# daemon restart is the only reliable way to re-query the new geometry.
 if command -v sketchybar >/dev/null 2>&1; then
-    sketchybar --reload >/dev/null 2>&1 || true
+    # Give macOS a moment to finish reconfiguring displays before sketchybar
+    # asks for the main-display dimensions.
+    ( sleep 0.6 && brew services restart sketchybar >/dev/null 2>&1 ) &
 fi
