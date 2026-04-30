@@ -51,6 +51,14 @@ for app in workspace.runningApplications {
     if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &rawValue) != .success { continue }
     guard let windows = rawValue as? [AXUIElement] else { continue }
 
+    // Sentinel: AX responded but the process has no windows. Emit a zero-size
+    // row so the cleanup script knows this PID is reachable with 0 visible
+    // windows — any AeroSpace tiles for it are phantoms.
+    if windows.isEmpty {
+        print("\(pid)\t\(name)\t\t0\t0\t0\t0")
+        continue
+    }
+
     for w in windows {
         let title = stringAttr(w, kAXTitleAttribute as String)
             .replacingOccurrences(of: "\t", with: " ")
