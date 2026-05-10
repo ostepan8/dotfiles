@@ -1,29 +1,33 @@
 # ---------- PATH + env ----------
-export PATH="$PATH:$HOME/Desktop/vcpkg"
-export NODE_OPTIONS=--use-openssl-ca
-export AWS_CA_BUNDLE=/etc/ssl/cert.pem
-export SSL_CERT_FILE="/opt/homebrew/etc/ca-certificates/cert.pem"
-export PATH="$PATH:$HOME/Qt/5.15.2/clang_64/bin"
 export EDITOR=nvim
 export PATH="$HOME/.local/bin:$PATH"
+
+# ---------- mac-only paths ----------
+if [[ "$(uname)" == "Darwin" ]]; then
+    [ -d "$HOME/Desktop/vcpkg" ] && export PATH="$PATH:$HOME/Desktop/vcpkg"
+    export NODE_OPTIONS=--use-openssl-ca
+    export AWS_CA_BUNDLE=/etc/ssl/cert.pem
+    [ -f "/opt/homebrew/etc/ca-certificates/cert.pem" ] && export SSL_CERT_FILE="/opt/homebrew/etc/ca-certificates/cert.pem"
+    [ -d "$HOME/Qt/5.15.2/clang_64/bin" ] && export PATH="$PATH:$HOME/Qt/5.15.2/clang_64/bin"
+    [ -d "/Applications/MATLAB_R2024b.app" ] && export PATH="/Applications/MATLAB_R2024b.app/bin:$PATH"
+    [ -d "/Applications/MATLAB_R2023a.app" ] && export PATH="/Applications/MATLAB_R2023a.app/bin:$PATH"
+fi
 
 # ---------- history ----------
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
 SAVEHIST=50000
-setopt SHARE_HISTORY         # sync history across all open terminals in real time
-setopt HIST_IGNORE_DUPS      # don't record a command that was just recorded
-setopt HIST_IGNORE_ALL_DUPS  # when adding a new entry, remove older duplicates
-setopt HIST_IGNORE_SPACE     # a command prefixed with a space is not recorded
-setopt HIST_REDUCE_BLANKS    # strip extra whitespace before saving
-setopt HIST_VERIFY           # !! / !$ expansions show the command before running
-setopt EXTENDED_HISTORY      # save timestamp + duration per entry
-setopt APPEND_HISTORY        # append instead of overwriting on shell exit
-setopt INC_APPEND_HISTORY    # write commands to disk as they're typed, not on exit
+setopt SHARE_HISTORY
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_IGNORE_SPACE
+setopt HIST_REDUCE_BLANKS
+setopt HIST_VERIFY
+setopt EXTENDED_HISTORY
+setopt APPEND_HISTORY
+setopt INC_APPEND_HISTORY
 
 # ---------- conda (lazy) ----------
-# Real init is deferred until the first `conda` / `mamba` call.
-# To run it eagerly, call `load_conda` manually.
 if [ -d "/opt/anaconda3" ]; then
     load_conda() {
         unset -f conda mamba load_conda 2>/dev/null
@@ -44,8 +48,6 @@ if [ -d "/opt/anaconda3" ]; then
 fi
 
 # ---------- nvm (lazy) ----------
-# Real nvm.sh is deferred until the first `nvm` / `node` / `npm` / `npx` / `yarn` / `pnpm` call.
-# To load eagerly, call `load_nvm` manually.
 export NVM_DIR="$HOME/.nvm"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
     load_nvm() {
@@ -67,10 +69,6 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
-# ---------- MATLAB (optional) ----------
-[ -d "/Applications/MATLAB_R2024b.app" ] && export PATH="/Applications/MATLAB_R2024b.app/bin:$PATH"
-[ -d "/Applications/MATLAB_R2023a.app" ] && export PATH="/Applications/MATLAB_R2023a.app/bin:$PATH"
-
 # ---------- opencode ----------
 [ -d "$HOME/.opencode/bin" ] && export PATH="$HOME/.opencode/bin:$PATH"
 
@@ -78,8 +76,10 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 command -v starship >/dev/null && eval "$(starship init zsh)"
 
 # ---------- aliases ----------
-alias code="zed"
-alias cursor='open -a Cursor'
+if [[ "$(uname)" == "Darwin" ]]; then
+    alias code="zed"
+    alias cursor='open -a Cursor'
+fi
 alias claude-tg="claude --channels plugin:telegram@claude-plugins-official"
 alias ccd="claude --dangerously-skip-permissions"
 alias ccrd="claude --resume --dangerously-skip-permissions"
@@ -97,9 +97,7 @@ alias reload='source ~/.zshrc'
 alias e='exit'
 
 # ---------- completions + plugins ----------
-# compinit must run before fzf-tab; antidote loads plugins listed in ~/.zsh_plugins.txt
 autoload -Uz compinit && compinit
-# antidote: try common install locations (brew on mac, git clone on linux, distro pkg)
 for __antidote in \
     /opt/homebrew/opt/antidote/share/antidote/antidote.zsh \
     /usr/local/opt/antidote/share/antidote/antidote.zsh \
@@ -113,17 +111,12 @@ for __antidote in \
 done
 unset __antidote
 
-# Bind ↑/↓ to fuzzy-match history-substring-search (cycles through every match)
 bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down
 
 # ---------- fzf + zoxide ----------
-# fzf shell integration: fuzzy Ctrl+R (history — overridden by atuin below), Ctrl+T (files), Alt+C (cd)
 command -v fzf >/dev/null && source <(fzf --zsh)
-# zoxide: `z <fragment>` jumps to frecent dirs, `zi` opens interactive picker
 command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 
 # ---------- atuin ----------
-# Replaces Ctrl+R with a proper shell-history database (fuzzy search, synced, timestamped).
-# --disable-up-arrow keeps the existing history-substring-search binding on ↑/↓.
 command -v atuin >/dev/null && eval "$(atuin init zsh --disable-up-arrow)"
