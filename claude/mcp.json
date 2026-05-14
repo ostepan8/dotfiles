@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "linear": {
+      "type": "http",
+      "url": "https://mcp.linear.app/mcp"
+    },
+    "claude-todo-queue": {
+      "command": "/Users/ostepan/.claude/tools/todo-queue/.venv/bin/python",
+      "args": ["/Users/ostepan/.claude/tools/todo-queue/server/mcp_server.py"]
+    },
+    "notion": {
+      "command": "npx",
+      "args": ["-y", "@notionhq/notion-mcp-server"],
+      "env": {
+        "OPENAPI_MCP_HEADERS": "{\"Authorization\":\"Bearer ${NOTION_TOKEN}\",\"Notion-Version\":\"2022-06-28\"}"
+      }
+    }
+  }
+}

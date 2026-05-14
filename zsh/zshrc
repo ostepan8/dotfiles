@@ -21,6 +21,16 @@ setopt EXTENDED_HISTORY      # save timestamp + duration per entry
 setopt APPEND_HISTORY        # append instead of overwriting on shell exit
 setopt INC_APPEND_HISTORY    # write commands to disk as they're typed, not on exit
 
+# ---------- quality-of-life setopts ----------
+setopt AUTO_CD               # `dirname` ≡ `cd dirname`
+setopt AUTO_PUSHD            # `cd` pushes the old dir onto the stack
+setopt PUSHD_IGNORE_DUPS     # don't stack the same dir twice
+setopt PUSHD_SILENT          # don't print the dir stack on every cd
+setopt EXTENDED_GLOB         # ^, ~, # globbing operators
+setopt INTERACTIVE_COMMENTS  # allow `cmd # comment` on the command line
+setopt COMPLETE_IN_WORD      # completion can split a word at the cursor
+setopt NO_BEEP               # no bell
+
 # ---------- conda (lazy) ----------
 # Real init is deferred until the first `conda` / `mamba` call.
 # To run it eagerly, call `load_conda` manually.

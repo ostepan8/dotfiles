@@ -1,0 +1,111 @@
+[user]
+	name = Owen Stepan
+	email = 106773727+ostepan8@users.noreply.github.com
+
+[init]
+	defaultBranch = main
+
+[core]
+	editor = nvim
+	pager = delta
+	excludesfile = ~/.gitignore_global
+
+[pull]
+	# rebase on pull → linear history, no merge bubbles
+	rebase = true
+
+[push]
+	default = current
+	# `git push` on a new branch creates the upstream automatically
+	autoSetupRemote = true
+	followTags = true
+
+[rebase]
+	autoSquash = true
+	autoStash = true
+	# reapply squash/fixup commits in their original order
+	missingCommitsCheck = warn
+
+[rerere]
+	# remember resolutions so the same conflict doesn't fight you twice
+	enabled = true
+	autoUpdate = true
+
+[fetch]
+	# delete refs for branches deleted on the remote
+	prune = true
+	pruneTags = true
+
+[diff]
+	# better hunks than the default Myers algorithm
+	algorithm = histogram
+	colorMoved = default
+	# show submodule diffs as log entries instead of "binary diff"
+	submodule = log
+
+[merge]
+	# zdiff3 includes the common ancestor in conflict markers → easier resolves
+	conflictStyle = zdiff3
+	conflictstyle = zdiff3
+
+[branch]
+	# `git branch` lists most-recently-touched first
+	sort = -committerdate
+
+[column]
+	ui = auto
+
+[log]
+	date = iso
+
+[help]
+	# typo correction prompts instead of running blindly after 1.5s
+	autocorrect = prompt
+
+[interactive]
+	diffFilter = delta --color-only
+
+[delta]
+	navigate = true
+	line-numbers = true
+	side-by-side = false
+	syntax-theme = gruvbox-dark
+	hyperlinks = true
+
+[alias]
+	st = status -sb
+	co = checkout
+	br = branch
+	ci = commit
+	cm = commit -m
+	df = diff
+	ds = diff --staged
+	lg = log --oneline --graph --decorate --all -30
+	last = log -1 HEAD --stat
+	unstage = reset HEAD --
+	# soft-undo the last commit, keeping changes staged
+	undo = reset --soft HEAD~1
+	# show the repo root
+	root = rev-parse --show-toplevel
+	# show only changed files in the last commit
+	files = show --stat --oneline HEAD
+	# list branches by recency with last commit info
+	recent = branch --sort=-committerdate --format=%(refname:short)%09%(committerdate:relative)%09%(authorname)
+	# delete branches already merged into main (dry run with --merged main first)
+	cleanup = "!git branch --merged main | grep -v '^\\*\\| main$' | xargs -r git branch -d"
+
+# Per-host or per-org overrides go in ~/.gitconfig.local (not tracked).
+# Example use case: a different email for work repos cloned into ~/work/.
+[include]
+	path = ~/.gitconfig.local
+
+# Example conditional identity (uncomment and tune to taste):
+# [includeIf "gitdir:~/work/"]
+#   path = ~/.gitconfig.work
+
+# Git LFS hooks (kept here so a fresh machine works out of the box).
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true

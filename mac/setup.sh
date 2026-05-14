@@ -4,48 +4,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-echo "[0/12] Checking for Homebrew..."
+echo "[0/8] Checking for Homebrew..."
 if ! command -v brew >/dev/null 2>&1; then
     echo "Homebrew not found. Installing..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
-echo "[1/12] Updating Homebrew..."
+echo "[1/8] Updating Homebrew..."
 brew update
 
-echo "[2/12] Installing core developer tools..."
-brew install neovim git tmux node python ripgrep
+echo "[2/8] Installing all packages via Brewfile..."
+brew bundle --file="$REPO_DIR/Brewfile"
 
-echo "[3/12] Installing LSP servers & formatters..."
-brew install pyright llvm black clang-format
-
-echo "[4/12] Installing terminal tools..."
-brew install fzf fd jq bat eza gh starship zoxide atuin
-
-echo "[5/12] Installing git tools..."
-brew install lazygit git-delta
-
-echo "[6/12] Installing zsh plugin manager..."
-brew install antidote
-
-echo "[7/12] Installing Ghostty + skhd + aerospace + sketchybar + CLI utilities..."
-brew install --cask ghostty
-brew install --cask nikitabobko/tap/aerospace
-brew tap FelixKratz/formulae
-brew install sketchybar
-brew install koekeishiya/formulae/skhd duti dockutil
-# displayplacer powers the alt-ctrl-[/]/enter bindings that swap which monitor
-# is the macOS "main display". After install, run `displayplacer list` and
-# update aerospace/displays.env with the persistent IDs for this machine.
-brew install jakehilborn/jakehilborn/displayplacer
-
-echo "[8/12] Installing lazy.nvim..."
+echo "[3/8] Installing lazy.nvim..."
 if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
   git clone https://github.com/folke/lazy.nvim.git \
     ~/.local/share/nvim/lazy/lazy.nvim
 fi
 
-echo "[9/12] Linking configs..."
+echo "[4/8] Linking configs..."
 mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/.config/sketchybar/plugins
 cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua
 cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
@@ -90,18 +67,30 @@ for plist in "$REPO_DIR/mac/LaunchAgents/"*.plist; do
   echo "  loaded LaunchAgent: $label"
 done
 
-echo "[10/12] Linking zsh config..."
+echo "[5/8] Linking zsh + git + claude config..."
 # Back up any existing .zshrc once
 [ -f "$HOME/.zshrc" ] && [ ! -f "$HOME/.zshrc.backup" ] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup"
 cp -f "$REPO_DIR/zsh/zshrc" ~/.zshrc
 cp -f "$REPO_DIR/zsh/zsh_plugins.txt" ~/.zsh_plugins.txt
+# Back up an existing global gitconfig once, then install ours
+[ -f "$HOME/.gitconfig" ] && [ ! -f "$HOME/.gitconfig.backup" ] && cp "$HOME/.gitconfig" "$HOME/.gitconfig.backup"
+cp -f "$REPO_DIR/git/gitconfig" ~/.gitconfig
+cp -f "$REPO_DIR/git/gitignore_global" ~/.gitignore_global
+# Claude Code: install global settings + MCP registrations + custom rules.
+# Skips skills/, sessions/, projects/, and the local-only settings.local.json.
+mkdir -p ~/.claude
+[ -f "$HOME/.claude/settings.json" ] && [ ! -f "$HOME/.claude/settings.json.backup" ] && cp "$HOME/.claude/settings.json" "$HOME/.claude/settings.json.backup"
+cp -f "$REPO_DIR/claude/settings.json" ~/.claude/settings.json
+cp -f "$REPO_DIR/claude/mcp.json" ~/.claude/.mcp.json
+mkdir -p ~/.claude/rules
+cp -R "$REPO_DIR/claude/rules/." ~/.claude/rules/
 
-echo "[11/12] Installing tmux plugin manager..."
+echo "[6/8] Installing tmux plugin manager..."
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
   git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 fi
 
-echo "[12/12] Applying macOS defaults + setting default file handlers + starting services..."
+echo "[7/8] Applying macOS defaults + setting default file handlers + starting services..."
 bash "$SCRIPT_DIR/defaults.sh"
 for ext in sh command tool zsh bash; do
   duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true

@@ -4,7 +4,10 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 
 ## What's included
 
+- **Brewfile** — declarative package list installed by `brew bundle`. Replaces inline `brew install` calls in `mac/setup.sh`.
 - **zsh/** — shell config with lazy-loading (nvm, conda), plugins (autosuggestions, fzf-tab, syntax-highlighting, history-substring-search), fzf + zoxide integration, useful aliases
+- **git/** — global `gitconfig` (delta pager, rebase-on-pull, `autoSetupRemote`, `rerere`, useful aliases) and `gitignore_global` (OS junk, editor scratch, etc.)
+- **claude/** — Claude Code config: global `settings.json`, MCP server registrations (`.mcp.json`), and the custom rules tree at `~/.claude/rules/`. See `claude/README.md`.
 - **nvim/** — Neovim config (gruvbox, telescope, treesitter, LSP, autocomplete, format-on-save)
 - **tmux/** — tmux config (Alt+number window switching, vim-style pane nav, mouse, plugins)
 - **starship/** — minimal prompt with git info
@@ -12,7 +15,7 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **skhd/** — global hotkey daemon config (`Opt+Space` opens a new Ghostty window on the current workspace; `Opt+B`/`Opt+W` launch Chrome with personal/work profiles; `Opt+S/M/E` launch Slack/Spotify/Finder)
 - **aerospace/** — i3-style tiling window manager config (workspaces on `Alt+1-9`, vim-style window focus on `Alt+h/j/k/l`, `Alt+Ctrl+[/]/Enter` swaps the macOS main display via `displayplacer`)
 - **sketchybar/** — custom top bar (Gruvbox theme) with Aerospace workspace indicators, front-app, CPU, battery, clock
-- **mac/setup.sh** — macOS installer (Homebrew) — also runs `mac/defaults.sh` and installs `mac/LaunchAgents/*.plist`
+- **mac/setup.sh** — macOS installer (Homebrew + `brew bundle`) — also runs `mac/defaults.sh` and installs `mac/LaunchAgents/*.plist`
 - **mac/defaults.sh** — macOS system tweaks (Finder, Dock, keyboard, trackpad, screenshot location, etc.)
 - **mac/LaunchAgents/** — per-user `launchd` jobs (e.g. AeroSpace phantom-window watchdog)
 - **linux/setup.sh** — Linux installer (apt/dnf/pacman)
