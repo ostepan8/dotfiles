@@ -1,6 +1,5 @@
 # ---------- PATH + env ----------
 export PATH="$PATH:$HOME/Desktop/vcpkg"
-export NODE_OPTIONS=--use-openssl-ca
 export AWS_CA_BUNDLE=/etc/ssl/cert.pem
 export SSL_CERT_FILE="/opt/homebrew/etc/ca-certificates/cert.pem"
 export PATH="$PATH:$HOME/Qt/5.15.2/clang_64/bin"
