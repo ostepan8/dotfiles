@@ -81,8 +81,31 @@ command -v starship >/dev/null && eval "$(starship init zsh)"
 alias code="zed"
 alias cursor='open -a Cursor'
 alias claude-tg="claude --channels plugin:telegram@claude-plugins-official"
-alias ccd="claude --dangerously-skip-permissions"
 alias ccrd="claude --resume --dangerously-skip-permissions"
+# Default CLAUDE_CONFIG_DIR so bare `claude` runs against the personal
+# config. The aliases and ccd/ccds/ccdw functions below override per-call.
+# Also normalize a literal tilde in case something downstream set it as
+# "~/..." without shell expansion (which would otherwise resolve relative
+# to CWD and scatter state directories around).
+export CLAUDE_CONFIG_DIR="$HOME/.claude-personal"
+[[ "${CLAUDE_CONFIG_DIR-}" == "~/"* ]] && export CLAUDE_CONFIG_DIR="$HOME/${CLAUDE_CONFIG_DIR#~/}"
+
+alias claude-personal='CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude'
+alias claude-school='CLAUDE_CONFIG_DIR="$HOME/.claude-school" claude'
+function _ccd_title() {
+  local label="$1"; shift
+  (while true; do printf '\033]0;%s\007' "$label" > /dev/tty 2>/dev/null; sleep 1; done) &
+  local _pid=$!
+  "$@"
+  kill $_pid 2>/dev/null
+  printf '\033]0;\007' > /dev/tty
+}
+function ccd()  { _ccd_title "Claude · ohstep23@gmail.com"       env CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude --dangerously-skip-permissions "$@"; }
+function ccds() { _ccd_title "Claude · stepan.o@northeastern.edu" env CLAUDE_CONFIG_DIR="$HOME/.claude-school"   claude --dangerously-skip-permissions "$@"; }
+function ccdw() { _ccd_title "Claude · owen@subconscious.dev"     env CLAUDE_CONFIG_DIR="$HOME/.claude-work"     claude --dangerously-skip-permissions "$@"; }
+function ccdr()  { ccd  --resume "$@"; }
+function ccdrs() { ccds --resume "$@"; }
+function ccdrw() { ccdw --resume "$@"; }
 
 alias ll='ls -lh'
 alias la='ls -lAh'
