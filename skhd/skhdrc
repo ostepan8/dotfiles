@@ -23,7 +23,8 @@ alt - s : open -a Slack
 alt - m : open -a Spotify
 
 # ---------- Screenshots to clipboard ----------
-# Opt+C → selection screenshot to clipboard (replaces Cmd+Ctrl+Shift+4)
-alt - c : screencapture -ic
+# Opt+D → selection screenshot to clipboard (replaces Cmd+Ctrl+Shift+4).
+# Lives on D, not C, so Claude Code's Opt+C file picker works in the terminal.
+alt - d : screencapture -ic
 # Opt+X → full-screen screenshot to clipboard (replaces Cmd+Ctrl+Shift+3)
 alt - x : screencapture -c
