@@ -7,9 +7,16 @@
 # Earlier this used `open -na Ghostty` which forces a NEW PROCESS each press.
 # Over time that stacked up dozens of orphan ghostty processes (one Dock icon
 # per process) since macOS LaunchServices registers each invocation as a
-# separate app instance. AppleScript Cmd+N reuses the running Ghostty —
-# new window appears on the current aerospace workspace, no process churn.
-alt - space : osascript -e 'tell application "Ghostty" to activate' -e 'tell application "System Events" to keystroke "n" using command down'
+# separate app instance.
+#
+# We use AppleScript `click menu item "New Window"` instead of System Events
+# `keystroke "n" using command down` because the keystroke variant races with
+# activate: if the keystroke fires before Ghostty becomes frontmost, Cmd+N
+# hits whatever app currently has focus, that app doesn't handle it, macOS
+# plays the system error sound. `click menu item` queries the menu structure
+# which only resolves when the app is fully active, so it serializes
+# correctly and never falls through to another app.
+alt - space : osascript -e 'tell application "Ghostty" to activate' -e 'tell application "System Events" to tell process "Ghostty" to click menu item "New Window" of menu "File" of menu bar 1'
 
 # ---------- Chrome profiles (new window, stays on current workspace) ----------
 # Opt+B → personal Chrome (Owen, ohstep23@gmail.com)
