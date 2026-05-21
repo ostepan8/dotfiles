@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ostepan.display-watcher</string>
+
+    <!-- display-watcher is a long-lived Swift daemon. It registers a
+         CoreGraphics display-reconfiguration callback and runs
+         set-main-display.sh auto whenever the screen layout changes (plug,
+         unplug, rotation, resolution swap). -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/ostepan/.config/aerospace/display-watcher</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart if it ever exits — RunLoop.current.run() never returns in
+         normal operation, but if the binary segfaults or is killed we want
+         it back. -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/aerospace-display-watcher.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/aerospace-display-watcher.err</string>
+</dict>
+</plist>

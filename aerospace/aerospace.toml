@@ -24,6 +24,12 @@ default-root-container-orientation = 'auto'
 # dimensions — fixes the "windows are wrong size after primary-display change" bug.
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center', 'flatten-workspace-tree']
 
+# Reconcile main display + per-monitor gap + workspace pins to the currently
+# attached monitors on every aerospace start. Mirrors what the
+# com.ostepan.display-watcher LaunchAgent does on plug/unplug — running it
+# here too covers the cold-start case (laptop closed → opened, reload-config).
+after-startup-command = ['exec-and-forget ~/.config/aerospace/set-main-display.sh auto']
+
 # On workspace change:
 #   1. notify sketchybar so the workspace indicator highlights correctly
 #   2. fire the phantom-window cleanup in the background — apps like
@@ -39,12 +45,18 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 # ==========================
 automatically-unhide-macos-hidden-apps = false
 
-# Pin workspaces 9 and 10 to the two external monitors.
-# Aerospace quirk: the 'external' / 'secondary' keywords don't match HP
-# displays on this machine, but regex does.
+# Pin workspaces 9 and 10 to external monitors.
+# This block is REWRITTEN on every set-main-display.sh run (auto from the
+# display-watcher LaunchAgent, or via cmd-alt-[/]/\) so the regex always
+# matches whatever externals are currently attached:
+#   2+ externals — 9 → rightmost, 10 → leftmost
+#   1 external  — both 9 and 10 → the one external
+#   0 externals — block left empty so 9/10 land on the laptop by default
+# Hand-edits below the header are blown away on the next reload — modify
+# set-main-display.sh if you need to change the pin policy.
 [workspace-to-monitor-force-assignment]
-9  = '^HP 327se \(1\)$'
-10 = '^HP 327se \(2\)$'
+9  = '^HP 327se$'
+10 = '^HP 327se$'
 
 [key-mapping]
 preset = 'qwerty'
@@ -63,7 +75,7 @@ outer.right      = 8
 # line is rewritten by set-main-display.sh on every Cmd+Opt+[/]/\ swap to
 # track whichever monitor is currently main. Hand-edit only the "40" or "8"
 # values — the monitor pattern is overwritten by the script.
-outer.top        = [{ monitor.'built-in' = 40 }, 8]
+outer.top        = [{ monitor.'HP 327se' = 40 }, 8]
 
 # ==========================
 # Main mode bindings
@@ -124,22 +136,23 @@ alt-shift-0 = 'move-node-to-workspace 10'
 alt-tab = 'workspace-back-and-forth'
 
 # --- Monitor navigation ---
-#   Alt+[        → focus LEFT external   (workspace 10, pinned to HP 327se (2))
-#   Alt+]        → focus RIGHT external  (workspace 9,  pinned to HP 327se (1))
+#   Alt+[        → focus LEFT external
+#   Alt+]        → focus RIGHT external
 #   Alt+\        → home (laptop — always goes to laptop's currently-visible workspace)
 #   Alt+Shift+[  → send focused window to LEFT external + follow
 #   Alt+Shift+]  → send focused window to RIGHT external + follow
 #   Alt+Shift+\  → send focused window to LAPTOP + follow
 # Bracket trio: [ ] \ are physically adjacent on US keyboards, so the three
-# focus targets sit under the same finger row. The shift-prefixed versions
-# move-and-follow. Laptop's workspace number is dynamic, so its bindings
-# delegate to focus-home.sh / move-home.sh. Symmetric with the cmd-alt-[/]/\
+# focus targets sit under the same finger row. All four bracket bindings go
+# through focus-external.sh / move-external.sh so they degrade gracefully
+# with 1 external (both → the only external workspace) and 0 externals
+# (both → focus-home / move-home). Symmetric with the cmd-alt-[/]/\
 # bindings below that swap the macOS main display.
-alt-leftSquareBracket        = ['workspace 10', 'move-mouse monitor-lazy-center']
-alt-rightSquareBracket       = ['workspace 9',  'move-mouse monitor-lazy-center']
+alt-leftSquareBracket        = 'exec-and-forget ~/.config/aerospace/focus-external.sh left'
+alt-rightSquareBracket       = 'exec-and-forget ~/.config/aerospace/focus-external.sh right'
 alt-backslash                = 'exec-and-forget ~/.config/aerospace/focus-home.sh'
-alt-shift-leftSquareBracket  = ['move-node-to-workspace 10', 'workspace 10', 'move-mouse monitor-lazy-center']
-alt-shift-rightSquareBracket = ['move-node-to-workspace 9',  'workspace 9',  'move-mouse monitor-lazy-center']
+alt-shift-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/move-external.sh left'
+alt-shift-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/move-external.sh right'
 alt-shift-backslash          = 'exec-and-forget ~/.config/aerospace/move-home.sh'
 
 # --- Reload Aerospace config ---
@@ -162,6 +175,12 @@ alt-shift-r = 'exec-and-forget ~/.config/aerospace/cleanup-phantoms.sh'
 cmd-alt-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/set-main-display.sh left'
 cmd-alt-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/set-main-display.sh right'
 cmd-alt-backslash          = 'exec-and-forget ~/.config/aerospace/set-main-display.sh laptop'
+
+# --- Re-detect monitor IDs by physical position ---
+# Run this after swapping cables, reconnecting a dock, or any time the
+# Cmd+Opt+[/]/\ bindings above stop working. Updates displays.env in-place
+# and fires a macOS notification when done.
+cmd-alt-shift-r = 'exec-and-forget ~/.config/aerospace/refresh-display-ids.sh'
 
 # ==========================
 # Apps that should always float (not tile)
