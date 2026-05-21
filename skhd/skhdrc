@@ -39,5 +39,5 @@ alt - x : screencapture -c
 #   Opt+S       → full-screen → file + path on clipboard
 #   Opt+Shift+S → selection   → file + path on clipboard
 # Esc during the region selector cancels cleanly — no file, no clipboard write.
-alt - s : f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture "$f" && printf '%s' "$f" | pbcopy
-alt + shift - s : f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture -i "$f" && printf '%s' "$f" | pbcopy
+alt - s : mkdir -p "$HOME/Screenshots"; f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture "$f" && printf '%s' "$f" | pbcopy
+alt + shift - s : mkdir -p "$HOME/Screenshots"; f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture -i "$f" && printf '%s' "$f" | pbcopy
