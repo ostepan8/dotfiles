@@ -19,12 +19,25 @@ alt - w : open -a "Google Chrome" --new --args --profile-directory="Profile 13" 
 alt - e : osascript -e 'tell application "Finder" to make new Finder window' -e 'tell application "Finder" to activate'
 
 # Slack and Spotify are single-window apps; activate is the right behavior.
-alt - s : open -a Slack
 alt - m : open -a Spotify
 
-# ---------- Screenshots to clipboard ----------
-# Opt+D → selection screenshot to clipboard (replaces Cmd+Ctrl+Shift+4).
+# ---------- Screenshots ----------
+# Two flavors depending on where you're pasting:
+#
+# Image-bytes on clipboard — works in browsers (claude.ai), Slack, native apps
+# that accept paste-image. Does NOT work in terminals (they only paste text).
+#   Opt+D → selection screenshot, image bytes on clipboard
+#   Opt+X → full-screen screenshot, image bytes on clipboard
 # Lives on D, not C, so Claude Code's Opt+C file picker works in the terminal.
 alt - d : screencapture -ic
-# Opt+X → full-screen screenshot to clipboard (replaces Cmd+Ctrl+Shift+3)
 alt - x : screencapture -c
+
+# File-path on clipboard — works in terminals / Claude Code. Saves the
+# screenshot to ~/Screenshots/<timestamp>.png and copies the absolute path
+# to the clipboard. Cmd+V in the terminal pastes the path, and Claude Code
+# treats a pasted absolute PNG path as an image attachment.
+#   Opt+S       → full-screen → file + path on clipboard
+#   Opt+Shift+S → selection   → file + path on clipboard
+# Esc during the region selector cancels cleanly — no file, no clipboard write.
+alt - s : f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture "$f" && printf '%s' "$f" | pbcopy
+alt + shift - s : f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture -i "$f" && printf '%s' "$f" | pbcopy
