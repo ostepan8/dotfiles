@@ -6,13 +6,14 @@
     <key>Label</key>
     <string>com.ostepan.display-watcher</string>
 
-    <!-- display-watcher is a long-lived Swift daemon. It registers a
-         CoreGraphics display-reconfiguration callback and runs
-         set-main-display.sh auto whenever the screen layout changes (plug,
-         unplug, rotation, resolution swap). -->
+    <!-- display-watcher polls aerospace list-monitors every ~3s and runs
+         set-main-display.sh auto whenever the layout changes. Polling is
+         used instead of CGDisplayRegisterReconfigurationCallback because
+         CG callbacks silently miss events from a launchd-context process. -->
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/ostepan/.config/aerospace/display-watcher</string>
+        <string>/bin/bash</string>
+        <string>/Users/ostepan/.config/aerospace/display-watcher.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>

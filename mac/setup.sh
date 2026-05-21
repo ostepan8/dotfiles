@@ -46,17 +46,16 @@ if [ -f "$REPO_DIR/aerospace/list-real-windows.swift" ]; then
       && echo "  compiled aerospace/list-real-windows"
   fi
 fi
-# Display-watcher daemon — Swift program that listens for CoreGraphics
-# display reconfiguration events and runs set-main-display.sh auto whenever
-# the screen layout changes (plug, unplug, rotation, resolution swap).
-# Loaded as the com.ostepan.display-watcher LaunchAgent below.
-if [ -f "$REPO_DIR/aerospace/display-watcher.swift" ]; then
-  cp -f "$REPO_DIR/aerospace/display-watcher.swift" ~/.config/aerospace/display-watcher.swift
-  if command -v swiftc >/dev/null 2>&1; then
-    swiftc -O ~/.config/aerospace/display-watcher.swift -o ~/.config/aerospace/display-watcher \
-      && echo "  compiled aerospace/display-watcher"
-  fi
-fi
+# Display-watcher daemon — bash polling loop that watches the connected
+# monitor set and runs set-main-display.sh auto whenever it changes. Loaded
+# as the com.ostepan.display-watcher LaunchAgent below. (Polling beats a
+# CGDisplayRegisterReconfigurationCallback Swift daemon here — CG callbacks
+# silently drop events when fired from a launchd context, and the ~3s poll
+# is well under 0.1% CPU.)
+# display-watcher.sh is copied in the `cp aerospace/*.sh` step above; this
+# block just makes the dependency on it explicit and removes any stale
+# Swift binary from earlier iterations.
+rm -f ~/.config/aerospace/display-watcher ~/.config/aerospace/display-watcher.swift
 cp -f "$REPO_DIR/sketchybar/sketchybarrc" ~/.config/sketchybar/sketchybarrc
 cp -f "$REPO_DIR/sketchybar/plugins/"*.sh ~/.config/sketchybar/plugins/
 chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
