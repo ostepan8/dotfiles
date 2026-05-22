@@ -21,20 +21,24 @@ POLL_SECONDS="${POLL_SECONDS:-3}"
 # Sleep briefly at boot so we don't race aerospace coming up.
 sleep 2
 
-# Returns a deterministic fingerprint of the current monitor *layout*:
-# the set of attached monitors AND their origins AND which one is main.
-# Hashing all three means we react to:
-#   - monitors added or removed (set changes)
-#   - monitors physically rearranged in System Settings (origin changes)
-#   - user manually dragged the white bar to a different display (main flips)
-# `sort` keeps the hash stable when only the listing order shuffles.
+# Returns a deterministic fingerprint of the connected-monitor *set* — just
+# the names, sorted. We deliberately do NOT hash origins or "which one is
+# main": those change every time the user presses ctrl-alt-[/]/\ to swap
+# the main display, and reacting to them caused this watcher to fight the
+# user (it would fire `set-main-display.sh auto` immediately after a
+# manual swap, picking a different display and undoing the change).
+#
+# Trade-off: this means dragging the white bar in System Settings does
+# NOT trigger an aerospace.toml reconcile. If you do that manually, press
+# ctrl-alt-[/]/\ (or run `set-main-display.sh auto` directly) to refresh
+# gaps and pins. Plug/unplug — the primary use case — still fires.
 monitor_fingerprint() {
-    {
-        "$AERO" list-monitors 2>/dev/null | sort
-        /opt/homebrew/bin/displayplacer list 2>/dev/null \
-            | grep -E "^(Persistent screen id|Origin|Enabled):" \
-            | sort
-    } | shasum -a 1 | awk '{print $1}'
+    "$AERO" list-monitors 2>/dev/null \
+        | awk -F'|' '{print $2}' \
+        | sed 's/^ *//;s/ *$//' \
+        | sort \
+        | shasum -a 1 \
+        | awk '{print $1}'
 }
 
 count_externals() {
@@ -72,9 +76,12 @@ while true; do
             if [ -z "$FIRST_ITER" ]; then
                 # Skip the very first iteration after watcher (re)start — it
                 # would notify on every login, which is noisy.
+                # `auto` respects the current main display, so the bar
+                # only moves if macOS itself flipped it (e.g. unplugging
+                # the current main). Messages reflect that.
                 case "$EXT" in
-                    0) MSG="Laptop-only — bar moved to built-in display." ;;
-                    1) MSG="1 external attached — bar moved to external." ;;
+                    0) MSG="Laptop-only — pins refreshed." ;;
+                    1) MSG="1 external attached — pins refreshed." ;;
                     *) MSG="$EXT externals attached — pins refreshed." ;;
                 esac
                 notify "Aerospace: monitor layout" "$MSG"

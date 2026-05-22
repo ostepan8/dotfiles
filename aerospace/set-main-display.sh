@@ -100,6 +100,16 @@ def pick():
         # Falls back to the only external if just one is connected.
         return externals[-1] if externals else None
     if target_arg == "auto":
+        # `auto` reconciles aerospace state (pins, gaps, sketchybar) to the
+        # current monitor set — it must NOT override the user's manual main
+        # display choice. If something is already at (0,0), keep it main.
+        # Only fall back to "leftmost external or laptop" if no screen sits
+        # at the origin (shouldn't happen in practice, but defensive).
+        current_main = next(
+            (s for s in screens if s["ox"] == 0 and s["oy"] == 0), None
+        )
+        if current_main:
+            return current_main
         return externals[0] if externals else built_in
     return None
 
