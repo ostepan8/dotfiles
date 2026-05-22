@@ -47,7 +47,7 @@ automatically-unhide-macos-hidden-apps = false
 
 # Pin workspaces 9 and 10 to external monitors.
 # This block is REWRITTEN on every set-main-display.sh run (auto from the
-# display-watcher LaunchAgent, or via cmd-alt-[/]/\) so the regex always
+# display-watcher LaunchAgent, or via ctrl-alt-[/]/\) so the regex always
 # matches whatever externals are currently attached:
 #   2+ externals — 9 → rightmost, 10 → leftmost
 #   1 external  — both 9 and 10 → the one external
@@ -165,16 +165,19 @@ alt-shift-c = 'reload-config'
 alt-shift-r = 'exec-and-forget ~/.config/aerospace/cleanup-phantoms.sh'
 
 # --- Swap macOS "main display" (where the menu bar + sketchybar live) ---
-#   Cmd+Opt+[   → make LEFT external the main display    (⌘ ⌥ [)
-#   Cmd+Opt+]   → make RIGHT external the main display   (⌘ ⌥ ])
-#   Cmd+Opt+\   → make laptop the main display           (⌘ ⌥ \)
-# Same bracket trio as the alt-[/]/\ focus bindings — adding cmd promotes
-# "focus that monitor" → "make that monitor the macOS main display."
+#   Ctrl+Opt+[  → make LEFT external the main display    (⌃ ⌥ [)
+#   Ctrl+Opt+]  → make RIGHT external the main display   (⌃ ⌥ ])
+#   Ctrl+Opt+\  → make laptop the main display           (⌃ ⌥ \)
+# Same bracket trio as the alt-[/]/\ focus bindings — adding ctrl promotes
+# "focus that monitor" → "make that monitor the macOS main display AND
+# focus its workspace." set-main-display.sh chains a focus step at the end
+# for the laptop/left/right modes (auto skips focus so the display-watcher
+# LaunchAgent doesn't steal focus on plug/unplug).
 # Persistent display IDs come from ~/.config/aerospace/displays.env.
 # Requires `displayplacer` (brew install jakehilborn/jakehilborn/displayplacer).
-cmd-alt-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/set-main-display.sh left'
-cmd-alt-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/set-main-display.sh right'
-cmd-alt-backslash          = 'exec-and-forget ~/.config/aerospace/set-main-display.sh laptop'
+ctrl-alt-leftSquareBracket  = 'exec-and-forget ~/.config/aerospace/set-main-display.sh left'
+ctrl-alt-rightSquareBracket = 'exec-and-forget ~/.config/aerospace/set-main-display.sh right'
+ctrl-alt-backslash          = 'exec-and-forget ~/.config/aerospace/set-main-display.sh laptop'
 
 # --- Re-detect monitor IDs by physical position ---
 # Run this after swapping cables, reconnecting a dock, or any time the

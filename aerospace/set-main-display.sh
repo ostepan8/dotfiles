@@ -218,3 +218,13 @@ if command -v sketchybar >/dev/null 2>&1; then
     # asks for the main-display dimensions.
     ( sleep 0.6 && brew services restart sketchybar >/dev/null 2>&1 ) &
 fi
+
+# Focus the workspace on the newly-promoted main monitor so the user's
+# focus follows the bar. Skipped for `auto` because that path is fired by
+# the display-watcher LaunchAgent on plug/unplug — stealing focus from
+# whatever app the user is in would be hostile.
+case "$ARG" in
+    laptop) "${HOME}/.config/aerospace/focus-home.sh" ;;
+    left)   "${HOME}/.config/aerospace/focus-external.sh" left ;;
+    right)  "${HOME}/.config/aerospace/focus-external.sh" right ;;
+esac
