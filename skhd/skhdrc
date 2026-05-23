@@ -3,7 +3,7 @@
 # alt+shift+*, alt+minus, alt+equal, alt+slash, alt+comma.
 
 # ---------- Terminal ----------
-# Opt+Space → new Ghostty window in the existing process.
+# Opt+Space → new Ghostty window in the existing process, on the CURRENT workspace.
 # Earlier this used `open -na Ghostty` which forces a NEW PROCESS each press.
 # Over time that stacked up dozens of orphan ghostty processes (one Dock icon
 # per process) since macOS LaunchServices registers each invocation as a
@@ -16,7 +16,14 @@
 # plays the system error sound. `click menu item` queries the menu structure
 # which only resolves when the app is fully active, so it serializes
 # correctly and never falls through to another app.
-alt - space : osascript -e 'tell application "Ghostty" to activate' -e 'tell application "System Events" to tell process "Ghostty" to click menu item "New Window" of menu "File" of menu bar 1'
+#
+# Workspace rescue: `tell ... activate` brings Ghostty's existing window to the
+# front, which switches AeroSpace to that window's workspace BEFORE the new
+# window is created. Without intervention, the new window inherits that
+# workspace instead of the one you pressed Opt+Space from. Fix: capture the
+# focused workspace first, then after the new window appears (it becomes the
+# focused node), move it back to the original workspace with focus following.
+alt - space : ws=$(/opt/homebrew/bin/aerospace list-workspaces --focused); osascript -e 'tell application "Ghostty" to activate' -e 'tell application "System Events" to tell process "Ghostty" to click menu item "New Window" of menu "File" of menu bar 1'; /opt/homebrew/bin/aerospace move-node-to-workspace --focus-follows-window "$ws"
 
 # ---------- Chrome profiles (new window, stays on current workspace) ----------
 # Opt+B → personal Chrome (Owen, ohstep23@gmail.com)
