@@ -29,6 +29,15 @@ LOCK="$HOME/Library/Caches/dotfiles-sync.lock"   # directory used as an atomic l
 mkdir -p "$(dirname "$LOG")"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG"; }
+
+# Run a command with a hard timeout so a hung network call (fetch/pull/push
+# blocking on a credential prompt or dead connection) can never pile up across
+# 30-min ticks. Uses timeout/gtimeout if present, else runs unguarded.
+if command -v timeout >/dev/null 2>&1; then TIMEOUT=timeout
+elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT=gtimeout
+else TIMEOUT=""; fi
+net() { if [ -n "$TIMEOUT" ]; then "$TIMEOUT" 120 "$@"; else "$@"; fi; }
+
 notify() {
   log "NOTIFY: $*"
   osascript -e "display notification \"$1\" with title \"dotfiles sync\" sound name \"Basso\"" 2>/dev/null || true
@@ -59,8 +68,8 @@ fi
 OLD_HEAD="$(git rev-parse HEAD 2>/dev/null || echo none)"
 
 # Fetch. If offline, fail quietly (no notification spam every 30 min).
-if ! git fetch origin "$BRANCH" >>"$LOG" 2>&1; then
-  log "fetch failed (likely offline); skipping"
+if ! net git fetch origin "$BRANCH" >>"$LOG" 2>&1; then
+  log "fetch failed (likely offline or timed out); skipping"
   exit 0
 fi
 
@@ -70,7 +79,7 @@ log "state: behind=$BEHIND ahead=$AHEAD"
 
 # Pull remote changes via rebase if there are any.
 if [ "$BEHIND" -gt 0 ]; then
-  if ! git pull --rebase --autostash origin "$BRANCH" >>"$LOG" 2>&1; then
+  if ! net git pull --rebase --autostash origin "$BRANCH" >>"$LOG" 2>&1; then
     notify "Rebase conflict in ~/dotfiles ($BEHIND remote / $AHEAD local). Resolve by hand."
     exit 1
   fi
@@ -80,7 +89,7 @@ fi
 # Push local commits back so the other machine can pull them.
 AHEAD="$(git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo 0)"
 if [ "$AHEAD" -gt 0 ]; then
-  if git push origin "$BRANCH" >>"$LOG" 2>&1; then
+  if net git push origin "$BRANCH" >>"$LOG" 2>&1; then
     log "pushed $AHEAD local commit(s)"
   else
     notify "Push failed for ~/dotfiles ($AHEAD commits ahead). Check auth/network."
