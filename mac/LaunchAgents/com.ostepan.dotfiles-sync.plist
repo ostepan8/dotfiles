@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ostepan.dotfiles-sync</string>
+
+    <!-- Bidirectional dotfiles sync across this user's Macs: fetch, rebase
+         local on top of origin/main, push local commits, and re-apply configs
+         when the pull brought new changes. Conflicts are left in place with a
+         macOS notification. Runs at login and every 30 min; launchd also fires
+         a missed StartInterval shortly after wake, which covers the wake case
+         without a separate sleep watcher. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/ostepan/dotfiles/mac/sync.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- Run once when the agent loads (login / setup). -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- And every 30 minutes thereafter. -->
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/dotfiles-sync.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/dotfiles-sync.err</string>
+</dict>
+</plist>
