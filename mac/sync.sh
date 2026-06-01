@@ -38,6 +38,16 @@ elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT=gtimeout
 else TIMEOUT=""; fi
 net() { if [ -n "$TIMEOUT" ]; then "$TIMEOUT" 120 "$@"; else "$@"; fi; }
 
+# From a launchd context the osxkeychain helper can't pop an interactive
+# prompt, so a push needing credentials hangs until the timeout. The GitHub
+# CLI ships a fully non-interactive credential helper backed by its stored
+# token (scope: repo), so route git auth through it when available. Scoped to
+# this script via `-c` — no change to the user's global git config.
+GIT_CRED=()
+if command -v gh >/dev/null 2>&1; then
+  GIT_CRED=(-c "credential.https://github.com.helper=" -c "credential.https://github.com.helper=!gh auth git-credential")
+fi
+
 notify() {
   log "NOTIFY: $*"
   osascript -e "display notification \"$1\" with title \"dotfiles sync\" sound name \"Basso\"" 2>/dev/null || true
@@ -79,7 +89,7 @@ log "state: behind=$BEHIND ahead=$AHEAD"
 
 # Pull remote changes via rebase if there are any.
 if [ "$BEHIND" -gt 0 ]; then
-  if ! net git pull --rebase --autostash origin "$BRANCH" >>"$LOG" 2>&1; then
+  if ! net git ${GIT_CRED[@]+"${GIT_CRED[@]}"} pull --rebase --autostash origin "$BRANCH" >>"$LOG" 2>&1; then
     notify "Rebase conflict in ~/dotfiles ($BEHIND remote / $AHEAD local). Resolve by hand."
     exit 1
   fi
@@ -89,7 +99,7 @@ fi
 # Push local commits back so the other machine can pull them.
 AHEAD="$(git rev-list --count "origin/$BRANCH..HEAD" 2>/dev/null || echo 0)"
 if [ "$AHEAD" -gt 0 ]; then
-  if net git push origin "$BRANCH" >>"$LOG" 2>&1; then
+  if net git ${GIT_CRED[@]+"${GIT_CRED[@]}"} push origin "$BRANCH" >>"$LOG" 2>&1; then
     log "pushed $AHEAD local commit(s)"
   else
     notify "Push failed for ~/dotfiles ($AHEAD commits ahead). Check auth/network."
