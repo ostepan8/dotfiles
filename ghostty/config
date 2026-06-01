@@ -10,9 +10,7 @@ font-size = 14
 # ============================
 window-padding-x = 10
 window-padding-y = 6
-macos-titlebar-style = transparent
 background-opacity = 0.95
-background-blur-radius = 20
 
 # ============================
 # Behavior
@@ -38,11 +36,7 @@ cursor-style-blink = true
 # ============================
 # Global: drop-down quick terminal
 # ============================
-# Opt+` from ANYWHERE → opens the quick terminal.
-# From inside the quick terminal, use Cmd+W to close (Ghostty's toggle
-# action doesn't fire when the quick-terminal surface is the focused one).
-# Clicking outside the quick terminal also auto-hides it.
-keybind = global:opt+grave_accent=toggle_quick_terminal
+keybind = global:alt+grave_accent=toggle_quick_terminal
 quick-terminal-position = top
 quick-terminal-screen = main
 quick-terminal-animation-duration = 0.15

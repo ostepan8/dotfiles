@@ -58,3 +58,4 @@ brew "displayplacer"
 # ---- casks ----
 cask "ghostty"
 cask "aerospace"
+cask "google-chrome"

@@ -75,7 +75,7 @@ outer.right      = 8
 # line is rewritten by set-main-display.sh on every Cmd+Opt+[/]/\ swap to
 # track whichever monitor is currently main. Hand-edit only the "40" or "8"
 # values — the monitor pattern is overwritten by the script.
-outer.top        = [{ monitor.'HP 327se' = 40 }, 8]
+outer.top        = [{ monitor.'built-in' = 40 }, 8]
 
 # ==========================
 # Main mode bindings
