@@ -86,14 +86,19 @@ cp -f "$REPO_DIR/zsh/zsh_plugins.txt" ~/.zsh_plugins.txt
 [ -f "$HOME/.gitconfig" ] && [ ! -f "$HOME/.gitconfig.backup" ] && cp "$HOME/.gitconfig" "$HOME/.gitconfig.backup"
 cp -f "$REPO_DIR/git/gitconfig" ~/.gitconfig
 cp -f "$REPO_DIR/git/gitignore_global" ~/.gitignore_global
-# Claude Code: install global settings + MCP registrations + custom rules.
-# Skips skills/, sessions/, projects/, and the local-only settings.local.json.
-mkdir -p ~/.claude
-[ -f "$HOME/.claude/settings.json" ] && [ ! -f "$HOME/.claude/settings.json.backup" ] && cp "$HOME/.claude/settings.json" "$HOME/.claude/settings.json.backup"
-cp -f "$REPO_DIR/claude/settings.json" ~/.claude/settings.json
-cp -f "$REPO_DIR/claude/mcp.json" ~/.claude/.mcp.json
-mkdir -p ~/.claude/rules
-cp -R "$REPO_DIR/claude/rules/." ~/.claude/rules/
+# Claude Code: install global settings + MCP registrations + custom rules + skills.
+# NOTE: the zshrc export and the ccd/ccds/ccdw aliases run Claude against the
+# ~/.claude-personal / ~/.claude-school / ~/.claude-work profile dirs — NOT the
+# vanilla ~/.claude — so config must be installed into each profile to take
+# effect. Skips sessions/, projects/, and the local-only settings.local.json.
+for cfg in "$HOME/.claude-personal" "$HOME/.claude-school" "$HOME/.claude-work"; do
+  mkdir -p "$cfg/rules" "$cfg/skills"
+  [ -f "$cfg/settings.json" ] && [ ! -f "$cfg/settings.json.backup" ] && cp "$cfg/settings.json" "$cfg/settings.json.backup"
+  cp -f "$REPO_DIR/claude/settings.json" "$cfg/settings.json"
+  cp -f "$REPO_DIR/claude/mcp.json" "$cfg/.mcp.json"
+  cp -R "$REPO_DIR/claude/rules/." "$cfg/rules/"
+  cp -R "$REPO_DIR/claude/skills/." "$cfg/skills/"
+done
 
 echo "[6/8] Installing tmux plugin manager..."
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then

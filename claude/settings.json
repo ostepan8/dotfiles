@@ -3,6 +3,12 @@
     "NODE_USE_SYSTEM_CA": "1",
     "NODE_EXTRA_CA_CERTS": "/Users/ostepan/system-roots.pem"
   },
+  "skillListingBudgetFraction": 0.02,
+  "permissions": {
+    "additionalDirectories": [
+      "~"
+    ]
+  },
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
@@ -11,7 +17,8 @@
     "telegram@claude-plugins-official": false,
     "everything-claude-code@everything-claude-code": true,
     "clangd-lsp@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true
+    "swift-lsp@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "everything-claude-code": {
@@ -31,9 +38,5 @@
   "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
   "skipAutoPermissionPrompt": true,
-  "permissions": {
-    "additionalDirectories": [
-      "~"
-    ]
-  }
+  "theme": "dark"
 }

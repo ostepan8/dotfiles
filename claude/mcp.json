@@ -4,10 +4,6 @@
       "type": "http",
       "url": "https://mcp.linear.app/mcp"
     },
-    "claude-todo-queue": {
-      "command": "/Users/ostepan/.claude/tools/todo-queue/.venv/bin/python",
-      "args": ["/Users/ostepan/.claude/tools/todo-queue/server/mcp_server.py"]
-    },
     "notion": {
       "command": "npx",
       "args": ["-y", "@notionhq/notion-mcp-server"],
