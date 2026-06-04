@@ -45,7 +45,7 @@ AERO="$AERO" \
 TARGET_ARG="$ARG" \
 AEROSPACE_TOML="$AEROSPACE_TOML" \
     /usr/bin/python3 <<'PY'
-import os, re, subprocess, sys
+import os, re, subprocess, sys, time
 
 dp = os.environ["DP"]
 aero = os.environ["AERO"]
@@ -55,34 +55,50 @@ aerospace_toml = os.environ["AEROSPACE_TOML"]
 # ---------------------------------------------------------------------------
 # 1. Enumerate displays via displayplacer (positions, ids, resolutions).
 # ---------------------------------------------------------------------------
-text = subprocess.check_output([dp, "list"], text=True)
-blocks = [b for b in text.split("\n\n") if "Persistent screen id" in b]
+def enumerate_screens():
+    text = subprocess.check_output([dp, "list"], text=True)
+    blocks = [b for b in text.split("\n\n") if "Persistent screen id" in b]
+    out = []
+    for blk in blocks:
+        fields = {}
+        for line in blk.splitlines():
+            if ":" in line and not line.startswith("  "):
+                k, _, v = line.partition(":")
+                fields[k.strip()] = v.strip()
+        if fields.get("Enabled") != "true":
+            continue
+        m = re.match(r"\((-?\d+),(-?\d+)\)", fields.get("Origin", "").split(" ")[0])
+        if not m:
+            continue
+        out.append({
+            "id":       fields["Persistent screen id"],
+            "res":      fields["Resolution"],
+            "hz":       fields.get("Hertz", "60"),
+            "depth":    fields.get("Color Depth", fields.get("Color depth", "8")),
+            "scaling":  fields.get("Scaling", "on"),
+            "rotation": fields.get("Rotation", "0").split(" ")[0],
+            "ox":       int(m.group(1)),
+            "oy":       int(m.group(2)),
+            "builtin":  "built in" in fields.get("Type", "").lower(),
+        })
+    return out
+
+# Retry: when fired right after a plug/unplug, displayplacer can momentarily
+# report no enabled displays while macOS finishes reconfiguring. Bailing then
+# (the old behaviour) skipped the sketchybar restart and left the bar stuck.
+# The watcher already debounces, but retry here too as defense in depth.
 screens = []
-for blk in blocks:
-    fields = {}
-    for line in blk.splitlines():
-        if ":" in line and not line.startswith("  "):
-            k, _, v = line.partition(":")
-            fields[k.strip()] = v.strip()
-    if fields.get("Enabled") != "true":
-        continue
-    m = re.match(r"\((-?\d+),(-?\d+)\)", fields.get("Origin", "").split(" ")[0])
-    if not m:
-        continue
-    screens.append({
-        "id":       fields["Persistent screen id"],
-        "res":      fields["Resolution"],
-        "hz":       fields.get("Hertz", "60"),
-        "depth":    fields.get("Color Depth", fields.get("Color depth", "8")),
-        "scaling":  fields.get("Scaling", "on"),
-        "rotation": fields.get("Rotation", "0").split(" ")[0],
-        "ox":       int(m.group(1)),
-        "oy":       int(m.group(2)),
-        "builtin":  "built in" in fields.get("Type", "").lower(),
-    })
+for _attempt in range(8):
+    try:
+        screens = enumerate_screens()
+    except subprocess.CalledProcessError:
+        screens = []
+    if screens:
+        break
+    time.sleep(0.5)
 
 if not screens:
-    print("no enabled displays detected", file=sys.stderr)
+    print("no enabled displays detected after retries", file=sys.stderr)
     sys.exit(0)
 
 built_in = next((s for s in screens if s["builtin"]), None)
@@ -223,10 +239,25 @@ PY
 # re-runs sketchybarrc but doesn't re-create the bar window, so a smaller
 # laptop screen ends up with a bar still sized for the larger HP. Full
 # daemon restart is the only reliable way to re-query the new geometry.
+#
+# Block the restart until the main-display resolution stops changing, rather
+# than a fixed sleep that races a multi-display yank (the bar then queries a
+# mid-reconfigure size and renders off-screen / hidden).
+wait_for_display_stable() {
+    local prev="" cur i
+    for (( i = 0; i < 20; i++ )); do
+        # Resolution of whichever display is now at origin (0,0) = the new main.
+        cur="$("$DP" list 2>/dev/null | awk 'BEGIN{RS=""} /Origin: \(0,0\)/{for(j=1;j<=NF;j++) if($j=="Resolution:"){print $(j+1); exit}}')"
+        if [ -n "$cur" ] && [ "$cur" = "$prev" ]; then
+            return 0
+        fi
+        prev="$cur"
+        sleep 0.3
+    done
+}
+
 if command -v sketchybar >/dev/null 2>&1; then
-    # Give macOS a moment to finish reconfiguring displays before sketchybar
-    # asks for the main-display dimensions.
-    ( sleep 0.6 && brew services restart sketchybar >/dev/null 2>&1 ) &
+    ( wait_for_display_stable; brew services restart sketchybar >/dev/null 2>&1 ) &
 fi
 
 # Focus the workspace on the newly-promoted main monitor so the user's

@@ -42,10 +42,13 @@ monitor_fingerprint() {
 }
 
 count_externals() {
+    # grep -c prints "0" and exits 1 when there are no externals; `|| true`
+    # swallows the non-zero exit WITHOUT emitting a second "0" (the old
+    # `|| echo 0` produced "0\n0", which broke the notify `case` below).
     "$AERO" list-monitors 2>/dev/null \
         | awk -F'|' '{print $2}' \
         | grep -ivc "built-in\|built in" \
-        || echo 0
+        || true
 }
 
 notify() {
@@ -61,12 +64,49 @@ log() {
     printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
 }
 
+# Debounce: ripping out (or hot-plugging) several displays produces a burst
+# of intermediate fingerprints. Acting on the first one runs set-main-display
+# while macOS is still mid-reconfigure — displayplacer then reports no enabled
+# displays and the script bails WITHOUT restarting the bar, leaving sketchybar
+# stuck/hidden until the next plug event. So once we see a change, we wait for
+# the layout to hold steady for SETTLE_READS consecutive polls before acting.
+SETTLE_READS="${SETTLE_READS:-2}"
+SETTLE_POLL="${SETTLE_POLL:-1}"
+SETTLE_MAX="${SETTLE_MAX:-30}"  # hard cap so we can never loop forever
+
+settle_fingerprint() {
+    # Echoes the fingerprint only once it has been stable (and non-empty)
+    # for SETTLE_READS consecutive reads. Echoes nothing if it never settles
+    # within SETTLE_MAX iterations.
+    local stable=0 settled="$1" cur i
+    for (( i = 0; i < SETTLE_MAX; i++ )); do
+        sleep "$SETTLE_POLL"
+        cur="$(monitor_fingerprint)"
+        if [ -n "$cur" ] && [ "$cur" = "$settled" ]; then
+            stable=$((stable + 1))
+            [ "$stable" -ge "$SETTLE_READS" ] && { printf '%s' "$settled"; return 0; }
+        else
+            stable=0
+            settled="$cur"
+        fi
+    done
+    printf '%s' "$settled"  # best effort after the cap
+}
+
 PREV_FP=""
 
 while true; do
     FP="$(monitor_fingerprint)"
 
     if [ -n "$FP" ] && [ "$FP" != "$PREV_FP" ]; then
+        # Wait for the layout to stop changing before reconciling.
+        FP="$(settle_fingerprint "$FP")"
+        if [ -z "$FP" ]; then
+            log "layout never settled on a real monitor set — retrying next tick"
+            sleep "$POLL_SECONDS"
+            continue
+        fi
+
         EXT="$(count_externals)"
         FIRST_ITER=""
         [ -z "$PREV_FP" ] && FIRST_ITER=1
