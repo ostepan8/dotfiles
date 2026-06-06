@@ -15,10 +15,11 @@ enable-normalization-opposite-orientation-for-nested-containers = true
 # Accordion layout stays mostly-collapsed (better for stacks of code editors)
 accordion-padding = 30
 
-# Always tile new windows side-by-side (horizontal). Use 'auto' to let
-# Aerospace pick horizontal vs vertical based on window dimensions.
+# Auto-pick split direction from the focused window's dimensions: wider than
+# tall -> split side-by-side, taller than wide -> stack. Adapts to any screen,
+# so it works on both a narrow laptop display and a wide external monitor.
 default-root-container-layout = 'tiles'
-default-root-container-orientation = 'horizontal'
+default-root-container-orientation = 'auto'
 
 # Don't let windows animate off-screen when switching workspaces.
 # flatten-workspace-tree forces a retile so windows resize to the new monitor's
