@@ -6,10 +6,12 @@
     <key>Label</key>
     <string>com.ostepan.aerospace-cleanup</string>
 
+    <!-- $HOME-relative so it's portable across machines (launchd sets HOME). -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/ostepan/.config/aerospace/cleanup-phantoms.sh</string>
+        <string>-c</string>
+        <string>exec "$HOME/.config/aerospace/cleanup-phantoms.sh"</string>
     </array>
 
     <key>EnvironmentVariables</key>

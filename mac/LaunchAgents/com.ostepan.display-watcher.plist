@@ -10,10 +10,12 @@
          set-main-display.sh auto whenever the layout changes. Polling is
          used instead of CGDisplayRegisterReconfigurationCallback because
          CG callbacks silently miss events from a launchd-context process. -->
+    <!-- $HOME-relative so it's portable across machines (launchd sets HOME). -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/ostepan/.config/aerospace/display-watcher.sh</string>
+        <string>-c</string>
+        <string>exec "$HOME/.config/aerospace/display-watcher.sh"</string>
     </array>
 
     <key>EnvironmentVariables</key>

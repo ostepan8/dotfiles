@@ -12,10 +12,14 @@
          macOS notification. Runs at login and every 30 min; launchd also fires
          a missed StartInterval shortly after wake, which covers the wake case
          without a separate sleep watcher. -->
+    <!-- Resolve the repo via $HOME so this is portable across machines whose
+         usernames differ (e.g. ostepan vs owenstepan); launchd sets HOME for
+         user agents. The repo must live at ~/dotfiles on every machine. -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/ostepan/dotfiles/mac/sync.sh</string>
+        <string>-c</string>
+        <string>exec "$HOME/dotfiles/mac/sync.sh"</string>
     </array>
 
     <key>EnvironmentVariables</key>
