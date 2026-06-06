@@ -130,6 +130,11 @@ alias gl='git log --oneline --graph --decorate -20'
 alias reload='source ~/.zshrc'
 alias e='exit'
 
+# tmux
+alias nts='tmux new-session -s'   # nts <name>  -> new named session
+alias tns='tmux new-session -s'   # tns <name>  -> alias of nts
+alias ta='tmux attach'            # ta [-t name] -> attach
+
 # ---------- completions + plugins ----------
 autoload -Uz compinit && compinit
 for __antidote in \
