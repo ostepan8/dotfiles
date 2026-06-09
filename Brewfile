@@ -40,6 +40,13 @@ brew "atuin"
 brew "lazygit"
 brew "git-delta"
 
+# ---- networking ----
+# tailscale: mesh VPN to reach home machines (SSH, file transfer) from anywhere.
+# The CLI daemon needs root, so after `brew bundle` run once:
+#   sudo brew services start tailscale   # root LaunchDaemon, persists across reboots
+#   sudo tailscale up                    # prints a login URL to authenticate
+brew "tailscale"
+
 # ---- zsh plugin manager ----
 brew "antidote"
 
