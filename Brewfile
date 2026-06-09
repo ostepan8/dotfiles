@@ -25,6 +25,12 @@ brew "llvm"
 brew "black"
 brew "clang-format"
 
+# ---- Roblox / Luau dev ----
+# lune: standalone Luau runtime for running logic/tests outside Studio.
+# rojo/stylua/selene are pinned per-project via rokit (see mac/setup.sh).
+# luau-lsp (language server) isn't in brew — setup.sh fetches the release binary.
+brew "lune"
+
 # ---- terminal tools ----
 brew "fzf"
 brew "fd"

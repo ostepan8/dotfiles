@@ -33,6 +33,26 @@ if ! command -v rokit >/dev/null 2>&1 && [ ! -x "$HOME/.rokit/bin/rokit" ]; then
   "$HOME/.rokit/bin/rokit" self-install
 fi
 
+# luau-lsp: the Luau language server (autocomplete/type-checking in nvim, wired
+# into nvim/init.lua's servers list). Not in Homebrew — fetch the prebuilt
+# macOS binary from GitHub releases into ~/.local/bin (already on PATH via zshrc).
+if ! command -v luau-lsp >/dev/null 2>&1; then
+  mkdir -p "$HOME/.local/bin"
+  _luau_tmp="$(mktemp -d)"
+  if gh release download --repo JohnnyMorganz/luau-lsp --pattern 'luau-lsp-macos.zip' \
+       --dir "$_luau_tmp" 2>/dev/null; then
+    unzip -o "$_luau_tmp/luau-lsp-macos.zip" -d "$_luau_tmp" >/dev/null
+    _luau_bin="$(find "$_luau_tmp" -name luau-lsp -type f | head -1)"
+    chmod +x "$_luau_bin"
+    mv -f "$_luau_bin" "$HOME/.local/bin/luau-lsp"
+    xattr -d com.apple.quarantine "$HOME/.local/bin/luau-lsp" 2>/dev/null || true
+    echo "  installed luau-lsp $("$HOME/.local/bin/luau-lsp" --version 2>/dev/null)"
+  else
+    echo "  WARN: could not download luau-lsp (needs authenticated gh); install manually"
+  fi
+  rm -rf "$_luau_tmp"
+fi
+
 echo "[5/9] Linking configs..."
 mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/.config/sketchybar/plugins
 cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua

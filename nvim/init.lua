@@ -90,7 +90,7 @@ require("lazy").setup({
                 build = ":TSUpdate",
                 config = function()
                         require("nvim-treesitter.configs").setup({
-                                ensure_installed = { "python", "cpp", "lua", "vim", "bash", "markdown", "json", "yaml", "javascript", "typescript", "tsx", "html", "css"},
+                                ensure_installed = { "python", "cpp", "lua", "luau", "vim", "bash", "markdown", "json", "yaml", "javascript", "typescript", "tsx", "html", "css"},
                                 auto_install = true,
                                 highlight = {
                                         enable = true,
@@ -183,7 +183,7 @@ require("lazy").setup({
                                 end,
                         })
 
-                        local servers = { "pyright", "clangd", "ts_ls", "html", "cssls" }
+                        local servers = { "pyright", "clangd", "ts_ls", "html", "cssls", "luau_lsp" }
                         for _, server in ipairs(servers) do
                                 vim.lsp.config(server, {
                                         capabilities = capabilities,
