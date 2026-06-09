@@ -39,6 +39,9 @@ alt - e : osascript -e 'tell application "Finder" to make new Finder window' -e 
 # Slack and Spotify are single-window apps; activate is the right behavior.
 alt - m : open -a Spotify
 
+# Opt+T → Bluetooth pane in System Settings (blueTooth; Opt+B is taken by Chrome)
+alt - t : open "x-apple.systempreferences:com.apple.BluetoothSettings"
+
 # ---------- Screenshots ----------
 # Two flavors depending on where you're pasting:
 #
