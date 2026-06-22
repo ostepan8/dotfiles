@@ -257,7 +257,11 @@ wait_for_display_stable() {
 }
 
 if command -v sketchybar >/dev/null 2>&1; then
-    ( wait_for_display_stable; brew services restart sketchybar >/dev/null 2>&1 ) &
+    ( wait_for_display_stable
+      # brew services restart fails when the tap is untrusted; use launchctl directly.
+      launchctl kickstart -k gui/"$(id -u)"/homebrew.mxcl.sketchybar >/dev/null 2>&1 \
+          || pkill -x sketchybar 2>/dev/null || true
+    ) &
 fi
 
 # Focus the workspace on the newly-promoted main monitor so the user's
