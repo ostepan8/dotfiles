@@ -4,19 +4,21 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.ostepan.wnba-balldontlie-advanced-stats-sync</string>
+    <string>com.ostepan.wnba-balldontlie-season-sync</string>
 
-    <!-- Weekly balldontlie advanced player-stats backfill for
-         wnba-analytics-engine (see wnba_engine/cli/main.py's
-         backfill-advanced-stats command). Season-level data, not
-         per-game, so weekly is enough -- unlike the daily ESPN sync or
-         the 2-hourly market/injury snapshots. -->
+    <!-- Weekly balldontlie season-level backfill for
+         wnba-analytics-engine: advanced player stats, play-by-play, and
+         shot-zone efficiency splits (see wnba_engine/cli/main.py's
+         backfill-advanced-stats / backfill-plays / backfill-shot-zones
+         commands). Season-level or per-completed-game data, not per-day,
+         so weekly is enough -- unlike the daily ESPN sync or the
+         2-hourly market/injury snapshots. -->
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/dotfiles/mac/wnba-analytics-engine/balldontlie-advanced-stats-sync.sh"</string>
+        <string>exec "$HOME/dotfiles/mac/wnba-analytics-engine/balldontlie-season-sync.sh"</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -36,9 +38,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/tmp/wnba-balldontlie-advanced-stats-sync.out</string>
+    <string>/tmp/wnba-balldontlie-season-sync.out</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/wnba-balldontlie-advanced-stats-sync.err</string>
+    <string>/tmp/wnba-balldontlie-season-sync.err</string>
 </dict>
 </plist>
