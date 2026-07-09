@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ostepan.wnba-balldontlie-advanced-stats-sync</string>
+
+    <!-- Weekly balldontlie advanced player-stats backfill for
+         wnba-analytics-engine (see wnba_engine/cli/main.py's
+         backfill-advanced-stats command). Season-level data, not
+         per-game, so weekly is enough -- unlike the daily ESPN sync or
+         the 2-hourly market/injury snapshots. -->
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>exec "$HOME/dotfiles/mac/wnba-analytics-engine/balldontlie-advanced-stats-sync.sh"</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/wnba-balldontlie-advanced-stats-sync.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/wnba-balldontlie-advanced-stats-sync.err</string>
+</dict>
+</plist>
