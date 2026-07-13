@@ -42,6 +42,10 @@ require("lazy").setup({
                 config = function()
                         require("nvim-tree").setup({
                                 view = { width = 30 },
+                                filters = {
+                                        dotfiles = false,
+                                        git_ignored = false,
+                                },
                                 renderer = {
                                         group_empty = true,
                                         icons = {
@@ -75,6 +79,12 @@ require("lazy").setup({
                                         prompt_prefix = " ",
                                         selection_caret = " ",
                                         path_display = { "smart" },
+                                },
+                                pickers = {
+                                        find_files = {
+                                                hidden = true,
+                                                find_command = { "rg", "--files", "--hidden", "--glob", "!**/.git/*" },
+                                        },
                                 },
                         })
                         vim.keymap.set("n", "<leader>f", ":Telescope find_files<CR>", { noremap = true, silent = true })
