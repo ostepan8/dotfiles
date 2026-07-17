@@ -4,25 +4,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-echo "[0/9] Checking for Homebrew..."
+echo "[0/10] Checking for Homebrew..."
 if ! command -v brew >/dev/null 2>&1; then
     echo "Homebrew not found. Installing..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
-echo "[1/9] Updating Homebrew..."
+echo "[1/10] Updating Homebrew..."
 brew update
 
-echo "[2/9] Installing all packages via Brewfile..."
+echo "[2/10] Installing all packages via Brewfile..."
 brew bundle --file="$REPO_DIR/Brewfile"
 
-echo "[3/9] Installing lazy.nvim..."
+echo "[3/10] Installing lazy.nvim..."
 if [ ! -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then
   git clone https://github.com/folke/lazy.nvim.git \
     ~/.local/share/nvim/lazy/lazy.nvim
 fi
 
-echo "[4/9] Installing Rokit (Roblox toolchain manager)..."
+echo "[4/10] Installing Rokit (Roblox toolchain manager)..."
 # Rokit manages per-project Roblox tools (rojo/stylua/selene) pinned in each
 # project's rokit.toml. The installer appends `. "$HOME/.rokit/env"` to
 # ~/.zshenv so the tools land on PATH in new shells. Run `rokit install` inside
@@ -53,7 +53,7 @@ if ! command -v luau-lsp >/dev/null 2>&1; then
   rm -rf "$_luau_tmp"
 fi
 
-echo "[5/9] Linking configs..."
+echo "[5/10] Linking configs..."
 mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/.config/sketchybar/plugins
 cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua
 cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
@@ -108,7 +108,7 @@ for plist in "$REPO_DIR/mac/LaunchAgents/"*.plist; do
   echo "  loaded LaunchAgent: $label"
 done
 
-echo "[6/9] Linking zsh + git + claude config..."
+echo "[6/10] Linking zsh + git + claude config..."
 # Back up any existing .zshrc once
 [ -f "$HOME/.zshrc" ] && [ ! -f "$HOME/.zshrc.backup" ] && cp "$HOME/.zshrc" "$HOME/.zshrc.backup"
 cp -f "$REPO_DIR/zsh/zshrc" ~/.zshrc
@@ -131,12 +131,12 @@ for cfg in "$HOME/.claude-personal" "$HOME/.claude-school" "$HOME/.claude-work";
   cp -R "$REPO_DIR/claude/skills/." "$cfg/skills/"
 done
 
-echo "[7/9] Installing tmux plugin manager..."
+echo "[7/10] Installing tmux plugin manager..."
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
   git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 fi
 
-echo "[8/9] Applying macOS defaults + setting default file handlers + starting services..."
+echo "[8/10] Applying macOS defaults + setting default file handlers + starting services..."
 bash "$SCRIPT_DIR/defaults.sh"
 for ext in sh command tool zsh bash; do
   duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true
@@ -145,6 +145,9 @@ skhd --start-service 2>/dev/null || true
 brew services start felixkratz/formulae/sketchybar 2>/dev/null || true
 open -a AeroSpace 2>/dev/null || true
 nvim --headless +qa 2>/dev/null || true
+
+echo "[9/10] Installing NvimOpener.app (Finder → nvim default editor)..."
+bash "$SCRIPT_DIR/NvimOpener/build.sh"
 
 echo ""
 echo "Setup complete!"
