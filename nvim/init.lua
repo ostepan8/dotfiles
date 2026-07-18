@@ -119,6 +119,7 @@ require("lazy").setup({
         -- SYNTAX HIGHLIGHTING
         {
                 "nvim-treesitter/nvim-treesitter",
+                branch = "master",
                 build = ":TSUpdate",
                 config = function()
                         require("nvim-treesitter.configs").setup({
@@ -176,7 +177,7 @@ require("lazy").setup({
                 "folke/which-key.nvim",
                 config = function()
                         require("which-key").setup({
-                                window = {
+                                win = {
                                         border = "rounded",
                                         position = "bottom",
                                         margin = { 1, 0, 1, 0 },
