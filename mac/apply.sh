@@ -47,8 +47,19 @@ chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
 mkdir -p ~/Library/LaunchAgents
 for plist in "$REPO_DIR/mac/LaunchAgents/"*.plist; do
   [ -f "$plist" ] || continue
-  dest="$HOME/Library/LaunchAgents/$(basename "$plist")"
+  base="$(basename "$plist")"
+  dest="$HOME/Library/LaunchAgents/$base"
   cp -f "$plist" "$dest"
+  # The dotfiles-sync agent's own plist is never unloaded/reloaded here:
+  # sync.sh always runs apply.sh as a child of the process launchd is
+  # supervising *for that exact agent*, so `launchctl unload` on it would
+  # SIGTERM the very process running this script mid-apply, truncating every
+  # scheduled sync before it finishes (silently, since the kill lands here).
+  # The copied plist still takes effect on the agent's next natural
+  # login/relaunch.
+  if [ "$base" = "com.ostepan.dotfiles-sync.plist" ]; then
+    continue
+  fi
   launchctl unload "$dest" 2>/dev/null || true
   launchctl load    "$dest" 2>/dev/null || true
 done
