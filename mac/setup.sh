@@ -130,6 +130,9 @@ for cfg in "$HOME/.claude-personal" "$HOME/.claude-school" "$HOME/.claude-work";
   cp -R "$REPO_DIR/claude/rules/." "$cfg/rules/"
   cp -R "$REPO_DIR/claude/skills/." "$cfg/skills/"
 done
+# Skills that also ship a standalone terminal CLI get symlinked onto PATH.
+mkdir -p "$HOME/.local/bin"
+ln -sf "$REPO_DIR/claude/skills/youtube-transcribe/scripts/transcribe.py" "$HOME/.local/bin/yt-transcribe"
 
 echo "[7/10] Installing tmux plugin manager..."
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
