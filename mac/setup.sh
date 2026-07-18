@@ -133,6 +133,7 @@ done
 # Skills that also ship a standalone terminal CLI get symlinked onto PATH.
 mkdir -p "$HOME/.local/bin"
 ln -sf "$REPO_DIR/claude/skills/youtube-transcribe/scripts/transcribe.py" "$HOME/.local/bin/yt-transcribe"
+ln -sf "$REPO_DIR/claude/skills/youtube-transcribe/scripts/transcribe_channel.py" "$HOME/.local/bin/yt-transcribe-channel"
 
 echo "[7/10] Installing tmux plugin manager..."
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
