@@ -15,9 +15,7 @@ DEST="/Applications/$APP_NAME.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 
 # Extensions this app becomes the default opener for ("common code + text").
-# .sh is deliberately excluded — mac/setup.sh already sets it to open (run) in
-# Ghostty directly, and this step runs after that one would otherwise clobber it.
-EXTENSIONS=(py js ts tsx go rs c cpp h swift lua md json yaml yml toml txt conf)
+EXTENSIONS=(sh py js ts tsx go rs c cpp h swift lua md json yaml yml toml txt conf)
 
 if [ ! -x /opt/homebrew/bin/nvim ]; then
   echo "  WARN: /opt/homebrew/bin/nvim not found; skipping NvimOpener build"

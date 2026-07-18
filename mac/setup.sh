@@ -138,7 +138,7 @@ fi
 
 echo "[8/10] Applying macOS defaults + setting default file handlers + starting services..."
 bash "$SCRIPT_DIR/defaults.sh"
-for ext in sh command tool zsh bash; do
+for ext in command tool zsh bash; do
   duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true
 done
 skhd --start-service 2>/dev/null || true
