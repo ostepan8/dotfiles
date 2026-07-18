@@ -134,7 +134,13 @@ alias e='exit'
 # tmux
 alias nts='tmux new-session -s'   # nts <name>  -> new named session
 alias tns='tmux new-session -s'   # tns <name>  -> alias of nts
-alias ta='tmux attach'            # ta [-t name] -> attach
+ta() {                             # ta [name|-t name] -> attach (tab-completes session names)
+    if [[ $# -gt 0 && "$1" != -* ]]; then
+        tmux attach -t "$1"
+    else
+        tmux attach "$@"
+    fi
+}
 
 # ---------- completions + plugins ----------
 autoload -Uz compinit && compinit
@@ -150,6 +156,14 @@ for __antidote in \
     fi
 done
 unset __antidote
+
+# `ta<TAB>` lists/completes live tmux session names
+_ta() {
+    local -a sessions
+    sessions=(${(f)"$(tmux list-sessions -F '#S' 2>/dev/null)"})
+    _describe 'tmux session' sessions
+}
+compdef _ta ta
 
 bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down
