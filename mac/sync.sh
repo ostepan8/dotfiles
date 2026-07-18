@@ -6,8 +6,10 @@
 #   2. if remote has new commits, rebase local on top (--autostash keeps any
 #      uncommitted working-tree edits out of the way)
 #   3. push any local commits back to origin
-#   4. if HEAD moved (we pulled real changes), run apply.sh to copy the new
-#      configs into place and reload services
+#   4. always run apply.sh to copy the repo's current configs into place and
+#      reload services — regardless of whether this tick pulled anything, so
+#      a commit made directly on this machine (without also hand-copying the
+#      live file) can never drift from what's actually deployed
 #
 # Conflicts are LEFT IN PLACE (repo stays in rebasing state) and a macOS
 # notification fires so they can be resolved by hand. Until resolved, later
@@ -106,15 +108,19 @@ if [ "$AHEAD" -gt 0 ]; then
   fi
 fi
 
-# Only re-apply configs if HEAD actually moved (i.e. we pulled something).
+# Always re-apply configs, not just when this tick pulled something. A commit
+# made directly on this machine (edited the repo without also copying to the
+# live file) would otherwise never get applied here — HEAD only "moves" on a
+# pull, so gating on BEHIND>0 silently missed that case. apply.sh is cheap and
+# idempotent, so running it every tick guarantees the live config always
+# matches whatever HEAD currently is, regardless of how it got there.
 NEW_HEAD="$(git rev-parse HEAD 2>/dev/null || echo none)"
-if [ "$NEW_HEAD" != "$OLD_HEAD" ] && [ "$BEHIND" -gt 0 ]; then
-  log "HEAD moved $OLD_HEAD -> $NEW_HEAD; applying configs"
-  if bash "$SCRIPT_DIR/apply.sh" >>"$LOG" 2>&1; then
+if bash "$SCRIPT_DIR/apply.sh" >>"$LOG" 2>&1; then
+  if [ "$NEW_HEAD" != "$OLD_HEAD" ] && [ "$BEHIND" -gt 0 ]; then
     notify "Applied $BEHIND dotfiles update(s) from your other Mac."
-  else
-    notify "apply.sh failed after pulling updates — see dotfiles-sync.log."
   fi
+else
+  notify "apply.sh failed — see dotfiles-sync.log."
 fi
 
 log "sync complete"
