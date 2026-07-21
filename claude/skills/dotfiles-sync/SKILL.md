@@ -32,7 +32,11 @@ If the change is **machine-specific and shouldn't propagate** (display IDs, mach
 ├── skhd/             skhdrc
 ├── starship/         starship.toml
 ├── tmux/             .tmux.conf
-├── zsh/              zshrc + zsh_plugins.txt
+├── zsh/
+│   ├── zshrc          fully shared — identical on every machine, never branch on hostname here
+│   ├── zsh_plugins.txt
+│   ├── hosts/         per-machine-*type* overrides — macbook.zsh, studio.zsh (see below)
+│   └── scripts/       helper scripts a hosts/*.zsh file shells out to (e.g. mlx-chat-clean.py)
 ├── mac/
 │   ├── setup.sh           installer — copies configs, brew installs, loads LaunchAgents
 │   ├── defaults.sh        macOS `defaults write` tweaks
@@ -43,6 +47,42 @@ If the change is **machine-specific and shouldn't propagate** (display IDs, mach
 ```
 
 Match the existing structure. New tool → new top-level dir + entry in `mac/setup.sh` + entry in `README.md`'s tools table.
+
+## Machine-type-specific config (`zsh/hosts/`)
+
+The user runs this repo on two machines — a MacBook and a Mac Studio — that both report `uname == Darwin`, so OS checks alone can't tell them apart. Some zsh config (e.g. a local-model path, a tool only installed on one machine) must apply to one machine type but not the other, while still being tracked and synced like everything else.
+
+**The pattern:**
+
+- `zsh/zshrc` stays fully shared — same file, same content, every machine. Never add `if [[ "$(hostname)" == ... ]]` branches directly in it.
+- Machine-type-only config goes in its own file: `zsh/hosts/macbook.zsh`, `zsh/hosts/studio.zsh`. Both are ordinary tracked files — they sync via git exactly like everything else.
+- Each physical machine points at the right one via a **local, untracked** marker file: `~/.dotfiles-host`, containing the machine's *type* (`macbook` or `studio`), not a unique device ID. A second Mac Studio would get the exact same marker value and immediately inherit `zsh/hosts/studio.zsh` — no new file, no code change.
+- `zsh/zshrc` reads the marker near the end and sources the matching file if it exists:
+  ```sh
+  if [ -f "$HOME/.dotfiles-host" ] && [ -f "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh" ]; then
+      source "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh"
+  fi
+  ```
+  This reads straight from the `~/dotfiles` checkout at shell-start time — it is **not** copied into `~/.zshrc` by `apply.sh`/`setup.sh`, so no installer change was needed to wire it up.
+
+**Setting up a new machine (or a new machine of an existing type):**
+```bash
+echo studio > ~/.dotfiles-host    # or: echo macbook > ~/.dotfiles-host
+```
+One-time, per physical machine, never touched again. If you add a third machine type (e.g. a work laptop), create `zsh/hosts/work-laptop.zsh` and that's it — `zshrc`, `apply.sh`, and `setup.sh` need no changes.
+
+**A `hosts/*.zsh` file can shell out to a helper script** — put those in `zsh/scripts/` (e.g. `zsh/scripts/mlx-chat-clean.py`, invoked by a macbook-only `ccd-airplane` alias). Same rule applies: the script is a normal tracked file referenced by absolute path under `$HOME/dotfiles/…`, not copied anywhere by the installers.
+
+Extend this same marker-file pattern to any other config that needs to diverge by machine type (not just zsh) if the need comes up — don't invent a second mechanism.
+
+## Deploying to a remote machine over SSH — check before you copy
+
+When this skill's flow is executed on a *second* machine reached via `ssh <host>` (e.g. pushing a change from one Mac and pulling it on the other), **never chain a blind `cp -f <repo file> <live location>` directly after `git pull`** in one command. `git pull --rebase --autostash` can succeed at the rebase while still failing to re-apply the autostash (a real conflict between your incoming change and uncommitted local WIP on that machine) — the command's overall exit code does not reliably reflect that failure. Blindly copying the working-tree file afterward can put raw `<<<<<<<` conflict markers straight into a live config file (e.g. `~/.zshrc`), breaking every new shell on that machine.
+
+Before deploying anything after a remote pull:
+1. Check `git status --short` on the remote for unmerged (`UU`) paths.
+2. If a file has conflict markers, resolve them explicitly — don't guess; if the conflict involves uncommitted local work you don't have context on, stop and ask the user how to reconcile rather than picking a side.
+3. Only copy a file to its live location once you've confirmed it has no conflict markers (e.g. `grep -c '^<<<<<<<' <file>` returns `0`).
 
 ## The flow (every time)
 
