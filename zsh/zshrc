@@ -174,3 +174,14 @@ command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 
 # ---------- atuin ----------
 command -v atuin >/dev/null && eval "$(atuin init zsh --disable-up-arrow)"
+
+# ---------- host-type overrides ----------
+# ~/.dotfiles-host holds this machine's *type* ("macbook", "studio"), not a
+# unique per-device id — a second Studio would get the same file. It lives
+# outside the repo so it's never synced; only the file it points at
+# (zsh/hosts/<type>.zsh) is version-controlled and shared like everything
+# else, so type-specific config still propagates across every machine of
+# that type via the normal sync.
+if [ -f "$HOME/.dotfiles-host" ] && [ -f "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh" ]; then
+    source "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh"
+fi

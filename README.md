@@ -68,6 +68,18 @@ After install:
 
 ## Zsh features
 
+### Host-type overrides
+`zsh/zshrc` is fully shared and identical on every machine. For config that should only apply to *one type* of machine (e.g. a local model path that only exists on the Mac Studio), add it to `zsh/hosts/macbook.zsh` or `zsh/hosts/studio.zsh` instead of the shared file — both are still committed and synced normally.
+
+Each machine picks which one to load via a one-line marker file that lives outside the repo (so it's never synced):
+
+```bash
+echo studio > ~/.dotfiles-host    # on the Mac Studio
+echo macbook > ~/.dotfiles-host   # on the MacBook
+```
+
+The marker holds a *type*, not a unique device id — a second Mac Studio just gets the same `echo studio > ~/.dotfiles-host` and immediately inherits every studio-only setting, since `zsh/hosts/studio.zsh` syncs like any other file in the repo. Add more types (e.g. `zsh/hosts/work-laptop.zsh`) the same way — no changes to `zshrc`, `apply.sh`, or `setup.sh` needed.
+
 ### Lazy loading
 `nvm` and `conda` are stubbed and only loaded on first use. Shell starts in ~120ms instead of ~800ms. Force-load anytime with `load_nvm` or `load_conda`.
 
