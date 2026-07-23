@@ -61,6 +61,7 @@ brew "sketchybar"
 brew "skhd"
 brew "duti"                          # set default file handlers
 brew "dockutil"                      # manage Dock items from CLI
+brew "ical-buddy"                    # sketchybar "next calendar event" item
 
 # displayplacer powers the alt-ctrl-[/]/enter bindings that swap which
 # monitor is the macOS "main display". After install, run
