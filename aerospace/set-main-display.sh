@@ -41,10 +41,17 @@ if ! command -v "$DP" >/dev/null 2>&1; then
     exit 1
 fi
 
+# STATUS_FILE lets the Python block tell the shell whether anything actually
+# changed (a display was re-origined, or the toml was rewritten). When nothing
+# changed we skip the aerospace reload + sketchybar restart below — that churn
+# was flashing/closing the top bar on every no-op `auto` run.
+STATUS_FILE="$(mktemp -t setmaindisplay)"
+
 DP="$DP" \
 AERO="$AERO" \
 TARGET_ARG="$ARG" \
 AEROSPACE_TOML="$AEROSPACE_TOML" \
+STATUS_FILE="$STATUS_FILE" \
     /usr/bin/python3 <<'PY'
 import os, re, subprocess, sys, time
 
@@ -52,6 +59,7 @@ dp = os.environ["DP"]
 aero = os.environ["AERO"]
 target_arg = os.environ["TARGET_ARG"]
 aerospace_toml = os.environ["AEROSPACE_TOML"]
+status_file = os.environ["STATUS_FILE"]
 
 # ---------------------------------------------------------------------------
 # 1. Enumerate displays via displayplacer (positions, ids, resolutions).
@@ -176,7 +184,8 @@ gap_pattern = aero_escape(target_aero_name) if target_aero_name else "built-in"
 # 4. Shift origins so target lands at (0,0) (no-op if already main).
 # ---------------------------------------------------------------------------
 tx, ty = target["ox"], target["oy"]
-if not (tx == 0 and ty == 0):
+moved = not (tx == 0 and ty == 0)
+if moved:
     parts = [
         f'id:{s["id"]} res:{s["res"]} hz:{s["hz"]} color_depth:{s["depth"]} '
         f'enabled:true scaling:{s["scaling"]} origin:({s["ox"]-tx},{s["oy"]-ty}) degree:{s["rotation"]}'
@@ -188,7 +197,8 @@ if not (tx == 0 and ty == 0):
 # 5. Rewrite aerospace.toml: outer.top + workspace-to-monitor-force-assignment.
 # ---------------------------------------------------------------------------
 with open(aerospace_toml) as f:
-    content = f.read()
+    original = f.read()
+content = original
 
 # 5a. outer.top — 40px gap on main, 8px on the rest.
 new_outer_top = f"outer.top        = [{{ monitor.'{gap_pattern}' = 40 }}, 8]"
@@ -243,9 +253,35 @@ content = re.sub(
     count=1,
 )
 
-with open(aerospace_toml, "w") as f:
-    f.write(content)
+# Only touch the file (and thus its mtime) when the content actually changed —
+# a no-op rewrite would still make callers think something moved.
+toml_changed = content != original
+if toml_changed:
+    with open(aerospace_toml, "w") as f:
+        f.write(content)
+
+# Tell the shell whether any real change happened. "changed" → reload aerospace
+# + restart sketchybar below; "noop" → skip both (no bar flash on idle runs).
+with open(status_file, "w") as f:
+    f.write("changed" if (moved or toml_changed) else "noop")
 PY
+
+# Read the Python block's verdict; default to "changed" so an unexpected
+# failure to write the status file still reloads (fail safe, not silent).
+STATUS="changed"
+[ -f "$STATUS_FILE" ] && STATUS="$(cat "$STATUS_FILE" 2>/dev/null || echo changed)"
+rm -f "$STATUS_FILE"
+
+if [ "$STATUS" = "noop" ]; then
+    # Nothing changed — don't reload aerospace or restart sketchybar. Still run
+    # the focus step below for explicit user-initiated laptop/left/right calls.
+    case "$ARG" in
+        laptop) "${HOME}/.config/aerospace/focus-home.sh" ;;
+        left)   "${HOME}/.config/aerospace/focus-external.sh" left ;;
+        right)  "${HOME}/.config/aerospace/focus-external.sh" right ;;
+    esac
+    exit 0
+fi
 
 # Reload aerospace so the new outer.top + workspace pins take effect.
 /opt/homebrew/bin/aerospace reload-config >/dev/null 2>&1 || true
