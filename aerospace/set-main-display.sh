@@ -15,9 +15,10 @@
 #   1. (Maybe) shifts display origins via displayplacer to make target main.
 #   2. Rewrites `outer.top` in aerospace.toml so the 40px sketchybar gap is
 #      reserved on whichever monitor is now main.
-#   3. Rewrites `[workspace-to-monitor-force-assignment]` so workspaces 9/10
-#      pin to whatever external monitor names actually exist (or no pin when
-#      laptop-only, so 9/10 land on the laptop).
+#   3. Rewrites `[workspace-to-monitor-force-assignment]` so workspaces 1-8
+#      pin to the laptop and 9/10 pin to whatever external monitor names
+#      actually exist (or no pins at all when laptop-only, so every workspace
+#      lands on the laptop).
 #   4. Reloads aerospace and restarts sketchybar so the new geometry sticks.
 #
 # Requires `displayplacer` (brew install jakehilborn/jakehilborn/displayplacer)
@@ -202,8 +203,15 @@ content = re.sub(
 # 5b. workspace-to-monitor-force-assignment block. Strategy:
 #       2+ externals: 9 → rightmost, 10 → leftmost (preserves the
 #                     original "alt-] = right, alt-[ = left" intent).
-#       1 external : both 9 and 10 → that one external.
+#       1 external : both 9 and 10 → that one external, so Alt+9 / Alt+0
+#                    flip between two workspaces on the external.
 #       0 externals: empty block (no pins; 9/10 land on the laptop).
+#     Whenever at least one external exists, 1-8 are additionally pinned to
+#     the built-in display. Without that pin AeroSpace lets 1-8 drift onto
+#     whichever monitor they were last used on, which breaks the intended
+#     split: 8 workspaces on the laptop, 2 on the external.
+#     If the laptop display isn't active (clamshell mode), the 1-8 pins are
+#     omitted — a pin to a missing monitor would be dead weight.
 if len(aero_externals) >= 2:
     pin_9 = aero_escape(aero_externals[-1])
     pin_10 = aero_escape(aero_externals[0])
@@ -213,6 +221,13 @@ elif len(aero_externals) == 1:
     new_block_body = f"9  = '^{pin}$'\n10 = '^{pin}$'\n"
 else:
     new_block_body = ""
+
+if new_block_body and aero_builtin_name:
+    laptop_pin = aero_escape(aero_builtin_name)
+    laptop_lines = "".join(
+        f"{n:<2} = '^{laptop_pin}$'\n" for n in range(1, 9)
+    )
+    new_block_body = laptop_lines + new_block_body
 
 # Trailing blank line keeps the section visually separated from whatever
 # table follows (e.g. [key-mapping]).
