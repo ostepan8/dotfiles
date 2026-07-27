@@ -84,24 +84,34 @@ while IFS=$'\t' read -r wid pid app title; do
 done <"$ae_snapshot"
 
 # --- Pass 2: stale-window phantoms (process alive, window invisible).
-# AX snapshot is per-window: pid app title minimized hidden width height.
-# A window is "visible" iff minimized=0, hidden=0, and size is non-trivial.
+# AX snapshot is per-window: pid app title minimized hidden width height fullscreen.
+# A window is "visible" iff minimized=0, hidden=0, and size is non-trivial —
+# OR it is in native macOS fullscreen (which reads as zero/tiny size from a
+# different Space, but is very much a real window).
 # If AeroSpace tracks more windows for a PID than AX considers visible,
 # the excess are phantoms — gone, minimized, hidden behind Cmd+H, or
 # zero-sized — but AeroSpace is still allocating tile space for them.
-# Prefer to close empty-title rows first; a real, visible window almost
-# always has a title.
+#
+# Safety guards (so a fullscreen YouTube/Netflix window is never closed on a
+# workspace switch — see the aerospace-cleanup story):
+#   G1: only ever close windows with an EMPTY title. A real, visible window
+#       (fullscreen video included) almost always has a title, so restricting
+#       closes to title-less rows makes titled windows untouchable.
+#   G2: skip any PID that currently owns a fullscreen window entirely — belt
+#       to G1's suspenders, and it also keeps the video's sibling windows safe.
 if [ -s "$real_snapshot" ]; then
   excess_per_pid=$(awk -F'\t' '
     NR==FNR {
-      pid=$1; min=$4; hid=$5; w=$6; h=$7
-      if (min==0 && hid==0 && w > 100 && h > 100) ax_visible[pid]++
+      pid=$1; min=$4; hid=$5; w=$6; h=$7; fs=$8
+      if (fs==1) { ax_visible[pid]++; fullscreen[pid]=1 }
+      else if (min==0 && hid==0 && w > 100 && h > 100) ax_visible[pid]++
       seen[pid]=1
       next
     }
     seen[$2] { ae[$2]++ }
     END {
       for (pid in seen) {
+        if (pid in fullscreen) continue          # G2: never reap a fullscreen app
         diff = ae[pid] - ax_visible[pid]
         if (diff > 0) print pid"\t"diff
       }
@@ -112,15 +122,18 @@ if [ -s "$real_snapshot" ]; then
     while IFS=$'\t' read -r target_pid excess; do
       [ -z "$target_pid" ] && continue
       [ -z "$excess" ] && continue
-      # Pull AeroSpace rows for this PID, sort empty-title-first, take $excess.
-      awk -F'\t' -v p="$target_pid" '$2==p { print ($4=="" ? 0 : 1)"\t"$1"\t"$3"\t"$4 }' \
+      # G1: pull ONLY the title-less AeroSpace rows for this PID, then take at
+      # most $excess of them. Titled windows are never candidates, so a real
+      # (fullscreen or otherwise) window can't be closed even if the visible
+      # count is momentarily off. If there are fewer empty-title rows than the
+      # excess, we simply close fewer — safe under-reap beats a wrong close.
+      awk -F'\t' -v p="$target_pid" '$2==p && $4=="" { print $1"\t"$3 }' \
         "$ae_snapshot" \
-        | sort -n -k1,1 -s \
         | head -n "$excess" \
-        | while IFS=$'\t' read -r emptyflag wid app title; do
+        | while IFS=$'\t' read -r wid app; do
             if aerospace close --window-id "$wid" >/dev/null 2>&1; then
               closed=$((closed + 1))
-              echo "$(ts) closed stale-window phantom wid=$wid pid=$target_pid app=$app title='$title'" >>"$LOG"
+              echo "$(ts) closed stale-window phantom wid=$wid pid=$target_pid app=$app title=''" >>"$LOG"
             else
               failed=$((failed + 1))
               echo "$(ts) FAILED to close wid=$wid pid=$target_pid app=$app" >>"$LOG"

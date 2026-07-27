@@ -1,9 +1,17 @@
-// Print one TSV line per AX window: PID<TAB>APP<TAB>TITLE<TAB>MINIMIZED<TAB>HIDDEN<TAB>WIDTH<TAB>HEIGHT
+// Print one TSV line per AX window:
+//   PID<TAB>APP<TAB>TITLE<TAB>MINIMIZED<TAB>HIDDEN<TAB>WIDTH<TAB>HEIGHT<TAB>FULLSCREEN
 //
 // Cleanup script treats a window as "visible" only when minimized=0,
 // hidden=0, and width/height are non-trivial. AeroSpace counts > visible
 // counts → phantoms (e.g. minimized windows still in AeroSpace's tiling
 // tree, taking up space invisibly on the screen).
+//
+// FULLSCREEN (AXFullScreen) is emitted so the cleanup script can (a) count a
+// native-fullscreen window as visible even though it lives on its own Space
+// (and thus reads as zero/tiny size when queried from another Space) and
+// (b) skip reaping any app that currently owns a fullscreen window — this is
+// what stops YouTube/Netflix fullscreen windows from being closed on a
+// workspace switch.
 //
 // Compile: swiftc -O list-real-windows.swift -o list-real-windows
 // Run:     ./list-real-windows
@@ -55,7 +63,7 @@ for app in workspace.runningApplications {
     // row so the cleanup script knows this PID is reachable with 0 visible
     // windows — any AeroSpace tiles for it are phantoms.
     if windows.isEmpty {
-        print("\(pid)\t\(name)\t\t0\t0\t0\t0")
+        print("\(pid)\t\(name)\t\t0\t0\t0\t0\t0")
         continue
     }
 
@@ -64,7 +72,11 @@ for app in workspace.runningApplications {
             .replacingOccurrences(of: "\t", with: " ")
             .replacingOccurrences(of: "\n", with: " ")
         let minimized = boolAttr(w, kAXMinimizedAttribute as String) ? 1 : 0
+        // "AXFullScreen" is the native macOS fullscreen flag (private constant,
+        // but the string attribute is honored). True while a window occupies
+        // its own fullscreen Space.
+        let fullscreen = boolAttr(w, "AXFullScreen") ? 1 : 0
         let size = sizeAttr(w)
-        print("\(pid)\t\(name)\t\(title)\t\(minimized)\t\(appHidden)\t\(Int(size.width))\t\(Int(size.height))")
+        print("\(pid)\t\(name)\t\(title)\t\(minimized)\t\(appHidden)\t\(Int(size.width))\t\(Int(size.height))\t\(fullscreen)")
     }
 }
