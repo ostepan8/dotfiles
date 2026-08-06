@@ -1,0 +1,30 @@
+# clangd config for competitive-programming C++ on macOS.
+#
+# Problem this solves: macOS ships only Apple clang + libc++, which has no
+# <bits/stdc++.h> (a GCC/libstdc++ convenience header the Codeforces judge
+# provides). Out of the box clangd reports "'bits/stdc++.h' file not found"
+# and then a cascade of "undeclared identifier" errors for cin/cout/etc.
+#
+# Fix: point clangd at Homebrew GCC's libstdc++ (installed via `brew "gcc"`),
+# so the editor resolves bits/stdc++.h, __gnu_pbds, __int128 — matching what
+# g++-<N> actually compiles and what the judge runs.
+#
+# NOTE: the __GCXX__ / __GTRIPLE__ placeholders below are substituted with the
+# installed GCC's real include paths by mac/setup.sh (which also drops the
+# result at ~/Library/Preferences/clangd/config.yaml — the macOS-specific
+# clangd user-config location, NOT ~/.config/clangd). Re-run setup.sh after a
+# GCC major-version bump to refresh the paths.
+CompileFlags:
+  Add:
+    - -nostdinc++
+    - -isystem__GCXX__
+    - -isystem__GTRIPLE__
+    - -isystem__GCXX__/backward
+    - -std=gnu++17
+Diagnostics:
+  # Apple clang's frontend is older than Homebrew GCC's libstdc++ headers and
+  # mis-parses a few of their internals (e.g. __normal_iterator "incomplete
+  # type"). The code compiles cleanly with g++, so suppress just those
+  # header-origin false positives to keep the editor quiet.
+  Suppress:
+    - incomplete_member_access

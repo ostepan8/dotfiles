@@ -92,6 +92,22 @@ cp -f "$REPO_DIR/sketchybar/plugins/"*.sh ~/.config/sketchybar/plugins/
 chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/*.sh
 [ -f "$REPO_DIR/tmux/.tmux.conf" ] && cp -f "$REPO_DIR/tmux/.tmux.conf" ~/.tmux.conf
 
+# clangd for competitive-programming C++: point the editor at Homebrew GCC's
+# libstdc++ so <bits/stdc++.h> / pbds resolve (see clangd/config.yaml). Paths
+# are computed from the installed GCC so this survives version bumps, and the
+# result lands at the macOS-specific clangd config location
+# (~/Library/Preferences/clangd, NOT ~/.config/clangd).
+if [ -f "$REPO_DIR/clangd/config.yaml" ] && [ -d /opt/homebrew/opt/gcc/include/c++ ]; then
+  GCXX=$(ls -d /opt/homebrew/opt/gcc/include/c++/[0-9]* 2>/dev/null | sort -V | tail -1)
+  GTRIPLE=$(ls -d "$GCXX"/*-apple-darwin*/ 2>/dev/null | head -1)
+  if [ -n "$GCXX" ] && [ -n "$GTRIPLE" ]; then
+    mkdir -p ~/Library/Preferences/clangd
+    sed -e "s|__GCXX__|$GCXX|g" -e "s|__GTRIPLE__|${GTRIPLE%/}|g" \
+      "$REPO_DIR/clangd/config.yaml" > ~/Library/Preferences/clangd/config.yaml
+    echo "  wrote clangd config (GCC libstdc++ at $GCXX)"
+  fi
+fi
+
 # Install LaunchAgents (per-user background services). The aerospace-cleanup
 # agent runs every 60s and surgically drops phantom windows from AeroSpace's
 # tiling tree (both dead-PID phantoms and stale-window phantoms where the
