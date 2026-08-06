@@ -12,6 +12,10 @@ tap "jakehilborn/jakehilborn"        # displayplacer
 
 # ---- core developer tools ----
 brew "neovim"
+# GCC — real g++ (g++-N) for competitive-programming C++: provides
+# <bits/stdc++.h>, __gnu_pbds, __int128 etc. so local builds match the
+# Codeforces judge. clangd is also pointed at its libstdc++ (see clangd/).
+brew "gcc"
 brew "git"
 brew "git-lfs"
 brew "tmux"
