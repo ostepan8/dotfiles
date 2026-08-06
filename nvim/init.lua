@@ -295,11 +295,19 @@ require("lazy").setup({
                                         javascriptreact = { "prettier" },
                                         typescriptreact = { "prettier" },
                                 },
-                                format_on_save = {
-                                        timeout_ms = 500,
-                                        lsp_fallback = true,
-                                },
+                                -- Autoformat on save for everything EXCEPT cpp — during a
+                                -- contest you don't want clang-format reflowing your solution
+                                -- (or adding save latency). Format cpp manually with <leader>F.
+                                format_on_save = function(bufnr)
+                                        if vim.bo[bufnr].filetype == "cpp" then
+                                                return
+                                        end
+                                        return { timeout_ms = 500, lsp_fallback = true }
+                                end,
                         })
+                        vim.keymap.set({ "n", "v" }, "<leader>F", function()
+                                require("conform").format({ async = true, lsp_fallback = true })
+                        end, { noremap = true, silent = true, desc = "Format buffer" })
                 end
         },
 
@@ -334,6 +342,39 @@ require("lazy").setup({
                                 },
                         })
                 end,
+        },
+
+        -- COMPETITIVE PROGRAMMING (testcase manager + Codeforces import)
+        -- Runs your solution against stored testcases and shows pass/WA/TLE with
+        -- a diff. `<leader>tc` imports samples from the browser via the
+        -- Competitive Companion extension. Compiles with the same g++-16 flags
+        -- as the <F5> keymap below.
+        {
+                "xeluxee/competitest.nvim",
+                dependencies = { "MunifTanjim/nui.nvim" },
+                cmd = "CompetiTest",
+                keys = {
+                        { "<leader>tr", "<cmd>CompetiTest run<cr>", desc = "CP: run testcases" },
+                        { "<leader>ta", "<cmd>CompetiTest add_testcase<cr>", desc = "CP: add testcase" },
+                        { "<leader>te", "<cmd>CompetiTest edit_testcase<cr>", desc = "CP: edit testcase" },
+                        { "<leader>tc", "<cmd>CompetiTest receive testcases<cr>", desc = "CP: receive testcases" },
+                        { "<leader>tp", "<cmd>CompetiTest receive problem<cr>", desc = "CP: receive problem" },
+                },
+                opts = {
+                        compile_command = {
+                                cpp = {
+                                        exec = "g++-16",
+                                        args = { "-std=gnu++17", "-O2", "-Wall", "-Wextra",
+                                                "-fsanitize=address,undefined", "-D_GLIBCXX_DEBUG",
+                                                "$(FNAME)", "-o", "$(FNOEXT)" },
+                                },
+                        },
+                        run_command = {
+                                cpp = { exec = "$(FNOEXT)" },
+                        },
+                        template_file = "~/Desktop/code-forces/template.cpp",
+                        received_problems_path = "$(CWD)/$(PROBLEM).cpp",
+                },
         },
 })
 
@@ -400,3 +441,63 @@ vim.keymap.set("n", "<C-h>", "<C-w>h", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-j>", "<C-w>j", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-k>", "<C-w>k", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { noremap = true, silent = true })
+
+-- ============================
+-- C++ COMPETITIVE PROGRAMMING
+-- ============================
+-- <F5> debug build (ASan + UBSan + _GLIBCXX_DEBUG — catches OOB / UB / STL
+--      misuse: the bugs that silently become WA/RE on the judge)
+-- <F6> fast build (-O2 only — realistic timing for TLE checks)
+-- Both compile the current file with g++-16 and run it in a bottom terminal
+-- split, feeding stdin from ./input.txt whenever that file exists.
+local function cpp_compile_run(debug_build)
+        vim.cmd("silent! update") -- save first
+        local src = vim.fn.expand("%:p")
+        local dir = vim.fn.expand("%:p:h")
+        local bin = "/tmp/cp_" .. vim.fn.expand("%:t:r")
+        local flags = debug_build
+                and "-std=gnu++17 -O2 -g -Wall -Wextra -fsanitize=address,undefined -D_GLIBCXX_DEBUG -DLOCAL"
+                or "-std=gnu++17 -O2 -DLOCAL"
+        local infile = dir .. "/input.txt"
+        local redir = (vim.fn.filereadable(infile) == 1) and (" < " .. vim.fn.shellescape(infile)) or ""
+        local cmd = string.format(
+                "cd %s && g++-16 %s %s -o %s && echo '=== run ===' && %s%s; echo \"=== exit $? ===\"",
+                vim.fn.shellescape(dir), flags, vim.fn.shellescape(src),
+                vim.fn.shellescape(bin), vim.fn.shellescape(bin), redir
+        )
+        vim.cmd("botright 15split | enew")
+        vim.fn.jobstart({ "bash", "-c", 'export PATH=/opt/homebrew/bin:"$PATH"; ' .. cmd }, { term = true })
+        vim.cmd("startinsert")
+end
+
+vim.api.nvim_create_autocmd("FileType", {
+        pattern = "cpp",
+        callback = function(args)
+                local o = { noremap = true, silent = true, buffer = args.buf }
+                vim.keymap.set("n", "<F5>", function() cpp_compile_run(true) end, o)
+                vim.keymap.set("n", "<F6>", function() cpp_compile_run(false) end, o)
+        end,
+})
+
+-- New .cpp files start from the competitive-programming template, cursor
+-- parked on the empty body line.
+vim.api.nvim_create_autocmd("BufNewFile", {
+        pattern = "*.cpp",
+        callback = function(args)
+                local tpl = {
+                        "#include <bits/stdc++.h>",
+                        "using namespace std;",
+                        "",
+                        "int main() {",
+                        "    ios_base::sync_with_stdio(false);",
+                        "    cin.tie(NULL);",
+                        "",
+                        "    ",
+                        "",
+                        "    return 0;",
+                        "}",
+                }
+                vim.api.nvim_buf_set_lines(args.buf, 0, -1, false, tpl)
+                pcall(vim.api.nvim_win_set_cursor, 0, { 8, 4 })
+        end,
+})
