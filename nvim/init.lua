@@ -116,20 +116,46 @@ require("lazy").setup({
                 end
         },
 
-        -- SYNTAX HIGHLIGHTING
+        -- SYNTAX HIGHLIGHTING (nvim-treesitter `main` branch — supports nvim
+        -- 0.11+. The old `master` branch was archived and crashed on 0.12
+        -- because its query directives call node:range() on match captures
+        -- that are now lists of nodes.)
+        --
+        -- The `main` branch has a different API: no configs.setup()/ensure_installed;
+        -- you install() parsers explicitly and start highlighting yourself per
+        -- buffer. Highlight + (experimental) treesitter indent are enabled in a
+        -- FileType autocmd for any buffer whose language has an installed parser.
         {
                 "nvim-treesitter/nvim-treesitter",
-                branch = "master",
+                branch = "main",
+                lazy = false,
                 build = ":TSUpdate",
                 config = function()
-                        require("nvim-treesitter.configs").setup({
-                                ensure_installed = { "python", "cpp", "lua", "luau", "vim", "bash", "markdown", "markdown_inline", "json", "yaml", "javascript", "typescript", "tsx", "html", "css"},
-                                auto_install = true,
-                                highlight = {
-                                        enable = true,
-                                        additional_vim_regex_highlighting = false,
-                                },
-                                indent = { enable = true },
+                        require("nvim-treesitter").setup()
+
+                        require("nvim-treesitter").install({
+                                "python", "cpp", "lua", "luau", "vim", "vimdoc", "bash",
+                                "markdown", "markdown_inline", "json", "yaml", "javascript",
+                                "typescript", "tsx", "html", "css", "query",
+                        })
+
+                        -- Filetypes whose name differs from the parser (language) name.
+                        vim.treesitter.language.register("tsx", "typescriptreact")
+                        vim.treesitter.language.register("javascript", "javascriptreact")
+                        vim.treesitter.language.register("bash", "sh")
+
+                        vim.api.nvim_create_autocmd("FileType", {
+                                callback = function(args)
+                                        local buf = args.buf
+                                        local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
+                                                or vim.bo[buf].filetype
+                                        -- start() loads the parser; pcall so filetypes without one
+                                        -- (help without vimdoc, plain text, terminals) are skipped.
+                                        if pcall(vim.treesitter.start, buf, lang) then
+                                                vim.bo[buf].indentexpr =
+                                                        "v:lua.require'nvim-treesitter'.indentexpr()"
+                                        end
+                                end,
                         })
                 end
         },
