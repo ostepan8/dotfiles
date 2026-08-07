@@ -56,11 +56,9 @@ fi
 echo "[5/10] Linking configs..."
 mkdir -p ~/.config/nvim ~/.config/ghostty ~/.config/aerospace ~/.config/sketchybar/plugins
 cp -f "$REPO_DIR/nvim/init.lua" ~/.config/nvim/init.lua
-# Treesitter query overrides (rtp[1] beats plugins). Currently: 0.12-compatible
-# markdown injection queries that replace nvim-treesitter master's crashing ones.
-if [ -d "$REPO_DIR/nvim/queries" ]; then
-  cp -Rf "$REPO_DIR/nvim/queries" ~/.config/nvim/
-fi
+# nvim-treesitter runs on its `main` branch: parsers build via the tree-sitter
+# CLI (Brewfile) and install on first `nvim` launch, into ~/.local/share/nvim/site.
+# Nothing to copy here.
 cp -f "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
 cp -f "$REPO_DIR/ghostty/config" ~/.config/ghostty/config
 cp -f "$REPO_DIR/skhd/skhdrc" ~/.skhdrc

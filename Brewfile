@@ -16,6 +16,10 @@ brew "neovim"
 # <bits/stdc++.h>, __gnu_pbds, __int128 etc. so local builds match the
 # Codeforces judge. clangd is also pointed at its libstdc++ (see clangd/).
 brew "gcc"
+# tree-sitter CLI — required by nvim-treesitter's `main` branch to build parsers
+# (the archived `master` branch didn't need it). Parsers install on first
+# `nvim` launch via require('nvim-treesitter').install(...).
+brew "tree-sitter-cli"
 brew "git"
 brew "git-lfs"
 brew "tmux"
