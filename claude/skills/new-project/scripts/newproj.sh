@@ -13,11 +13,59 @@
 
 set -euo pipefail
 
-readonly DEFAULT_ROOT="${NEWPROJ_ROOT:-$HOME/Desktop/Projects}"
 readonly DEFAULT_CMD="ccd"
 readonly SHELL_WAIT_TIMEOUT=30 # x 0.1s = 3s max wait for the pane shell to boot
 readonly TRUST_WAIT_TIMEOUT=80 # x 0.1s = 8s max wait for Claude's trust prompt
 readonly GHOSTTY_APP="/Applications/Ghostty.app"
+
+# Machines sharing these dotfiles do NOT share a folder layout — ~/Desktop/Projects
+# is one Mac's habit, not a given. Resolve the root per machine instead of
+# assuming, in descending order of explicitness:
+#
+#   1. --root / --path            this invocation
+#   2. $NEWPROJ_ROOT              exported from zsh/hosts/<type>.zsh
+#   3. ~/.config/newproj/root     machine-local file (survives non-interactive
+#                                 shells that never source zshrc — how Claude
+#                                 and cron run this). Untracked; never commit it.
+#   4. first candidate that exists on this machine
+#   5. ~/Projects                 last resort, created on demand
+readonly ROOT_CONFIG="$HOME/.config/newproj/root"
+readonly ROOT_CANDIDATES=(
+  "$HOME/Desktop/Projects"
+  "$HOME/Projects"
+  "$HOME/projects"
+  "$HOME/code"
+  "$HOME/dev"
+  "$HOME/src"
+  "$HOME/Developer"
+)
+readonly ROOT_FALLBACK="$HOME/Projects"
+
+resolve_root() {
+  if [ -n "${NEWPROJ_ROOT:-}" ]; then
+    printf '%s' "${NEWPROJ_ROOT/#\~/$HOME}"
+    return
+  fi
+
+  if [ -r "$ROOT_CONFIG" ]; then
+    local configured
+    configured="$(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$ROOT_CONFIG" | grep -m1 .)" || true
+    if [ -n "$configured" ]; then
+      printf '%s' "${configured/#\~/$HOME}"
+      return
+    fi
+  fi
+
+  local candidate
+  for candidate in "${ROOT_CANDIDATES[@]}"; do
+    if [ -d "$candidate" ]; then
+      printf '%s' "$candidate"
+      return
+    fi
+  done
+
+  printf '%s' "$ROOT_FALLBACK"
+}
 
 # ---------------------------------------------------------------- helpers ---
 
@@ -41,7 +89,12 @@ Arguments:
                       after the last segment.
 
 Options:
-  -r, --root DIR      Project root (default: $NEWPROJ_ROOT or ~/Desktop/Projects)
+  -r, --root DIR      Project root. Machines sharing these dotfiles don't share
+                      a folder layout, so the default is resolved per machine:
+                      $NEWPROJ_ROOT, then ~/.config/newproj/root, then the first
+                      of ~/Desktop/Projects ~/Projects ~/projects ~/code ~/dev
+                      ~/src ~/Developer that exists, then ~/Projects.
+      --show-root     Print the root this machine resolves to, and exit
   -p, --path DIR      Exact directory to use; overrides --root and <name> path
   -c, --cmd CMD       Claude launcher: ccd | ccds | ccdw | none  (default: ccd)
   -P, --prompt TEXT   Initial prompt handed to Claude on launch
@@ -78,7 +131,7 @@ shell_quote() {
 # ------------------------------------------------------------ arg parsing ---
 
 name=""
-root="$DEFAULT_ROOT"
+root=""
 explicit_path=""
 claude_cmd="$DEFAULT_CMD"
 initial_prompt=""
@@ -91,6 +144,7 @@ dry_run=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -r | --root) [ $# -ge 2 ] || die "--root needs a value"; root="$2"; shift 2 ;;
+    --show-root) resolve_root; printf '\n'; exit 0 ;;
     -p | --path) [ $# -ge 2 ] || die "--path needs a value"; explicit_path="$2"; shift 2 ;;
     -c | --cmd) [ $# -ge 2 ] || die "--cmd needs a value"; claude_cmd="$2"; shift 2 ;;
     -P | --prompt) [ $# -ge 2 ] || die "--prompt needs a value"; initial_prompt="$2"; shift 2 ;;
@@ -132,6 +186,7 @@ session="${session_override:-$(slugify "$(basename "$slug")")}"
 if [ -n "$explicit_path" ]; then
   project_dir="${explicit_path/#\~/$HOME}"
 else
+  [ -n "$root" ] || root="$(resolve_root)"
   project_dir="${root/#\~/$HOME}/$slug"
 fi
 

@@ -29,21 +29,41 @@ hand-roll the mkdir / tmux / attach steps.
 
 ## Choosing where it goes
 
-The one judgment call. Defaults, in order of preference:
+The one judgment call — and the one place to not assume.
+
+**The project root differs per machine.** These dotfiles run on more than one
+computer and they do *not* share a folder layout, so never hardcode
+`~/Desktop/Projects` (that's one machine's habit) in a path you hand the user or
+write into a file. Ask the script:
+
+```bash
+newproj --show-root          # the root this machine resolves to
+newproj --dry-run <name>     # the exact directory it would create
+```
+
+Resolution order: `--root`/`--path` → `$NEWPROJ_ROOT` (set in
+`zsh/hosts/<type>.zsh`) → `~/.config/newproj/root` (machine-local, untracked) →
+first existing of `~/Desktop/Projects ~/Projects ~/projects ~/code ~/dev ~/src
+~/Developer` → `~/Projects`. If a machine wants a different home, set it once in
+`~/.config/newproj/root` rather than passing `--root` every time.
+
+With the root resolved, sort the project into it:
 
 | Kind of thing | Location |
 |---|---|
-| Real project — anything with a git history, code, or a future | `~/Desktop/Projects/<slug>` (the default) |
-| Throwaway single-page web demo | `~/Desktop/Web-Experiments/` (`--path`, usually `--no-git`) |
-| Scratch / one-off experiment | `~/Desktop/Projects/misc/<slug>` |
+| Real project — anything with a git history, code, or a future | `<root>/<slug>` (the default) |
+| Scratch / one-off experiment | `<root>/misc/<slug>` |
+| Throwaway single-page web demo | a siblings-of-root dir if the machine has one (this Mac: `~/Desktop/Web-Experiments/`) via `--path`, usually `--no-git` |
 
 Rules of thumb:
 
-- Default to `~/Desktop/Projects/<slug>` unless the user names a location.
+- Default to `<root>/<slug>` unless the user names a location.
+- Confirm the sibling directory exists before using `--path` for one — those are
+  machine-specific too. `ls` the parent first.
 - Derive a short kebab-case slug from what the user described (`"a bot that
   tracks WNBA lines"` → `wnba-line-bot`). The slug is also the tmux session
   name, so keep it typeable — that name is what `ta <slug>` completes on later.
-- Check first whether the project already exists: `ls ~/Desktop/Projects`. If it
+- Check first whether the project already exists: `ls "$(newproj --show-root)"`. If it
   does, run `newproj` on it anyway — it reuses the directory and the session
   instead of clobbering either, so it doubles as "give this folder a session".
 - Ambiguous between two homes and the user is present? Ask. Otherwise pick the
@@ -52,10 +72,11 @@ Rules of thumb:
 ## Options
 
 ```bash
-newproj <name>                        # default: ~/Desktop/Projects/<name>, git, ccd
+newproj <name>                        # <resolved root>/<name>, git, ccd
+newproj --show-root                   # where this machine puts projects
 newproj misc/scratch                  # slashes nest under the root; session = "scratch"
-newproj <name> --root ~/code          # different root
-newproj <name> --path ~/Desktop/Web-Experiments/thing
+newproj <name> --root ~/code          # different root, just this once
+newproj <name> --path /exact/dir
 newproj <name> --cmd ccdw             # work profile (ccd personal, ccds school, none = no Claude)
 newproj <name> --prompt "scaffold a Next.js app with Tailwind"
 newproj <name> --session api          # tmux session name != folder name
