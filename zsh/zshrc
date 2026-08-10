@@ -134,16 +134,34 @@ alias e='exit'
 # tmux
 alias nts='tmux new-session -s'   # nts <name>  -> new named session
 alias tns='tmux new-session -s'   # tns <name>  -> alias of nts
-ta() {                             # ta [name|-t name] -> attach (tab-completes session names)
-    if [[ $# -gt 0 && "$1" != -* ]]; then
-        tmux attach -t "$1"
-    else
-        tmux attach "$@"
-    fi
+
+# ta [name] -> attach. A function rather than an alias so it can carry its own
+# completion: zsh expands aliases before completing, so `alias ta='tmux attach'`
+# completed as `tmux attach <TAB>`, which offers flags — session names only
+# complete after -t. Completion is registered below, after compinit.
+#
+# Clear any stale `ta` alias first. zsh expands aliases before resolving
+# functions, so an older `alias ta=...` still live in a re-sourced session
+# would shadow this function entirely — `reload` would silently keep the old
+# behavior. unalias makes re-sourcing converge to the function, not just a
+# fresh shell.
+unalias ta 2>/dev/null || true
+ta() {
+  if [ $# -gt 0 ]; then
+    tmux attach -t "$1"      # explicit target; let a bad name report its error
+  else
+    tmux attach              # no arg -> most recent session
+  fi
 }
 
 # ---------- completions + plugins ----------
 autoload -Uz compinit && compinit
+
+# `ta <TAB>` -> live tmux session names. Must follow compinit, since compdef is
+# defined by it. (f) splits on newlines so session names containing spaces
+# survive as single candidates.
+_ta() { compadd -- ${(f)"$(tmux list-sessions -F '#S' 2>/dev/null)"} }
+compdef _ta ta
 for __antidote in \
     /opt/homebrew/opt/antidote/share/antidote/antidote.zsh \
     /usr/local/opt/antidote/share/antidote/antidote.zsh \
@@ -156,14 +174,6 @@ for __antidote in \
     fi
 done
 unset __antidote
-
-# `ta<TAB>` lists/completes live tmux session names
-_ta() {
-    local -a sessions
-    sessions=(${(f)"$(tmux list-sessions -F '#S' 2>/dev/null)"})
-    _describe 'tmux session' sessions
-}
-compdef _ta ta
 
 bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down

@@ -34,11 +34,15 @@ log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LOG"; }
 
 # Run a command with a hard timeout so a hung network call (fetch/pull/push
 # blocking on a credential prompt or dead connection) can never pile up across
-# 30-min ticks. Uses timeout/gtimeout if present, else runs unguarded.
-if command -v timeout >/dev/null 2>&1; then TIMEOUT=timeout
-elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT=gtimeout
-else TIMEOUT=""; fi
-net() { if [ -n "$TIMEOUT" ]; then "$TIMEOUT" 120 "$@"; else "$@"; fi; }
+# 30-min ticks.
+#
+# This previously fell back to running UNGUARDED when neither timeout(1) nor
+# gtimeout was installed — which is the default state of a stock macOS box, so
+# in practice the guard was usually absent exactly where it was needed. Use the
+# shared pure-bash implementation instead: always present, no coreutils needed.
+# shellcheck source=lib/with-timeout.sh
+. "$SCRIPT_DIR/lib/with-timeout.sh"
+net() { with_timeout 120 "$@"; }
 
 # From a launchd context the osxkeychain helper can't pop an interactive
 # prompt, so a push needing credentials hangs until the timeout. The GitHub

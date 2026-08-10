@@ -12,6 +12,18 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck source=lib/with-timeout.sh
+. "$SCRIPT_DIR/lib/with-timeout.sh"
+
+# Budget for a single service hot-reload. These are local IPC round-trips that
+# finish in well under a second when healthy, so 10s is generous.
+RELOAD_TIMEOUT=10
+
+# set-main-display.sh is not a simple IPC ping — it rewrites aerospace.toml,
+# reloads aerospace, restarts sketchybar and polls for the bar to come back —
+# so it gets its own, larger budget.
+DISPLAY_RECONCILE_TIMEOUT=60
+
 # Per-source change detection. The dotfiles-sync agent runs this every 30 min;
 # copying files is cheap, but *reloading services* (aerospace retile, sketchybar
 # daemon restart, skhd reload, relaunching LaunchAgents) is disruptive — it was
@@ -54,7 +66,12 @@ chmod +x ~/.config/aerospace/*.sh 2>/dev/null || true
 if changed aerospace-toml "$REPO_DIR/aerospace/aerospace.toml"; then
   echo "[apply] aerospace.toml changed — reconciling for this machine"
   cp -f "$REPO_DIR/aerospace/aerospace.toml" ~/.config/aerospace/aerospace.toml
-  ~/.config/aerospace/set-main-display.sh auto >/dev/null 2>&1 || true
+  rc=0
+  with_timeout "$DISPLAY_RECONCILE_TIMEOUT" \
+    ~/.config/aerospace/set-main-display.sh auto >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 124 ]; then
+    echo "  WARN: set-main-display.sh timed out after ${DISPLAY_RECONCILE_TIMEOUT}s — skipped (is aerospace wedged?)"
+  fi
 fi
 
 # displays.env holds machine-specific persistent display IDs — never clobber.
@@ -120,17 +137,44 @@ cp -R "$REPO_DIR/claude/rules/." ~/.claude/rules/
 # an idle sync tick leaves the running desktop untouched (no bar flash, no
 # retile). aerospace's reload is handled by the aerospace.toml branch above
 # (via set-main-display.sh), since its live toml is machine-mutated.
+#
+# Every reload is also timeout-guarded. Each shells into a long-running daemon,
+# and a wedged daemon blocks apply.sh forever — which in turn blocks sync.sh,
+# which stops launchd from ever firing the next sync. A cosmetic "reload the
+# window manager" step must never be able to take the whole sync pipeline down
+# with it, so a stuck reload is logged and skipped.
 echo "[apply] reloading changed services"
+
+reload_service() {
+  local name="$1"; shift
+  command -v "$name" >/dev/null 2>&1 || return 0
+  local rc=0
+  with_timeout "$RELOAD_TIMEOUT" "$@" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 124 ]; then
+    echo "  WARN: $name reload timed out after ${RELOAD_TIMEOUT}s — skipped (is $name wedged?)"
+  fi
+  return 0
+}
+
+# `command -v` is tested BEFORE `changed` in each guard below, and never folded
+# into reload_service alone: `changed` records the new hash as a side effect, so
+# consuming it for a tool that isn't installed would mark the change applied and
+# suppress the reload that should happen once that tool does get installed.
 if command -v skhd >/dev/null 2>&1 && changed skhd "$REPO_DIR/skhd/skhdrc"; then
-  skhd --reload 2>/dev/null || true
+  reload_service skhd skhd --reload
 fi
 if command -v sketchybar >/dev/null 2>&1 \
    && changed sketchybar "$REPO_DIR/sketchybar/sketchybarrc" "$REPO_DIR"/sketchybar/plugins/*.sh; then
-  sketchybar --reload 2>/dev/null || true
+  reload_service sketchybar sketchybar --reload
 fi
-if command -v tmux >/dev/null 2>&1 && tmux info >/dev/null 2>&1 \
+# tmux needs a liveness probe first (source-file against no server is an error,
+# not a no-op) — and the probe itself gets a timeout for the same reason as the
+# reloads. The probe also precedes `changed` for the side-effect reason above:
+# with no server running there is nothing to reload, so the hash must not move.
+if command -v tmux >/dev/null 2>&1 \
+   && with_timeout "$RELOAD_TIMEOUT" tmux info >/dev/null 2>&1 \
    && changed tmux "$REPO_DIR/tmux/.tmux.conf"; then
-  tmux source-file ~/.tmux.conf 2>/dev/null || true
+  reload_service tmux tmux source-file "$HOME/.tmux.conf"
 fi
 
 echo "[apply] done"
