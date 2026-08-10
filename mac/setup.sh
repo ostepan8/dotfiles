@@ -153,6 +153,9 @@ done
 mkdir -p "$HOME/.local/bin"
 ln -sf "$REPO_DIR/claude/skills/youtube-transcribe/scripts/transcribe.py" "$HOME/.local/bin/yt-transcribe"
 ln -sf "$REPO_DIR/claude/skills/youtube-transcribe/scripts/transcribe_channel.py" "$HOME/.local/bin/yt-transcribe-channel"
+# newproj: dir + git + tmux session + Claude + attached Ghostty window, in one shot.
+ln -sf "$REPO_DIR/claude/skills/new-project/scripts/newproj.sh" "$HOME/.local/bin/newproj"
+ln -sf "$REPO_DIR/claude/skills/new-project/scripts/newproj.sh" "$HOME/.local/bin/np"
 
 echo "[7/10] Installing tmux plugin manager..."
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then

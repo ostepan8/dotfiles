@@ -110,6 +110,9 @@ The marker holds a *type*, not a unique device id — a second Mac Studio just g
 | `gs` / `gd` / `gco` / `gl` | `git status` / `diff` / `checkout` / pretty log |
 | `reload` | `source ~/.zshrc` |
 | `ccd` / `ccrd` | `claude --dangerously-skip-permissions` (new / resume) |
+| `newproj` / `np` | New project: dir + git + tmux session + Claude + attached Ghostty window (`newproj <name>`, `--help` for options) |
+| `nts` / `tns` | `tmux new-session -s <name>` |
+| `ta [name]` | `tmux attach` (tab-completes live session names) |
 
 ## Key bindings
 
