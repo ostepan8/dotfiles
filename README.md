@@ -17,7 +17,7 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 - **sketchybar/** — custom top bar (Gruvbox theme) with Aerospace workspace indicators, front-app, CPU, battery, clock
 - **mac/setup.sh** — macOS installer (Homebrew + `brew bundle`) — also runs `mac/defaults.sh` and installs `mac/LaunchAgents/*.plist`
 - **mac/defaults.sh** — macOS system tweaks (Finder, Dock, keyboard, trackpad, screenshot location, etc.)
-- **mac/LaunchAgents/** — per-user `launchd` jobs (e.g. AeroSpace phantom-window watchdog)
+- **mac/LaunchAgents/** — per-user `launchd` jobs (e.g. AeroSpace phantom-window watchdog, the `lifeos` dashboard server + its plan/check-in nudges). Jobs whose project isn't installed on a given machine guard on `command -v` and idle out rather than respawn-looping.
 - **linux/setup.sh** — Linux installer (apt/dnf/pacman)
 
 ## Install
