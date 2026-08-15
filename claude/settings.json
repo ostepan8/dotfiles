@@ -3,7 +3,7 @@
     "NODE_USE_SYSTEM_CA": "1",
     "NODE_EXTRA_CA_CERTS": "/Users/ostepan/system-roots.pem"
   },
-  "skillListingBudgetFraction": 0.02,
+  "skillListingBudgetFraction": 0.15,
   "permissions": {
     "additionalDirectories": [
       "~"
