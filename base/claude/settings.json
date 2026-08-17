@@ -2,7 +2,8 @@
   "skillListingBudgetFraction": 0.15,
   "env": {
     "NODE_USE_SYSTEM_CA": "1",
-    "NODE_EXTRA_CA_CERTS": "/Users/ostepan/system-roots.pem"
+    "NODE_EXTRA_CA_CERTS": "/Users/ostepan/system-roots.pem",
+    "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN": "1"
   },
   "permissions": {
     "additionalDirectories": [
