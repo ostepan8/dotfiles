@@ -48,7 +48,7 @@ if [ -n "$(git log origin/main..HEAD --oneline 2>/dev/null)" ]; then
 fi
 
 wanted_hosts() {
-  awk '!/^[[:space:]]*#/ && NF == 2 { print $1, $2 }' "$DOTFILES/hosts/fleet.conf"
+  awk '!/^[[:space:]]*#/ && NF >= 2 { print $1, $2 }' "$DOTFILES/hosts/fleet.conf"
 }
 
 ok_hosts=(); failed_hosts=(); skipped_hosts=(); changed_hosts=(); bootstrap_hosts=()
