@@ -1,0 +1,32 @@
+# This repo is PUBLIC. Default to excluding anything machine-specific or secret;
+# ship a *.template alongside instead (see claude/skills/nephos/env.template).
+
+# --- OS / editor noise ---
+.DS_Store
+*.swp
+*~
+
+# --- logs and local state ---
+*.log
+.dotfiles-apply/
+.secretscan.*
+
+# --- machine-specific / secret, never committed ---
+# Filled-in env files. The .template versions ARE tracked.
+**/env
+!**/env.template
+
+# Bulb addresses, display IDs, and anything else describing one machine or one
+# LAN. These live in ~/.config/<tool>/ instead.
+claude/skills/yeelight/references/bulbs.txt
+
+# Claude local-only settings and per-session state — machine-scoped, and
+# settings.local.json routinely accumulates absolute paths.
+**/settings.local.json
+claude/**/sessions/
+claude/**/projects/
+claude/**/history.jsonl
+claude/**/.credentials.json
+
+# Backups written by the installer
+*.backup

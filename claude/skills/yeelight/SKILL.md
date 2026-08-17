@@ -14,29 +14,36 @@ Ensure `yeelight` is installed:
 pip install yeelight --break-system-packages
 ```
 
-Bulb IPs are listed in `references/bulbs.txt`, one per line.
+**Bulb addresses live in `~/.config/yeelight/bulbs.txt`, one per line** — outside this
+repo, which is public. A bulb list is an inventory of the home LAN, so it follows the
+same rule as `~/.config/nephos/env`: never committed.
+
+If that file is missing, yeelight isn't set up on this machine. Say so rather than
+guessing addresses — see `references/bulbs.txt.template` for how to create it.
 
 ## Usage
 
-Use `scripts/control.py` for all operations:
+Use `scripts/control.py` for all operations. It reads the default config path above,
+so no `--config` flag is needed:
 
 ```bash
 # Turn all bulbs on/off
-python scripts/control.py on --config references/bulbs.txt
-python scripts/control.py off --config references/bulbs.txt
+python scripts/control.py on
+python scripts/control.py off
 
 # Set brightness (1-100)
-python scripts/control.py brightness --config references/bulbs.txt --brightness 50
+python scripts/control.py brightness --brightness 50
 
 # Set color (hex or r,g,b)
-python scripts/control.py color --config references/bulbs.txt --color "#ff0000"
-python scripts/control.py color --config references/bulbs.txt --color "255,0,0"
+python scripts/control.py color --color "#ff0000"
+python scripts/control.py color --color "255,0,0"
 
 # Check status
-python scripts/control.py status --config references/bulbs.txt
+python scripts/control.py status
 
-# Target specific bulbs instead of config file
-python scripts/control.py on --ip 192.168.1.100 --ip 192.168.1.101
+# Target specific bulbs, or a different config file
+python scripts/control.py on --ip 10.0.0.10 --ip 10.0.0.11
+python scripts/control.py on --config /path/to/other-bulbs.txt
 ```
 
 ## Color Reference

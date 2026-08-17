@@ -6,15 +6,18 @@ import sys
 from pathlib import Path
 from yeelight import Bulb, BulbException
 
+# Bulb addresses are LAN topology, so they live outside this repo (it is public)
+# — same pattern as the nephos skill's ~/.config/nephos/env. See bulbs.txt.template.
+DEFAULT_CONFIG = Path.home() / ".config" / "yeelight" / "bulbs.txt"
+
 def load_bulbs(config_path: str | None, ips: list[str] | None) -> list[str]:
     """Load bulb IPs from config file and/or CLI args."""
     all_ips = []
-    
-    if config_path:
-        config = Path(config_path)
-        if config.exists():
-            all_ips.extend(line.strip() for line in config.read_text().splitlines() if line.strip() and not line.startswith('#'))
-    
+
+    config = Path(config_path) if config_path else DEFAULT_CONFIG
+    if config.exists():
+        all_ips.extend(line.strip() for line in config.read_text().splitlines() if line.strip() and not line.startswith('#'))
+
     if ips:
         all_ips.extend(ips)
     
@@ -57,7 +60,7 @@ def parse_color(color_str: str) -> tuple[int, int, int]:
 def main():
     parser = argparse.ArgumentParser(description="Control Yeelight bulbs")
     parser.add_argument("action", choices=["on", "off", "brightness", "color", "status"])
-    parser.add_argument("--config", "-c", help="Path to bulbs.txt config file")
+    parser.add_argument("--config", "-c", help=f"Path to bulbs.txt (default: {DEFAULT_CONFIG})")
     parser.add_argument("--ip", "-i", action="append", help="Bulb IP (can specify multiple)")
     parser.add_argument("--brightness", "-b", type=int, help="Brightness 1-100")
     parser.add_argument("--color", help="Color as #rrggbb or r,g,b")
@@ -66,7 +69,11 @@ def main():
     
     ips = load_bulbs(args.config, args.ip)
     if not ips:
-        print("Error: No bulb IPs provided. Use --config or --ip", file=sys.stderr)
+        print(
+            f"Error: no bulb IPs. Create {DEFAULT_CONFIG} (see the skill's "
+            "references/bulbs.txt.template), or pass --config / --ip.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     
     kwargs = {}
