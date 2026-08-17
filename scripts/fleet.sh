@@ -58,9 +58,17 @@ update_host() {
 
   # Remote script. Kept as one heredoc so the whole update is a single ssh
   # round trip — a per-step connection would multiply the failure surface.
-  out="$(ssh "${SSH_OPTS[@]}" "$alias" bash -s -- "$type" "$TARGET" "$REPO_URL" "$DRY_RUN" "$FULL" <<'REMOTE' 2>&1)"
+  # NOTE ON THE HEREDOC: the closing ")" of the command substitution must come
+  # AFTER the REMOTE terminator, not on the ssh line. With it on the ssh line the
+  # substitution closes immediately and the heredoc body is parsed as part of
+  # THIS script — it then runs locally, which is exactly as bad as it sounds.
+  #
+  # Values are passed as environment variables rather than positional args:
+  # ssh flattens its command to a string that the remote shell re-splits, so
+  # positional args are one quoting mistake away from silent misalignment.
+  out="$(ssh "${SSH_OPTS[@]}" "$alias" \
+    "TYPE='$type' TARGET='$TARGET' REPO_URL='$REPO_URL' DRY='$DRY_RUN' FULL='$FULL' bash -s" <<'REMOTE' 2>&1
 set -uo pipefail
-TYPE="$1"; TARGET="$2"; REPO_URL="$3"; DRY="$4"; FULL="$5"
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # Seed the machine type so no interview is needed. Never overwrite an existing
@@ -110,6 +118,7 @@ else
   ./apply.sh 2>&1 | tail -20
 fi
 REMOTE
+)"
   rc=$?
 
   if [ "$rc" -ne 0 ] && grep -qiE 'permission denied|connection|timed out|could not resolve|host key' <<<"$out"; then
