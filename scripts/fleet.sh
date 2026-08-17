@@ -51,7 +51,7 @@ wanted_hosts() {
   awk '!/^[[:space:]]*#/ && NF == 2 { print $1, $2 }' "$DOTFILES/hosts/fleet.conf"
 }
 
-ok_hosts=(); failed_hosts=(); skipped_hosts=(); changed_hosts=()
+ok_hosts=(); failed_hosts=(); skipped_hosts=(); changed_hosts=(); bootstrap_hosts=()
 
 update_host() {
   local alias="$1" type="$2" out rc
@@ -66,8 +66,13 @@ update_host() {
   # Values are passed as environment variables rather than positional args:
   # ssh flattens its command to a string that the remote shell re-splits, so
   # positional args are one quoting mistake away from silent misalignment.
-  out="$(ssh "${SSH_OPTS[@]}" "$alias" \
-    "TYPE='$type' TARGET='$TARGET' REPO_URL='$REPO_URL' DRY='$DRY_RUN' FULL='$FULL' bash -s" <<'REMOTE' 2>&1
+  # Output goes to a temp file rather than $( ), because a heredoc inside a
+  # command substitution forces bash to scan the body for the closing paren —
+  # and `case` patterns like `dnf|zypper)` inside it break that scan with a
+  # syntax error pointing at an unrelated line.
+  local tmp; tmp="$(mktemp)"
+  ssh "${SSH_OPTS[@]}" "$alias" \
+    "TYPE='$type' TARGET='$TARGET' REPO_URL='$REPO_URL' DRY='$DRY_RUN' FULL='$FULL' bash -s" >"$tmp" 2>&1 <<'REMOTE'
 set -uo pipefail
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
@@ -78,6 +83,30 @@ if [ ! -f "$HOME/.dotfiles-host" ]; then
   else printf '%s\n' "$TYPE" > "$HOME/.dotfiles-host"; echo "set ~/.dotfiles-host=$TYPE"; fi
 elif [ "$(tr -d '[:space:]' < "$HOME/.dotfiles-host")" != "$TYPE" ]; then
   echo "NOTE: marker is '$(tr -d '[:space:]' < "$HOME/.dotfiles-host")', fleet.conf says '$TYPE' — leaving it alone"
+fi
+
+# Bare machine: no git means nothing below works. Try to install it without a
+# password; if sudo wants one, say exactly what to run rather than hanging on a
+# prompt that BatchMode ssh will never show.
+if ! command -v git >/dev/null 2>&1; then
+  if [ "$DRY" = "1" ]; then echo "would install git, then clone"; exit 0; fi
+  PKG=""
+  for p in dnf apt-get pacman zypper; do command -v $p >/dev/null 2>&1 && { PKG=$p; break; }; done
+  if [ -z "$PKG" ]; then echo "NEEDS-BOOTSTRAP: no git and no known package manager"; exit 3; fi
+  if sudo -n true 2>/dev/null; then
+    case "$PKG" in
+      dnf|zypper) sudo -n "$PKG" install -y git >/dev/null 2>&1 ;;
+      apt-get)    sudo -n apt-get update -qq >/dev/null 2>&1 && sudo -n apt-get install -y -qq git >/dev/null 2>&1 ;;
+      pacman)     sudo -n pacman -S --noconfirm git >/dev/null 2>&1 ;;
+    esac
+  fi
+  if ! command -v git >/dev/null 2>&1; then
+    echo "NEEDS-BOOTSTRAP: git is not installed and sudo requires a password."
+    echo "  Run this once on this host, then re-run the fleet update:"
+    echo "    sudo $PKG install -y git"
+    exit 3
+  fi
+  echo "installed git"
 fi
 
 if [ ! -d "$HOME/dotfiles/.git" ]; then
@@ -118,13 +147,20 @@ else
   ./apply.sh 2>&1 | tail -20
 fi
 REMOTE
-)"
   rc=$?
+  out="$(cat "$tmp")"; rm -f "$tmp"
 
   if [ "$rc" -ne 0 ] && grep -qiE 'permission denied|connection|timed out|could not resolve|host key' <<<"$out"; then
     printf '  %sUNREACHABLE%s %s\n' "$YELLOW" "$OFF" "$alias"
     sed 's/^/      /' <<<"$out" | head -3
     skipped_hosts+=("$alias")
+    return 0
+  fi
+
+  if [ "$rc" -eq 3 ]; then
+    printf '  %sNEEDS SETUP%s %s\n' "$YELLOW" "$OFF" "$alias"
+    sed 's/^/      /' <<<"$out" | grep -A3 'NEEDS-BOOTSTRAP'
+    bootstrap_hosts+=("$alias")
     return 0
   fi
 
@@ -163,5 +199,11 @@ printf 'ok: %d   failed: %d   unreachable: %d\n' \
 [ "${#changed_hosts[@]}" -gt 0 ] && echo "changed: ${changed_hosts[*]}"
 [ "${#failed_hosts[@]}" -gt 0 ] && echo "${RED}failed:${OFF} ${failed_hosts[*]}"
 [ "${#skipped_hosts[@]}" -gt 0 ] && echo "${YELLOW}unreachable:${OFF} ${skipped_hosts[*]}"
+if [ "${#bootstrap_hosts[@]}" -gt 0 ]; then
+  echo "${YELLOW}needs one-time setup:${OFF} ${bootstrap_hosts[*]}"
+  echo "  These hosts lack git and their sudo needs a password, which a"
+  echo "  non-interactive run cannot supply. Run the printed command on each,"
+  echo "  then re-run this script."
+fi
 
 [ "${#failed_hosts[@]}" -eq 0 ]
