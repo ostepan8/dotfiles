@@ -351,6 +351,14 @@ require("lazy").setup({
         -- OPENCODE
         {
                 "sudo-tee/opencode.nvim",
+                -- Only load where the opencode binary exists. This config is
+                -- shared with headless Linux nodes that have no opencode, and
+                -- the plugin errors at startup there ("opencode command not
+                -- found"), so every nvim launch on those machines opened with a
+                -- red error for a tool that was never going to be installed.
+                cond = function()
+                        return vim.fn.executable("opencode") == 1
+                end,
                 dependencies = {
                         "nvim-lua/plenary.nvim",
                         {
