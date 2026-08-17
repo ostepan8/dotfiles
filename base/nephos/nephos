@@ -1,0 +1,26 @@
+#!/bin/sh
+# nephos CLI wrapper.
+#
+# The real binary defaults --control to http://127.0.0.1:7930, which is only
+# correct on the machine actually running the control plane. Every other machine
+# must point at the fleet's control plane over the tailnet first.
+#
+# Doing that here rather than in ~/.zshrc means the command also works from
+# cron, scripts, launchd and non-interactive shells, where an rc file is never
+# read. That is the whole reason this is a wrapper and not a shell function.
+#
+# The wrapper is tracked; the binary it wraps is not (31MB, and it is built per
+# platform). Install the binary to ~/.local/libexec/nephos.
+[ -r "$HOME/.config/nephos/env" ] && . "$HOME/.config/nephos/env"
+: "${NEPHOS_CONTROL_ADDR:=http://127.0.0.1:7930}"
+export NEPHOS_CONTROL_ADDR
+
+REAL="$HOME/.local/libexec/nephos"
+if [ ! -x "$REAL" ]; then
+  echo "nephos: binary not installed at $REAL" >&2
+  echo "  This machine has the wrapper but not the CLI. Fetch the build for" >&2
+  echo "  this platform, or run nephos commands from a machine that has it." >&2
+  exit 127
+fi
+
+exec "$REAL" "$@"

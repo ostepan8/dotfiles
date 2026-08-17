@@ -38,15 +38,29 @@ nephos-tier() {
 }
 
 _nephos_require() {
-  if [ -z "${NEPHOS_CONTROL_HOST:-}" ]; then
-    echo "nephos: no NEPHOS_CONTROL_HOST — is ~/.config/nephos/env set up?" >&2
-    return 1
-  fi
   if command -v tailscale >/dev/null 2>&1 && ! tailscale status >/dev/null 2>&1; then
     echo "nephos: tailscale is down — the control plane is unreachable" >&2
     return 1
   fi
   return 0
+}
+
+# Run a nephos command the way THIS machine reaches the control plane.
+#
+# Prefer the local CLI: the wrapper points --control at the fleet control plane
+# over the tailnet, so it works from cron and scripts too. Only fall back to ssh
+# when the binary is genuinely absent. Hardcoding ssh was wrong — on machines
+# that have the CLI it adds a pointless hop and fails if sshd is not reachable
+# even though the control API is.
+_nephos_run() {
+  if command -v nephos >/dev/null 2>&1; then
+    nephos "$@"
+  elif [ -n "${NEPHOS_CONTROL_HOST:-}" ]; then
+    ssh "$NEPHOS_CONTROL_HOST" "${NEPHOS_BIN:-nephos} $*"
+  else
+    echo "nephos: no local CLI and no NEPHOS_CONTROL_HOST — is this machine set up?" >&2
+    return 1
+  fi
 }
 
 # nephos-env <app> — fetch this app's credentials and export them here.
@@ -56,7 +70,7 @@ nephos-env() {
   _nephos_require || return 1
 
   local out
-  if ! out="$(ssh "$NEPHOS_CONTROL_HOST" "$NEPHOS_BIN keys show $app --env" 2>&1)"; then
+  if ! out="$(_nephos_run keys show "$app" --env 2>&1)"; then
     echo "nephos: could not fetch credentials for '$app'" >&2
     printf '%s\n' "$out" >&2
     return 1
@@ -83,9 +97,13 @@ nephos-unenv() {
   echo "nephos: cleared $n variable(s)"
 }
 
-# nephos-provision <app> — mint credentials. Keeper and operator only; a node's
-# control-plane key is force-command pinned, so this fails there by design
-# rather than by politeness.
+# nephos-provision <app> — mint credentials. Keeper and operator only.
+#
+# This check is a guardrail, NOT a security boundary. It stops an absent-minded
+# `nephos-provision` on a worker node; it does not stop anything determined,
+# because the control plane is reachable over the tailnet on its HTTP port and
+# the CLI can be invoked directly. Real enforcement has to live at the control
+# plane or in the Tailscale ACL — see scripts/harden-node-key.sh.
 nephos-provision() {
   local app="${1:-}"
   [ -z "$app" ] && { echo "usage: nephos-provision <app>" >&2; return 2; }
@@ -95,5 +113,5 @@ nephos-provision() {
     *) echo "nephos: tier '$tier' does not provision" >&2; return 1 ;;
   esac
   _nephos_require || return 1
-  ssh "$NEPHOS_CONTROL_HOST" "$NEPHOS_BIN keys new $app"
+  _nephos_run keys new "$app"
 }

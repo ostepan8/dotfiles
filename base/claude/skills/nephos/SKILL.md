@@ -14,6 +14,51 @@ host, the binary path, and the node aliases. Those values are deliberately NOT i
 this skill ships in a public dotfiles repo. If that file is missing, nephos isn't set up on
 this machine; say so rather than guessing addresses.
 
+## Check what THIS machine may do, before proposing anything
+
+Every machine gets this skill, but they are not equally privileged. Check the tier
+first and scope your suggestions to it — proposing a provisioning step on a worker
+node wastes a round trip on a command that is meant to fail.
+
+```bash
+nephos-tier    # keeper | operator | node | unknown
+```
+
+| Tier | Machine | May |
+|---|---|---|
+| `keeper` | Mac Studio | everything: mint and revoke credentials, deploy, admin |
+| `operator` | MacBook | provision and deploy; holds no long-lived secrets |
+| `node` | gpu1, gpu2, fedora, onephus | run workloads; use credentials it already has |
+
+If the tier is `node` and the task needs provisioning, say so and suggest running it
+from the Studio, rather than attempting it.
+
+## How to invoke the CLI
+
+**Use `nephos` directly.** A wrapper on `PATH` points `--control` at the fleet control
+plane over the tailnet, so it works from scripts, cron and launchd too.
+
+```bash
+nephos nodes      # fleet + auto-detected capabilities
+nephos ps         # running services
+```
+
+Only fall back to `ssh "$NEPHOS_CONTROL_HOST" "$NEPHOS_BIN ..."` when the local CLI is
+genuinely missing — it adds a hop and needs sshd reachable even when the control API is.
+The wrapper exits 127 with a clear message if the binary is not installed.
+
+## Credentials
+
+Fetch them into the shell; never write them to a file:
+
+```bash
+nephos-env <app>      # export this app's credentials into THIS shell
+nephos-unenv          # clear them again
+```
+
+Only the keeper holds anything long-lived. Do not suggest writing a fetched key into
+`.env`, a config file, or the repo.
+
 ---
 
 ## What it is
@@ -35,7 +80,7 @@ this machine; say so rather than guessing addresses.
 ### Run inference instead of paying per token
 
 ```bash
-ssh "$NEPHOS_CONTROL_HOST" "$NEPHOS_BIN keys new <appname>"
+nephos keys new <appname>
 ```
 
 Then point any OpenAI SDK at `$NEPHOS_LLM`:
@@ -70,6 +115,10 @@ ssh "$NEPHOS_CONTROL_HOST"
 "$NEPHOS_BIN" up ./myservice
 ```
 
+This one keeps the ssh hop on purpose, unlike the read-only commands above:
+`up` takes a local directory path, so it has to run where those files actually
+are. Do not "simplify" it to a bare `nephos up` from another machine.
+
 Deploys a rootless Quadlet unit that survives reboot. It checks the machine's advertised
 capabilities against the manifest's requirements first and fails clearly if they don't match.
 
@@ -79,10 +128,10 @@ origin on the same host, because rootless Podman otherwise can't.
 ### See what's there
 
 ```bash
-"$NEPHOS_BIN" nodes    # fleet + auto-detected capabilities
-"$NEPHOS_BIN" ps       # running services
-"$NEPHOS_BIN" models   # configured tiers
-"$NEPHOS_BIN" keys ls  # metadata only, never plaintext
+nephos nodes    # fleet + auto-detected capabilities
+nephos ps       # running services
+nephos models   # configured tiers
+nephos keys ls  # metadata only, never plaintext
 ```
 
 ---
