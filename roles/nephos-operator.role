@@ -1,0 +1,13 @@
+# role: nephos-operator
+#
+# Trusted machine that provisions and deploys, but is not the secret keeper.
+# Loseable: revoking its credential must not touch the keeper. Holds nothing
+# long-lived, so a stolen laptop yields no standing access.
+
+tier          operator
+summary       provisions and deploys; holds no long-lived secrets
+control_port  allow
+ssh_command   -
+holds         nothing-at-rest
+may           provision deploy run-workloads use-credentials
+may_not       revoke read-vault

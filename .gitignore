@@ -1,0 +1,33 @@
+# This repo is PUBLIC. Default to excluding anything machine-specific or secret;
+# ship a *.template alongside instead (see claude/skills/nephos/env.template).
+
+# --- OS / editor noise ---
+.DS_Store
+*.swp
+*~
+
+# --- logs and local state ---
+*.log
+.dotfiles-apply/
+.secretscan.*
+
+# Python bytecode — several skills ship .py scripts that are run in place
+# (youtube-transcribe, new-project), so caches appear next to the sources.
+__pycache__/
+*.py[cod]
+
+# --- machine-specific / secret, never committed ---
+# Filled-in env files. The .template versions ARE tracked.
+**/env
+!**/env.template
+
+# Claude local-only settings and per-session state — machine-scoped, and
+# settings.local.json routinely accumulates absolute paths.
+**/settings.local.json
+claude/**/sessions/
+claude/**/projects/
+claude/**/history.jsonl
+claude/**/.credentials.json
+
+# Backups written by the installer
+*.backup

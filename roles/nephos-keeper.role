@@ -1,0 +1,12 @@
+# role: nephos-keeper
+#
+# One machine. Holds the master vault and is the only place credentials are
+# minted. Everything else in the fleet receives from here.
+
+tier          keeper
+summary       holds the master vault; mints and revokes credentials
+control_port  allow
+ssh_command   -
+holds         master-vault
+may           provision revoke deploy read-vault run-workloads use-credentials
+may_not       -

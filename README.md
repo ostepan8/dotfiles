@@ -2,23 +2,51 @@
 
 My complete dev environment for a fresh macOS or Linux machine. Shell, editor, multiplexer, prompt, and supporting CLI tools — installed and configured with one command.
 
-## What's included
+## Layout
 
-- **Brewfile** — declarative package list installed by `brew bundle`. Replaces inline `brew install` calls in `mac/setup.sh`.
-- **zsh/** — shell config with lazy-loading (nvm, conda), plugins (autosuggestions, fzf-tab, syntax-highlighting, history-substring-search), fzf + zoxide integration, useful aliases
-- **git/** — global `gitconfig` (delta pager, rebase-on-pull, `autoSetupRemote`, `rerere`, useful aliases) and `gitignore_global` (OS junk, editor scratch, etc.)
-- **claude/** — Claude Code config: global `settings.json`, MCP server registrations (`.mcp.json`), and the custom rules tree at `~/.claude/rules/`. See `claude/README.md`.
-- **nvim/** — Neovim config (gruvbox, telescope, treesitter, LSP, autocomplete, format-on-save)
-- **tmux/** — tmux config (Alt+number window switching, vim-style pane nav, mouse, plugins)
-- **starship/** — minimal prompt with git info
-- **ghostty/** — Ghostty terminal config (Gruvbox Dark Hard, JetBrainsMono Nerd Font, transparent titlebar, drop-down quick terminal on `Opt+\``)
-- **skhd/** — global hotkey daemon config (`Opt+Space` opens a new Ghostty window on the current workspace; `Opt+B`/`Opt+W` launch Chrome with personal/work profiles; `Opt+S/M/E` launch Slack/Spotify/Finder)
-- **aerospace/** — i3-style tiling window manager config (workspaces on `Alt+1-9`, vim-style window focus on `Alt+h/j/k/l`, `Alt+Ctrl+[/]/Enter` swaps the macOS main display via `displayplacer`)
-- **sketchybar/** — custom top bar (Gruvbox theme) with Aerospace workspace indicators, front-app, CPU, battery, clock
-- **mac/setup.sh** — macOS installer (Homebrew + `brew bundle`) — also runs `mac/defaults.sh` and installs `mac/LaunchAgents/*.plist`
-- **mac/defaults.sh** — macOS system tweaks (Finder, Dock, keyboard, trackpad, screenshot location, etc.)
-- **mac/LaunchAgents/** — per-user `launchd` jobs (e.g. AeroSpace phantom-window watchdog, the `lifeos` dashboard server + its plan/check-in nudges). Jobs whose project isn't installed on a given machine guard on `command -v` and idle out rather than respawn-looping.
-- **linux/setup.sh** — Linux installer (apt/dnf/pacman)
+The repo splits by **role**, not by OS. OS is not what varies across this fleet:
+the two Macs are ~95% identical to each other, the four Linux nodes are ~95%
+identical to each other, and what actually differs is whether a human is sitting
+in front of the machine.
+
+```
+base/          every machine       zsh git tmux starship nvim claude
+workstation/   human in front      aerospace sketchybar skhd ghostty clangd Brewfile macos
+server/        headless            overrides only (deliberately near-empty)
+services/      opt-in jobs         lifeos wnba
+hosts/         per machine type    studio.zsh macbook.zsh layers.conf
+lib/           the apply engine    engine reloads render packages agents
+manifest.conf  which file goes where
+install.sh     bootstrap a machine, then apply
+apply.sh       put config in place; idempotent, safe to re-run
+sync.sh        pull/push + apply, every 30 min via launchd
+```
+
+Layers **compose**. A machine gets the union of everything listed for its type
+in `hosts/layers.conf` — the Mac Studio is `base workstation services`, because
+it is both the daily driver and the host of the lifeos server, three WNBA sync
+jobs and MLX inference.
+
+## How placement works
+
+`manifest.conf` is the single source of truth. Adding a config file is a new
+row, not new code:
+
+```
+# layer      mode    source                  dest                     reload
+base         link    base/zsh/zshrc          ~/.zshrc                 -
+workstation  copy    workstation/aerospace/aerospace.toml  ~/.config/aerospace/aerospace.toml  aerospace
+```
+
+| Mode | Behavior | Why |
+|---|---|---|
+| `link` | symlink | the default — edits on either side stay in sync |
+| `copy` | copy, gated on the source hash moving | `aerospace.toml` is tracked *and* rewritten at runtime by `set-main-display.sh`; a symlink would aim those writes at the git repo |
+| `seed` | copy only if absent | `displays.env` holds this machine's display IDs |
+| `render` | generate from a template | clangd needs the installed GCC's paths |
+| `tree` | recursive | `claude/rules`, `claude/skills` |
+| `agent` | install + reload a launchd plist | |
+| `exec` | executable symlink onto PATH | `newproj`, `yt-transcribe` |
 
 ## Install
 
@@ -26,19 +54,43 @@ My complete dev environment for a fresh macOS or Linux machine. Shell, editor, m
 git clone https://github.com/ostepan8/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 
-# macOS
-./mac/setup.sh
-
-# Linux
-./linux/setup.sh
+echo studio > ~/.dotfiles-host    # or macbook, gpu1, fedora... see hosts/layers.conf
+./install.sh
 ```
 
-The installer backs up any existing `~/.zshrc` to `~/.zshrc.backup` the first time it runs.
+`~/.dotfiles-host` holds a machine *type*, not a device id, and lives outside the
+repo so it never syncs. A machine with no marker gets `base` only — a safe
+default, so a new server node comes up with a working shell and nothing GUI is
+ever attempted on a headless box.
 
-After install:
-1. Open a new terminal — antidote will clone zsh plugins (~10s, one-time).
-2. In tmux, press `prefix + I` to install tmux plugins.
-3. Launch `nvim` to finish plugin installation.
+Both `install.sh` and `apply.sh` are idempotent and safe to re-run. Existing
+files are backed up once to `<name>.backup` before being replaced.
+
+```bash
+make dry-run   # show what would change on this machine
+make apply     # apply
+make test      # secret scan + engine verification
+```
+
+## Neovim plugins
+
+`base/nvim/lazy-lock.json` is committed — the lockfile, never the plugin
+sources. `:Lazy restore` pins any machine to the same set. Without it, every
+machine resolved plugin versions independently on first launch and drifted.
+
+## Machine-specific values
+
+Nothing machine-specific enters this repo — it is public. The pattern is a
+tracked `*.template` plus an untracked real file:
+
+- `~/.config/nephos/env` — fleet addresses and endpoints
+- `~/.config/aerospace/displays.env` — this machine's display IDs
+- `hosts/<type>.zsh` — config shared by all machines of one type
+
+`make check` scans every tracked file for credentials, the personal domain, the
+tailnet and RFC1918 addresses before a push, and `make hooks` installs it as a
+`pre-push` hook. Every pattern carries a sample it must match, so a rule that
+silently stops matching fails the run instead of reporting "clean".
 
 ## Tools installed
 
@@ -69,7 +121,7 @@ After install:
 ## Zsh features
 
 ### Host-type overrides
-`zsh/zshrc` is fully shared and identical on every machine. For config that should only apply to *one type* of machine (e.g. a local model path that only exists on the Mac Studio), add it to `zsh/hosts/macbook.zsh` or `zsh/hosts/studio.zsh` instead of the shared file — both are still committed and synced normally.
+`base/zsh/zshrc` is fully shared and identical on every machine. For config that should only apply to *one type* of machine (e.g. a local model path that only exists on the Mac Studio), add it to `hosts/macbook.zsh` or `hosts/studio.zsh` instead of the shared file — both are still committed and synced normally.
 
 Each machine picks which one to load via a one-line marker file that lives outside the repo (so it's never synced):
 
@@ -78,7 +130,7 @@ echo studio > ~/.dotfiles-host    # on the Mac Studio
 echo macbook > ~/.dotfiles-host   # on the MacBook
 ```
 
-The marker holds a *type*, not a unique device id — a second Mac Studio just gets the same `echo studio > ~/.dotfiles-host` and immediately inherits every studio-only setting, since `zsh/hosts/studio.zsh` syncs like any other file in the repo. Add more types (e.g. `zsh/hosts/work-laptop.zsh`) the same way — no changes to `zshrc`, `apply.sh`, or `setup.sh` needed.
+The marker holds a *type*, not a unique device id — a second Mac Studio just gets the same `echo studio > ~/.dotfiles-host` and immediately inherits every studio-only setting, since `hosts/studio.zsh` syncs like any other file in the repo. Add more types (e.g. `hosts/work-laptop.zsh`) the same way — no changes to `zshrc`, `apply.sh`, or `install.sh` needed.
 
 ### Lazy loading
 `nvm` and `conda` are stubbed and only loaded on first use. Shell starts in ~120ms instead of ~800ms. Force-load anytime with `load_nvm` or `load_conda`.
@@ -161,7 +213,7 @@ If using 2+ external monitors with Aerospace + sketchybar, **arrange all externa
 
 ### Making Ghostty the default terminal everywhere
 
-`mac/setup.sh` sets Ghostty as the default app for `.sh`/`.command`/`.tool`/`.zsh`/`.bash` files automatically (via `duti`). To also make Ghostty the external terminal in editors:
+`install.sh` sets Ghostty as the default app for `.sh`/`.command`/`.tool`/`.zsh`/`.bash` files automatically (via `duti`). To also make Ghostty the external terminal in editors:
 
 **Cursor / VS Code** — add to `settings.json`:
 ```json

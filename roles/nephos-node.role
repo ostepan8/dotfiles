@@ -1,0 +1,13 @@
+# role: nephos-node
+#
+# Worker. Runs what it is given and nothing more. Deliberately cannot reach the
+# control plane's API port — that denial is the actual boundary, not the SSH
+# restriction, because the control plane is reached over HTTP on the tailnet.
+
+tier          node
+summary       runs workloads; cannot provision
+control_port  deny
+ssh_command   ${HOME}/bin/nephos node-agent --node=%NODE%
+holds         own-service-credentials
+may           run-workloads use-credentials
+may_not       provision revoke read-vault deploy

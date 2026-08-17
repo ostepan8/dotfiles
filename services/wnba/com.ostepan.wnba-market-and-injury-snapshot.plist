@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ostepan.wnba-market-and-injury-snapshot</string>
+
+    <!-- Kalshi + Polymarket price snapshots and ESPN injury-report snapshots
+         for wnba-analytics-engine, every 2 hours. All three are append-only
+         time series (market_price_snapshots, injury_reports) -- this cadence
+         is what builds usable intra-day line-movement AND injury-status
+         history, unlike a once-daily run. The injury feed is current-state
+         only (no historical backfill exists for it), so a missed capture
+         window is genuinely lost history, not just staleness. -->
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>exec "$HOME/dotfiles/services/wnba/market-and-injury-snapshot.sh"</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StartInterval</key>
+    <integer>7200</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/wnba-market-and-injury-snapshot.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/wnba-market-and-injury-snapshot.err</string>
+</dict>
+</plist>
