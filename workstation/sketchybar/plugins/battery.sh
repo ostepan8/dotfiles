@@ -3,7 +3,14 @@
 # native menu-bar battery). "+" suffix means plugged in / charging.
 INFO=$(pmset -g batt 2>/dev/null)
 PCT=$(printf '%s' "$INFO" | grep -Eo '[0-9]+%' | head -1 | tr -d '%')
-[ -z "$PCT" ] && exit 0
+
+# Desktop Macs (Studio/mini) report no percentage — hide the item rather than
+# leaving an empty pill on the bar.
+if [ -z "$PCT" ]; then
+    sketchybar --set "$NAME" drawing=off
+    exit 0
+fi
+sketchybar --set "$NAME" drawing=on
 
 if   [ "$PCT" -le 20 ]; then COLOR=0xffcc241d   # red
 elif [ "$PCT" -le 40 ]; then COLOR=0xffd79921   # yellow
