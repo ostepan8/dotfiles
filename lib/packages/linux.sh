@@ -37,6 +37,53 @@ case "$PKG" in
     ;;
 esac
 
+# Neovim must be 0.11+: the config uses nvim-treesitter's main branch, and
+# telescope and nvim-lspconfig both hard-require 0.11. Debian trixie ships
+# 0.10.4 with no backport, so the Pi loaded with five errors and those plugins
+# simply did not work.
+#
+# Upstream publishes per-arch tarballs, so this is a general version floor
+# rather than a Pi-specific workaround: any distro too far behind gets the
+# official build, and distros that are current keep their package.
+NVIM_MIN_MINOR=11
+ensure_nvim() {
+  local cur minor arch url tmp
+  cur="$(nvim --version 2>/dev/null | head -1 | sed -n 's/^NVIM v\([0-9]*\.[0-9]*\).*/\1/p')"
+  minor="${cur#*.}"
+  if [ -n "$cur" ] && [ "${minor:-0}" -ge "$NVIM_MIN_MINOR" ] 2>/dev/null; then
+    return 0
+  fi
+  echo "  neovim ${cur:-none} is below 0.$NVIM_MIN_MINOR — installing the upstream build"
+
+  case "$ARCH" in
+    amd64|x86_64)  arch=x86_64 ;;
+    arm64|aarch64) arch=arm64 ;;
+    *) echo "  WARN: no upstream neovim build for $ARCH — leaving the distro version"; return 0 ;;
+  esac
+
+  url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-${arch}.tar.gz"
+  tmp="$(mktemp -d)"
+  if ! curl -fsSL "$url" -o "$tmp/nvim.tar.gz"; then
+    echo "  WARN: could not download $url"; rm -rf "$tmp"; return 0
+  fi
+  tar xzf "$tmp/nvim.tar.gz" -C "$tmp" || { echo "  WARN: bad tarball"; rm -rf "$tmp"; return 0; }
+
+  # Install beside the distro copy rather than over it: /usr/local/bin precedes
+  # /usr/bin on PATH, so this wins without fighting dpkg or breaking apt upgrades.
+  sudo rm -rf /opt/nvim
+  sudo mv "$tmp/nvim-linux-${arch}" /opt/nvim
+  sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
+  rm -rf "$tmp"
+
+  hash -r 2>/dev/null || true
+  if verify_bin nvim; then
+    echo "  neovim now $(nvim --version | head -1)"
+  else
+    echo "  WARN: upstream neovim did not run; distro version still in place"
+  fi
+}
+ensure_nvim
+
 echo "  LSP servers and formatters"
 case "$PKG" in
   apt) sudo apt install -y clang-format llvm ;;
