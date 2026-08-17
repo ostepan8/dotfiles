@@ -70,6 +70,35 @@ update_host() {
   # command substitution forces bash to scan the body for the closing paren —
   # and `case` patterns like `dnf|zypper)` inside it break that scan with a
   # syntax error pointing at an unrelated line.
+  # --full needs root on the node. Fedora's sudo cannot cache a credential
+  # without a tty, so the password has to reach every sudo call; that is what
+  # scripts/node-install.sh handles. Secret name follows the alias:
+  # gpu1 -> GPU1_SUDO_PASSWORD@gpu1-sudo.
+  if [ "$FULL" = "1" ]; then
+    local secret upper
+    upper="$(printf '%s' "$alias" | tr '[:lower:]' '[:upper:]')"
+    secret="${upper}_SUDO_PASSWORD@${alias}-sudo"
+    if command -v vault >/dev/null 2>&1 && vault get "$secret" >/dev/null 2>&1; then
+      scp -q "${SSH_OPTS[@]}" "$DOTFILES/scripts/node-install.sh" "$alias:/tmp/node-install.sh" 2>/dev/null
+      local ftmp; ftmp="$(mktemp)"
+      vault get "$secret" 2>/dev/null \
+        | ssh "${SSH_OPTS[@]}" "$alias" 'bash /tmp/node-install.sh' >"$ftmp" 2>&1
+      local frc=$?
+      if [ "$frc" -eq 0 ]; then
+        printf '  %sok%s          %s (full install)\n' "$GREEN" "$OFF" "$alias"
+        tail -3 "$ftmp" | sed 's/^/      /'
+        ok_hosts+=("$alias"); changed_hosts+=("$alias")
+      else
+        printf '  %sFAILED%s      %s (full install)\n' "$RED" "$OFF" "$alias"
+        tail -6 "$ftmp" | sed 's/^/      /'
+        failed_hosts+=("$alias")
+      fi
+      rm -f "$ftmp"
+      return 0
+    fi
+    echo "      no vault secret '$secret' — falling back to config-only"
+  fi
+
   local tmp; tmp="$(mktemp)"
   ssh "${SSH_OPTS[@]}" "$alias" \
     "TYPE='$type' TARGET='$TARGET' REPO_URL='$REPO_URL' DRY='$DRY_RUN' FULL='$FULL' bash -s" >"$tmp" 2>&1 <<'REMOTE'
