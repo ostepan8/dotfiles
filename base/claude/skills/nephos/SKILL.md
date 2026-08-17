@@ -127,6 +127,21 @@ reinstalls every dependency on every rebuild.
 nephos knows of no port for the service and it cannot be reported, exposed on
 the tailnet, or published with `--public`.
 
+**If the app binds `0.0.0.0` (not `127.0.0.1`) on `network: host`, it also needs
+`publishPort:`** — a different number from `listenPort`:
+
+```yaml
+network: host
+listenPort: 8080      # what the app actually binds
+publishPort: 18080    # what the tailnet/public route uses
+```
+
+Without it, nephos's own `tailscale serve` proxy claims the tailnet address at
+that exact port, and the app's `0.0.0.0` bind collides with it (`EADDRINUSE`)
+the moment it tries to start — a real incident, not a theoretical one. An app
+that binds `127.0.0.1` specifically never hits this and doesn't need
+`publishPort:` at all.
+
 **Bind `0.0.0.0`, never `localhost`.** Inside a container `localhost` means the
 container itself, so a service bound to it is unreachable from outside and looks
 like a broken deploy. This is the single most common mistake.
@@ -240,6 +255,36 @@ DNS record, and its capacity allocation. A name found on more than one node is
 **refused** rather than guessed at — that means two nodes are serving different
 versions of one thing, and picking silently is how a "stopped" service keeps
 answering.
+
+---
+
+## When a service dies
+
+If the control plane was started with `--ntfy-topic <topic>`, a real push
+notification fires automatically whenever a service goes from `running` to
+any other state — no polling, no separate daemon, hooked into the same
+`nephos agent report` cycle every node already runs. A service's first-ever
+sighting never fires (nothing to compare against yet), and a normal `nephos
+down` never fires either (that's an intentional removal, not a crash). Get
+the free ntfy app (iOS/Android), subscribe to the configured topic, done.
+
+---
+
+## Keeping nephos itself updated
+
+```bash
+nephos self-update build "$NEPHOS_CONTROL_ADDR"   # cross-compile + upload, once
+ssh <node> 'nephos agent self-update '"$NEPHOS_CONTROL_ADDR"   # per node
+```
+
+`self-update build` derives which platforms to build for from whatever's
+actually registered — no target list to maintain by hand. `agent self-update`
+downloads that node's own build, verifies its checksum, atomically replaces
+the binary currently running it, and best-effort restarts whichever of that
+node's own nephos services are actually present. A node with no self-update
+support yet (predates this feature) still needs the old manual
+`scp`+`install`+`systemctl restart` sequence once — after that, this handles
+it.
 
 ---
 
