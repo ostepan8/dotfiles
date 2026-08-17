@@ -38,22 +38,91 @@ nephos guide <topic>          # task-based walkthroughs
 
 ---
 
-## Deploying something
+## Shipping an app — the whole workflow
 
-A manifest declares intent and never names a machine:
+Owen has not used Docker before. Write the Dockerfile for him rather than
+explaining one, and do not assume container vocabulary.
+
+Everything lives in one directory:
+
+```
+~/myapp/
+  nephos.yaml       how to run it
+  Dockerfile        how to build it
+  .env              secrets — never shipped into the image
+  <source>
+```
+
+```bash
+nephos secrets set myapp --env-file .env    # once, and after any .env change
+nephos deploy . --build                     # source -> built on a node -> running
+nephos logs myapp -f
+```
+
+`--build` archives the directory, the control plane picks a node with a container
+runtime **and the right architecture**, that node builds natively and pushes to the
+fleet registry, and the built reference is substituted into the manifest. Owen's
+machines are arm64 and every Linux node is amd64, so this is what makes shipping
+from the laptop work at all — nothing is built locally and no registry command is
+ever typed.
+
+Iterating is the same command again. The tag is a hash of the source, so an
+unchanged tree reuses its tag instead of filling the registry with duplicates.
+
+### The manifest
 
 ```yaml
 schemaVersion: 1
 name: myapp
 project: myapp            # groups services for `nephos logs --project`
-image: <registry>/myapp:v1
 caps: [podman]            # hard requirements
 resources:
   memory: 512Mi
   cpu: 1
   vram: 8Gi               # requesting VRAM IS requesting a GPU
-ports: ["8080:8080"]
+ports: ["8000:8000"]      # host:container — must match what the app binds
 ```
+
+Omit `image:` when using `--build`; it is filled in from the build. Set it only to
+deploy an image that already exists.
+
+### The Dockerfile
+
+Two templates cover nearly everything Owen builds:
+
+```dockerfile
+# Python
+FROM docker.io/library/python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+```dockerfile
+# Node
+FROM docker.io/library/node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --omit=dev
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+**Dependencies are copied before the source on purpose.** Each line is a cached
+layer, so an edit to application code reuses the install step; copying source first
+reinstalls every dependency on every rebuild.
+
+**Bind `0.0.0.0`, never `localhost`.** Inside a container `localhost` means the
+container itself, so a service bound to it is unreachable from outside and looks
+like a broken deploy. This is the single most common mistake.
+
+`.env`, `.git` and `node_modules` are excluded from the archive automatically —
+`.env` specifically so a `COPY . .` cannot bake credentials into an image layer
+that every node then pulls.
 
 `nephos deploy` filters by capability, filters by fit, scores, dispatches. If
 nothing fits it **refuses with the specific dimension and numbers**, which is
@@ -171,9 +240,8 @@ plane, no off-site backup.
 
 ## Not built yet
 
-- **`nephos deploy --build`** — building an image from source on a node. Today the
-  image must already exist somewhere the node can pull from, so build on a Linux
-  node and push to the fleet registry.
+- **Building from a GitHub repo** — `--build` takes a local directory. Deploying
+  straight from a repo URL is designed but unbuilt.
 - **`nephos down` has no `--node`** — deploy is remote, teardown is local; ssh to
   the node running it.
 - **No node-removal command** — a rebuilt machine leaves a ghost registration.
