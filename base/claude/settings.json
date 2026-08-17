@@ -1,9 +1,9 @@
 {
+  "skillListingBudgetFraction": 0.15,
   "env": {
     "NODE_USE_SYSTEM_CA": "1",
     "NODE_EXTRA_CA_CERTS": "/Users/ostepan/system-roots.pem"
   },
-  "skillListingBudgetFraction": 0.15,
   "permissions": {
     "additionalDirectories": [
       "~"
@@ -37,6 +37,7 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
+  "theme": "dark",
   "skipAutoPermissionPrompt": true,
-  "theme": "dark"
+  "agentPushNotifEnabled": true
 }

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check verify roles acl test apply dry-run setup hooks
+.PHONY: help check verify roles acl test apply dry-run fleet fleet-dry setup hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -24,6 +24,12 @@ dry-run:  ## Show what apply would change on THIS machine
 
 apply:  ## Put this machine's config in place
 	@bash apply.sh
+
+fleet:  ## Update every reachable machine to the current commit
+	@bash scripts/fleet.sh
+
+fleet-dry:  ## Show what each machine in the fleet would change
+	@bash scripts/fleet.sh --dry-run
 
 setup:  ## Re-run the interview for anything not yet configured
 	@bash scripts/setup.sh
