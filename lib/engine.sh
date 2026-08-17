@@ -93,7 +93,16 @@ apply_exec() {
 # on every idle tick is exactly the bug this gate exists to prevent.
 apply_copy() {
   local src="$1" dest="$2" tag="copy:$2"
-  changed "$tag" "$src" || return 0
+  # The hash gate answers "has the source moved", which is the wrong question
+  # when the destination is the wrong KIND of thing. A dest that is missing, or
+  # still a symlink from when this row used link mode, must be fixed regardless
+  # of whether the source changed — otherwise a mode change never takes effect
+  # on any machine whose hash was already recorded.
+  if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+    changed "$tag" "$src" || return 0
+  else
+    changed "$tag" "$src" >/dev/null 2>&1 || true
+  fi
   [ "${DRY_RUN:-0}" = "1" ] && { action "copy   $dest"; return 0; }
   mkdir -p "$(dirname "$dest")"
   backup_once "$dest"
