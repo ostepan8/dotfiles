@@ -1,224 +1,189 @@
 ---
 name: nephos
-description: Owen's self-hosted personal cloud — inference, object storage, and service provisioning across his own machines. Use whenever a task involves running an LLM without paying per token, needing S3-compatible storage, deploying a small service, giving an app a public HTTPS API, or asking what hardware is available. Trigger on "nephos", "my cloud", "my own API", "self-host this", "run it on my hardware", "where should this run", "deploy this", "give it a public endpoint", "I need storage for this app". Machine-specific addresses live in ~/.config/nephos/env — read that first, never hardcode them.
+description: Owen's self-hosted personal cloud — deploy services, run LLM inference, store objects, and read logs across his own machines. Use whenever a task involves running an LLM without paying per token, needing S3-compatible storage, deploying a service or app, giving something a public HTTPS API, reading a service's logs, managing its environment variables, or asking what hardware is available. Trigger on "nephos", "my cloud", "my own API", "self-host this", "run it on my hardware", "where should this run", "deploy this", "ship this", "give it a public endpoint", "I need storage for this app", "check the logs", "set an env var for". Machine-specific addresses live in ~/.config/nephos/env — read that first, never hardcode them.
 ---
 
 # nephos — Owen's personal cloud
 
-Turns Owen's own machines into a cloud: an OpenAI-compatible inference API, S3-compatible
-object storage, and one-command service deployment — reachable privately over Tailscale and
-publicly over Cloudflare Tunnel.
+Turns Owen's own machines into a cloud: deploy a service to whichever node fits,
+serve LLM inference from an OpenAI-compatible endpoint, store objects over S3, and
+read any service's logs from anywhere — private over Tailscale, public over
+Cloudflare Tunnel.
 
-**Read `~/.config/nephos/env` first.** It holds this machine's endpoints, the control-plane
-host, the binary path, and the node aliases. Those values are deliberately NOT in this file —
-this skill ships in a public dotfiles repo. If that file is missing, nephos isn't set up on
-this machine; say so rather than guessing addresses.
-
-## Check what THIS machine may do, before proposing anything
-
-Every machine gets this skill, but they are not equally privileged. Check the tier
-first and scope your suggestions to it — proposing a provisioning step on a worker
-node wastes a round trip on a command that is meant to fail.
-
-```bash
-nephos-role            # this machine's role and everything it permits
-nephos-can provision   # test one action; exit 0 = allowed
-```
-
-Both read `~/dotfiles/roles/nephos-<tier>.role` — the same file the Tailscale ACL
-and the control plane's `authorized_keys` restrictions are generated from. So if
-`nephos-can` says no, the network says no too; they cannot disagree.
-
-| Tier | Machine | May |
-|---|---|---|
-| `keeper` | Mac Studio | everything: mint and revoke credentials, deploy, admin |
-| `operator` | MacBook | provision and deploy; holds no long-lived secrets |
-| `node` | gpu1, gpu2, fedora, onephus | run workloads; use credentials it already has |
-
-If the tier is `node` and the task needs provisioning, say so and suggest running it
-from the Studio, rather than attempting it.
-
-## How to invoke the CLI
-
-**Use `nephos` directly.** A wrapper on `PATH` points `--control` at the fleet control
-plane over the tailnet, so it works from scripts, cron and launchd too.
-
-```bash
-nephos nodes      # fleet + auto-detected capabilities
-nephos ps         # running services
-```
-
-Only fall back to `ssh "$NEPHOS_CONTROL_HOST" "$NEPHOS_BIN ..."` when the local CLI is
-genuinely missing — it adds a hop and needs sshd reachable even when the control API is.
-The wrapper exits 127 with a clear message if the binary is not installed.
-
-## Credentials
-
-Fetch them into the shell; never write them to a file:
-
-```bash
-nephos-env <app>      # export this app's credentials into THIS shell
-nephos-unenv          # clear them again
-```
-
-Only the keeper holds anything long-lived. Do not suggest writing a fetched key into
-`.env`, a config file, or the repo.
+**Read `~/.config/nephos/env` first.** It holds this machine's control-plane
+address, endpoints, and node aliases. Those values are deliberately not in this file
+— it ships in a public dotfiles repo. If that file is missing, nephos isn't set up
+here; say so rather than guessing addresses.
 
 ---
 
-## What it is
+## The commands
 
-| Layer | Implementation |
-|---|---|
-| Network | Tailscale — every node on one private tailnet |
-| Control plane | Single Go binary, `systemd --user` unit, always-on Linux node |
-| Services | Rootless Podman + Quadlet units (Linux nodes only) |
-| Inference | `mlx_lm.server` / `llama-server` / Ollama behind a gateway |
-| Storage | MinIO, S3-compatible |
-| Public access | Cloudflare Tunnel — no open ports, home IP hidden |
-| Secrets | `~/.vault` (age/Keychain), never in the repo |
+```bash
+nephos nodes                  # every machine, its capabilities, free capacity
+nephos ps                     # services across the fleet, grouped by node
+nephos deploy ./svc           # pick a node that fits, dispatch, run
+nephos deploy ./svc --dry-run # show the decision and why, without making it
+nephos down <name>            # stop and remove (run ON the node running it)
+nephos logs <name> -f         # any service, any node, any log source
+nephos secrets set <svc> …    # env values that follow the service
+nephos llm up|down|ls <tier>  # start/stop an inference tier
+nephos keys new <app>         # mint a scoped API key
+nephos models                 # configured inference tiers
+nephos guide <topic>          # task-based walkthroughs
+```
+
+`nephos guide` is the built-in reference: `quickstart`, `nodes`, `deploy`,
+`inference`, `storage`, `publish`, `troubleshooting`.
 
 ---
 
-## Using it — the common cases
+## Deploying something
 
-### Run inference instead of paying per token
+A manifest declares intent and never names a machine:
 
-```bash
-nephos keys new <appname>
+```yaml
+schemaVersion: 1
+name: myapp
+project: myapp            # groups services for `nephos logs --project`
+image: <registry>/myapp:v1
+caps: [podman]            # hard requirements
+resources:
+  memory: 512Mi
+  cpu: 1
+  vram: 8Gi               # requesting VRAM IS requesting a GPU
+ports: ["8080:8080"]
 ```
 
-Then point any OpenAI SDK at `$NEPHOS_LLM`:
+`nephos deploy` filters by capability, filters by fit, scores, dispatches. If
+nothing fits it **refuses with the specific dimension and numbers**, which is
+actionable in a way "no eligible node" is not.
+
+**Two kinds of workload:**
+
+- `kind: container` (default) — rootless Podman via a Quadlet unit, Linux only
+- `kind: process` — a supervised command; a systemd user unit on Linux, a launchd
+  agent on macOS. This is how the Apple-silicon node receives work at all, since it
+  has no container runtime. No isolation and no cgroup accounting; `image:`, `gpu:`
+  and `volumes:` are refused on a process manifest rather than silently ignored.
+
+**Published ports bind to loopback.** A fresh deploy is unreachable even from the
+tailnet until exposed with `tailscale serve --bg --tcp <port> tcp://127.0.0.1:<port>`.
+
+---
+
+## Environment values and secrets
+
+```bash
+nephos secrets set myapp --env-file .env      # load a whole file
+nephos secrets set myapp DATABASE_URL=…       # one value
+nephos secrets set myapp API_KEY --stdin      # keeps it out of shell history
+nephos secrets ls myapp                       # names only, never values
+```
+
+Values are held by the control plane and **injected into the deploy**, so they
+follow the service to whichever node runs it. They land in a `0600` env file and
+never appear in the manifest, the unit file, the sidecar, git, or the image.
+
+There is deliberately no command that reads a value back.
+
+A manifest's own `secrets:` block (an env var mapped to a shell command run on the
+target node) still works and **wins** where both define the same name — it is the
+more specific, node-local statement.
+
+---
+
+## Inference
 
 ```python
 client = OpenAI(base_url=NEPHOS_LLM, api_key=KEY)
 client.chat.completions.create(model="fast", messages=[...])
 ```
 
-**Two aliases, and picking wrong is the most common mistake:**
-
-| Alias | Character | Use when |
+| Alias | Character | Use for |
 |---|---|---|
-| `fast` | ~4B model, high concurrency, ~270 tok/s aggregate | Short templated prompts, many at once, classification, extraction |
-| `big` | Up to 120B MoE, ~71 tok/s, low concurrency | Quality matters more than throughput |
+| `fast` | small model, high concurrency | short templated prompts, classification, extraction, volume |
+| `big` | large model, low concurrency | when quality matters more than throughput |
 
-Aliases are the contract — the model behind one can change without breaking callers.
+**Aliases are the contract** — the model behind one can change without touching a
+caller. Prompts over the tier's limit route to its overflow tier automatically.
 
-### Store things
-
-S3-compatible at `$NEPHOS_S3`. Bucket per purpose, scoped key per app. `boto3`, `aws-sdk`,
-and `aws s3` all work unmodified. Backed by a multi-terabyte disk on the Linux node.
-
-**Do not store secrets there** — that disk is unencrypted. Secrets go in `~/.vault`.
-
-### Deploy a service
-
-Write a `nephos.yaml`, then **on the machine that should run it**:
+Tiers can be **stopped to reclaim memory** and started on demand:
 
 ```bash
-ssh "$NEPHOS_CONTROL_HOST"
-"$NEPHOS_BIN" up ./myservice
+nephos llm ls          # what is actually loaded right now
+nephos llm up big      # start it and wait until it really serves
+nephos llm down big    # free the memory
 ```
 
-This one keeps the ssh hop on purpose, unlike the read-only commands above:
-`up` takes a local directory path, so it has to run where those files actually
-are. Do not "simplify" it to a bare `nephos up` from another machine.
-
-Deploys a rootless Quadlet unit that survives reboot. It checks the machine's advertised
-capabilities against the manifest's requirements first and fails clearly if they don't match.
-
-Manifest supports `network: host` — needed when a container must reach a loopback-bound
-origin on the same host, because rootless Podman otherwise can't.
-
-### See what's there
-
-```bash
-nephos nodes    # fleet + auto-detected capabilities
-nephos ps       # running services
-nephos models   # configured tiers
-nephos keys ls  # metadata only, never plaintext
-```
+A tier with `autostart: true` starts itself when a request arrives; one with
+`idleTimeoutSeconds` stops after that long unused. Worth knowing: an Ollama-backed
+tier already does both itself, so autostart there is redundant.
 
 ---
 
-## Nodes are a capability registry
+## Reading logs
 
-Nodes advertise what they *have*; nothing is scheduled by hostname:
-
-```
-caps=[amd64, cuda, linux, podman, systemd]   resources=[vram:8GB, ram:94GB, disk:1860GB]
-caps=[arm64, darwin]                          resources=[ram:96GB, cpu_cores:28]
-caps=[amd64, cuda, windows]                   resources=[vram:8GB, ram:15GB]
+```bash
+nephos logs myapp              # journal, container, or launchd file — it works it out
+nephos logs myapp -f -n 500
+nephos logs --project myapp    # every service in a group, across nodes, labelled
 ```
 
-Adding a node is one command on that machine. A node without `podman` simply never receives
-container workloads — that's why the Windows node can serve GPU work but not host services.
+Logs are read on demand from each node's own source. Nothing is shipped or stored
+centrally, so there is no retention window and nothing to fill up.
 
 ---
 
 ## Real limits — check these before promising anything
 
-**Inference concurrency is capped at 16 in flight, plus a 40,000 live-token budget** priced on
-the *longest* prompt in flight:
+**Inference concurrency is capped, plus a live-token budget priced on the LONGEST
+prompt in flight:**
 
 ```
-longest_prompt × (in_flight + 1) ≤ 40,000
+longest_prompt × (in_flight + 1) ≤ budget
 ```
 
-So ~16 short requests, but only ~9 at 4k tokens. Excess queues rather than failing. This is
-not arbitrary — the MLX backend prices memory on the longest sequence in the batch, and
-without this budget it OOM'd and served **0 of 48** requests under long-context load.
+So many short requests, but far fewer long ones. Excess queues rather than failing.
+Not arbitrary: without it the backend OOM'd and served **0 of 48** requests under
+long-context load.
 
-**Prompts over ~4,096 tokens route to the llama.cpp backend automatically.**
+**Both inference tiers cannot run at full load at once** on the workstation —
+measured against a practical ceiling well below its nominal memory. Exceeding it
+produces *empty responses*, not an error, which is considerably worse.
 
-**Both inference tiers cannot run at full load simultaneously** — measured ~28 GB + ~58 GB
-against a ~72 GB practical ceiling on a 96 GB machine.
+**GPU VRAM is 8 GB per discrete card.** The Apple-silicon node's unified memory is
+far larger and is modelled as accelerator memory, so large models route there and
+small GPU jobs go to a discrete card. The naive "GPU work goes to the GPU box" rule
+is wrong here — check `nephos nodes`.
 
-**GPU VRAM is 8 GB on every CUDA node**, so GPU-side batching tops out around 4–8B models.
-The Apple-silicon node is the inference workhorse *because of unified memory*, not despite
-lacking CUDA.
+**Isolation is uneven:**
+- Linux nodes — rootless Podman, SELinux-confined
+- macOS node — processes with no sandbox at all
+- Tenants are separated by the gateway's API-key auth, **not** an OS boundary
 
-**Isolation is uneven, and this matters for what you run:**
-- Linux node: rootless Podman containers — namespaces, cgroups, unprivileged
-- Apple-silicon node: inference servers are **plain processes, no sandbox at all**
-- Tenants are separated by the gateway's API-key auth, **not** by an OS boundary
+Fine for Owen's own apps. **Never run untrusted third-party code on it.**
 
-Fine for Owen's own apps. Never run untrusted third-party code on it.
-
-**Availability is best-effort.** Home internet, consumer hardware, one control plane, no
-off-site backup. Services restart automatically; a power cut still means downtime.
+**Availability is best-effort.** Home internet, consumer hardware, one control
+plane, no off-site backup.
 
 ---
 
-## Routing decisions
+## Not built yet
 
-| Task | Where |
-|---|---|
-| LLM inference of any size | Apple-silicon node — far faster, unified memory holds big models |
-| CUDA / containers / big scratch disk | Linux node |
-| Concurrent small-model serving | `fast` tier |
-| Anything needing real quality | `big` tier |
-| Long-context work at concurrency | Neither — measured OOM. Serialize it. |
-
-The naive "GPU work goes to the GPU box" rule is **wrong here**: the CUDA machines have 8 GB
-of VRAM, the Apple-silicon machine has 96 GB of unified memory. Check `nodes` output rather
-than assuming.
-
----
-
-## Known gaps
-
-- **`nephos up` is local-only** — it deploys to the machine you run it on. The registry knows
-  every node's capabilities but the scheduler does not yet dispatch remotely. SSH to the
-  target node and deploy there.
-- No off-site backup for the bulk disk.
-- The public tier depends on home internet and a single control plane.
+- **`nephos deploy --build`** — building an image from source on a node. Today the
+  image must already exist somewhere the node can pull from, so build on a Linux
+  node and push to the fleet registry.
+- **`nephos down` has no `--node`** — deploy is remote, teardown is local; ssh to
+  the node running it.
+- **No node-removal command** — a rebuilt machine leaves a ghost registration.
+- **No off-site backup** for the bulk disk.
 
 ---
 
 ## When nephos is the wrong answer
 
-Say so plainly. Use a hosted provider when the work needs frontier-model quality, guaranteed
-uptime, more than ~16 concurrent requests, long-context at concurrency, or when running code
-you did not write. nephos is excellent for personal projects, experiments, and batch work —
-it is not a replacement for a real cloud under load.
+Say so plainly. Use a hosted provider for frontier-model quality, guaranteed uptime,
+concurrency beyond the caps above, long-context work at concurrency, or anything
+running code Owen did not write. nephos is excellent for personal projects,
+experiments and batch work; it is not a replacement for a real cloud under load.
