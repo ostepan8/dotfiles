@@ -52,9 +52,21 @@ need black   || pip3 install --user black 2>/dev/null || pip install --user blac
 # atuin or delta on the aarch64 Pi while reporting success.
 ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
 
-have_pkg() {  # is this installable from the distro?
+# is this installable from the distro?
+#
+# Deliberately pipeline-free. The first version ended in `| grep -q`, and this
+# script runs under `set -o pipefail`: grep -q exits at the first match, the
+# producer takes SIGPIPE and returns 141, and pipefail propagates that as the
+# pipeline's status. So have_pkg reported "not available" for EVERY package on a
+# distro that had all of them, and the fallbacks silently took over — which is
+# how the Pi ended up with a curl-installed atuin and no delta at all.
+have_pkg() {
+  local out
   case "$PKG" in
-    apt)    apt-cache policy "$1" 2>/dev/null | grep -q 'Candidate: [0-9]' ;;
+    apt)
+      out="$(apt-cache policy "$1" 2>/dev/null)"
+      case "$out" in *"Candidate: "[0-9]*) return 0 ;; *) return 1 ;; esac
+      ;;
     dnf)    dnf -q list --available "$1" >/dev/null 2>&1 || dnf -q list --installed "$1" >/dev/null 2>&1 ;;
     pacman) pacman -Si "$1" >/dev/null 2>&1 ;;
   esac
@@ -124,7 +136,6 @@ if ! need atuin; then
 fi
 
 need starship || curl -sS https://starship.rs/install.sh | sh -s -- -y
-need atuin    || curl -sSf https://setup.atuin.sh | bash
 if ! need gh; then
   case "$PKG" in
     apt)    sudo apt install -y gh ;;
