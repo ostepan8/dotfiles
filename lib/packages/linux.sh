@@ -19,80 +19,6 @@ fi
 
 echo "  package manager: $PKG"
 
-case "$PKG" in
-  apt)    sudo apt update ;;
-  dnf)    sudo dnf check-update || true ;;
-  pacman) sudo pacman -Sy ;;
-esac
-
-echo "  core tools"
-case "$PKG" in
-  apt|dnf)
-    sudo "$PKG" install -y neovim git tmux zsh nodejs npm python3 python3-pip \
-      ripgrep curl unzip xclip fzf jq
-    ;;
-  pacman)
-    sudo pacman -Syu --noconfirm neovim git tmux zsh nodejs npm python python-pip \
-      ripgrep curl unzip xclip fzf jq
-    ;;
-esac
-
-# Neovim must be 0.11+: the config uses nvim-treesitter's main branch, and
-# telescope and nvim-lspconfig both hard-require 0.11. Debian trixie ships
-# 0.10.4 with no backport, so the Pi loaded with five errors and those plugins
-# simply did not work.
-#
-# Upstream publishes per-arch tarballs, so this is a general version floor
-# rather than a Pi-specific workaround: any distro too far behind gets the
-# official build, and distros that are current keep their package.
-NVIM_MIN_MINOR=11
-ensure_nvim() {
-  local cur minor arch url tmp
-  cur="$(nvim --version 2>/dev/null | head -1 | sed -n 's/^NVIM v\([0-9]*\.[0-9]*\).*/\1/p')"
-  minor="${cur#*.}"
-  if [ -n "$cur" ] && [ "${minor:-0}" -ge "$NVIM_MIN_MINOR" ] 2>/dev/null; then
-    return 0
-  fi
-  echo "  neovim ${cur:-none} is below 0.$NVIM_MIN_MINOR — installing the upstream build"
-
-  case "$ARCH" in
-    amd64|x86_64)  arch=x86_64 ;;
-    arm64|aarch64) arch=arm64 ;;
-    *) echo "  WARN: no upstream neovim build for $ARCH — leaving the distro version"; return 0 ;;
-  esac
-
-  url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-${arch}.tar.gz"
-  tmp="$(mktemp -d)"
-  if ! curl -fsSL "$url" -o "$tmp/nvim.tar.gz"; then
-    echo "  WARN: could not download $url"; rm -rf "$tmp"; return 0
-  fi
-  tar xzf "$tmp/nvim.tar.gz" -C "$tmp" || { echo "  WARN: bad tarball"; rm -rf "$tmp"; return 0; }
-
-  # Install beside the distro copy rather than over it: /usr/local/bin precedes
-  # /usr/bin on PATH, so this wins without fighting dpkg or breaking apt upgrades.
-  sudo rm -rf /opt/nvim
-  sudo mv "$tmp/nvim-linux-${arch}" /opt/nvim
-  sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
-  rm -rf "$tmp"
-
-  hash -r 2>/dev/null || true
-  if verify_bin nvim; then
-    echo "  neovim now $(nvim --version | head -1)"
-  else
-    echo "  WARN: upstream neovim did not run; distro version still in place"
-  fi
-}
-ensure_nvim
-
-echo "  LSP servers and formatters"
-case "$PKG" in
-  apt) sudo apt install -y clang-format llvm ;;
-  dnf) sudo dnf install -y clang-tools-extra llvm ;;
-  pacman) sudo pacman -S --noconfirm clang llvm ;;
-esac
-need pyright || sudo npm install -g pyright
-need black   || pip3 install --user black 2>/dev/null || pip install --user black
-
 # Prefer the distro package for everything it actually ships. The upstream
 # curl installers and .deb downloads below are fallbacks for older releases —
 # and the .deb URLs were hardcoded to amd64, which silently produced no zoxide,
@@ -144,6 +70,92 @@ pkg_install() {
     pacman) sudo pacman -S --noconfirm "$@" ;;
   esac
 }
+
+
+# Neovim must be 0.11+: the config uses nvim-treesitter's main branch, and
+# telescope and nvim-lspconfig both hard-require 0.11. Debian trixie ships
+# 0.10.4 with no backport, so the Pi loaded with five errors and those plugins
+# simply did not work.
+#
+# Upstream publishes per-arch tarballs, so this is a general version floor
+# rather than a Pi-specific workaround: any distro too far behind gets the
+# official build, and distros that are current keep their package.
+NVIM_MIN_MINOR=11
+ensure_nvim() {
+  local cur minor arch url tmp
+  cur="$(nvim --version 2>/dev/null | head -1 | sed -n 's/^NVIM v\([0-9]*\.[0-9]*\).*/\1/p')"
+  minor="${cur#*.}"
+  if [ -n "$cur" ] && [ "${minor:-0}" -ge "$NVIM_MIN_MINOR" ] 2>/dev/null; then
+    return 0
+  fi
+  echo "  neovim ${cur:-none} is below 0.$NVIM_MIN_MINOR — installing the upstream build"
+
+  case "$ARCH" in
+    amd64|x86_64)  arch=x86_64 ;;
+    arm64|aarch64) arch=arm64 ;;
+    *) echo "  WARN: no upstream neovim build for $ARCH — leaving the distro version"; return 0 ;;
+  esac
+
+  url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-${arch}.tar.gz"
+  tmp="$(mktemp -d)"
+  if ! curl -fsSL "$url" -o "$tmp/nvim.tar.gz"; then
+    echo "  WARN: could not download $url"; rm -rf "$tmp"; return 0
+  fi
+  tar xzf "$tmp/nvim.tar.gz" -C "$tmp" || { echo "  WARN: bad tarball"; rm -rf "$tmp"; return 0; }
+
+  # Install beside the distro copy rather than over it: /usr/local/bin precedes
+  # /usr/bin on PATH, so this wins without fighting dpkg or breaking apt upgrades.
+  sudo rm -rf /opt/nvim
+  sudo mv "$tmp/nvim-linux-${arch}" /opt/nvim
+  sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
+  rm -rf "$tmp"
+
+  hash -r 2>/dev/null || true
+
+  # Verify the OUTCOME, not just that the steps ran. The first version of this
+  # function announced "installing the upstream build", then aborted on an
+  # unbound $ARCH (it was called before ARCH was defined) and left 0.10.4 in
+  # place — with no warning, because the abort happened mid-function. Check the
+  # version actually moved and say so plainly if it did not.
+  local now
+  now="$(nvim --version 2>/dev/null | head -1 | sed -n 's/^NVIM v\([0-9]*\.[0-9]*\).*/\1/p')"
+  if [ "${now#*.}" -ge "$NVIM_MIN_MINOR" ] 2>/dev/null && verify_bin nvim; then
+    echo "  neovim now $(nvim --version | head -1) (from /opt/nvim)"
+  else
+    echo "  WARN: neovim is still ${now:-unknown} — upstream install did not take."
+    echo "        expected /usr/local/bin/nvim -> /opt/nvim/bin/nvim"
+  fi
+}
+ensure_nvim
+
+
+case "$PKG" in
+  apt)    sudo apt update ;;
+  dnf)    sudo dnf check-update || true ;;
+  pacman) sudo pacman -Sy ;;
+esac
+
+echo "  core tools"
+case "$PKG" in
+  apt|dnf)
+    sudo "$PKG" install -y neovim git tmux zsh nodejs npm python3 python3-pip \
+      ripgrep curl unzip xclip fzf jq
+    ;;
+  pacman)
+    sudo pacman -Syu --noconfirm neovim git tmux zsh nodejs npm python python-pip \
+      ripgrep curl unzip xclip fzf jq
+    ;;
+esac
+
+
+echo "  LSP servers and formatters"
+case "$PKG" in
+  apt) sudo apt install -y clang-format llvm ;;
+  dnf) sudo dnf install -y clang-tools-extra llvm ;;
+  pacman) sudo pacman -S --noconfirm clang llvm ;;
+esac
+need pyright || sudo npm install -g pyright
+need black   || pip3 install --user black 2>/dev/null || pip install --user black
 
 echo "  terminal tools"
 case "$PKG" in
