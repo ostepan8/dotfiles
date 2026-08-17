@@ -35,7 +35,8 @@ sketchybar --bar \
     y_offset=0 \
     corner_radius=0 \
     margin=0 \
-    sticky=on
+    sticky=on \
+    topmost=on
 
 # ---------- Defaults ----------
 sketchybar --default \
@@ -133,11 +134,46 @@ sketchybar --add item media center \
 
 # ==============================================================
 # RIGHT (added in reverse — first added appears rightmost)
-# Battery, Wi-Fi, and the clock were intentionally removed — the native macOS
-# menu bar already shows all three, so duplicating them here was just noise.
+# Clock, Wi-Fi, and Battery live here because the bar is topmost=on and now
+# covers the native macOS menu bar (which used to show them). Added first so
+# they sit at the far right, like the native menu bar's clock/status cluster.
 # ==============================================================
 
-# Weather (wttr.in — no API key). Rightmost item.
+# Clock (rightmost) — day + time.
+sketchybar --add item clock right \
+    --set clock \
+        update_freq=15 \
+        background.color=$BG_ITEM \
+        icon.drawing=off \
+        label.color=$FG \
+        click_script="open -a Calendar" \
+        script="$PLUGIN_DIR/clock.sh"
+
+sketchybar --add item sep.clock right \
+    --set sep.clock background.drawing=off icon.drawing=off label.drawing=off width=8
+
+# Battery
+sketchybar --add item battery right \
+    --set battery \
+        update_freq=30 \
+        background.color=$BG_ITEM \
+        script="$PLUGIN_DIR/battery.sh"
+
+sketchybar --add item sep.bat right \
+    --set sep.bat background.drawing=off icon.drawing=off label.drawing=off width=8
+
+# Wi-Fi
+sketchybar --add item wifi right \
+    --set wifi \
+        update_freq=30 \
+        background.color=$BG_ITEM \
+        click_script="open -a 'System Settings' --args 'Network'" \
+        script="$PLUGIN_DIR/wifi.sh"
+
+sketchybar --add item sep.wifi right \
+    --set sep.wifi background.drawing=off icon.drawing=off label.drawing=off width=8
+
+# Weather (wttr.in — no API key).
 sketchybar --add item weather right \
     --set weather \
         update_freq=900 \
