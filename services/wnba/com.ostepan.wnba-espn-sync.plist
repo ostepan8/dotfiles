@@ -14,7 +14,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/dotfiles/mac/wnba-analytics-engine/espn-sync.sh"</string>
+        <string>exec "$HOME/dotfiles/services/wnba/espn-sync.sh"</string>
     </array>
 
     <key>EnvironmentVariables</key>

@@ -59,8 +59,8 @@ The user runs this repo on two machines — a MacBook and a Mac Studio — that 
 - Each physical machine points at the right one via a **local, untracked** marker file: `~/.dotfiles-host`, containing the machine's *type* (`macbook` or `studio`), not a unique device ID. A second Mac Studio would get the exact same marker value and immediately inherit `zsh/hosts/studio.zsh` — no new file, no code change.
 - `zsh/zshrc` reads the marker near the end and sources the matching file if it exists:
   ```sh
-  if [ -f "$HOME/.dotfiles-host" ] && [ -f "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh" ]; then
-      source "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh"
+  if [ -f "$HOME/.dotfiles-host" ] && [ -f "$HOME/dotfiles/hosts/$(<"$HOME/.dotfiles-host").zsh" ]; then
+      source "$HOME/dotfiles/hosts/$(<"$HOME/.dotfiles-host").zsh"
   fi
   ```
   This reads straight from the `~/dotfiles` checkout at shell-start time — it is **not** copied into `~/.zshrc` by `apply.sh`/`setup.sh`, so no installer change was needed to wire it up.

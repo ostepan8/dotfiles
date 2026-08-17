@@ -192,6 +192,6 @@ command -v atuin >/dev/null && eval "$(atuin init zsh --disable-up-arrow)"
 # (zsh/hosts/<type>.zsh) is version-controlled and shared like everything
 # else, so type-specific config still propagates across every machine of
 # that type via the normal sync.
-if [ -f "$HOME/.dotfiles-host" ] && [ -f "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh" ]; then
-    source "$HOME/dotfiles/zsh/hosts/$(<"$HOME/.dotfiles-host").zsh"
+if [ -f "$HOME/.dotfiles-host" ] && [ -f "$HOME/dotfiles/hosts/$(<"$HOME/.dotfiles-host").zsh" ]; then
+    source "$HOME/dotfiles/hosts/$(<"$HOME/.dotfiles-host").zsh"
 fi

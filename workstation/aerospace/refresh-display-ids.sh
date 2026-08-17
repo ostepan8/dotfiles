@@ -79,7 +79,7 @@ print(f"RIGHT → {right_id or '(none)'}")
 PY
 
 # Mirror to dotfiles if present
-DOTFILES_ENV="${HOME}/dotfiles/aerospace/displays.env"
+DOTFILES_ENV="${HOME}/dotfiles/workstation/aerospace/displays.env"
 if [ -f "$DOTFILES_ENV" ]; then
     cp "$CONFIG" "$DOTFILES_ENV"
 fi

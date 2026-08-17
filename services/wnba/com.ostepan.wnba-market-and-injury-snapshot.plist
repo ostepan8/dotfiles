@@ -18,7 +18,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/dotfiles/mac/wnba-analytics-engine/market-and-injury-snapshot.sh"</string>
+        <string>exec "$HOME/dotfiles/services/wnba/market-and-injury-snapshot.sh"</string>
     </array>
 
     <key>EnvironmentVariables</key>

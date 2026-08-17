@@ -39,8 +39,12 @@ out="$(run_apply "$H")"
 echo "$out" | grep -q '^\[apply\]' || bad "apply produced no output"
 
 # Spot-check one destination per mode.
-[ -L "$H/.zshrc" ] && [ "$(readlink "$H/.zshrc")" = "$DOTFILES/zsh/zshrc" ] \
-  && ok "link: .zshrc -> repo" || bad "link: .zshrc"
+# Resolve the expected target from the manifest rather than hardcoding a path —
+# a hardcoded one silently goes stale the moment a file moves, which is exactly
+# what this suite exists to catch.
+zshrc_src="$(awk '!/^[[:space:]]*#/ && $4 == "~/.zshrc" { print $3; exit }' "$DOTFILES/manifest.conf")"
+[ -L "$H/.zshrc" ] && [ "$(readlink "$H/.zshrc")" = "$DOTFILES/$zshrc_src" ] \
+  && ok "link: .zshrc -> $zshrc_src" || bad "link: .zshrc (expected -> $zshrc_src)"
 
 [ -f "$H/.config/aerospace/aerospace.toml" ] && [ ! -L "$H/.config/aerospace/aerospace.toml" ] \
   && ok "copy: aerospace.toml is a real file, not a symlink" \
