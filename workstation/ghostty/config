@@ -26,7 +26,11 @@ clipboard-paste-protection = true
 # Shell integration
 # ============================
 shell-integration = detect
-shell-integration-features = cursor,sudo,title
+# ssh-terminfo installs Ghostty's terminfo on remote hosts on first connect
+# (cached after), and ssh-env falls back to xterm-256color when that fails.
+# Without them TERM=xterm-ghostty is exported to hosts that may not know it,
+# which breaks mouse reporting -- the scroll wheel arrives as arrow keys.
+shell-integration-features = cursor,sudo,title,ssh-env,ssh-terminfo
 
 # ============================
 # Cursor
