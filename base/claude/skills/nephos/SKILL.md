@@ -86,6 +86,7 @@ resources:
   cpu: 1
   vram: 8Gi               # requesting VRAM IS requesting a GPU
 ports: ["8000:8000"]      # host:container — must match what the app binds
+# listenPort: 8080        # instead of ports:, for network: host or kind: process
 ```
 
 Omit `image:` when using `--build`; it is filled in from the build. Set it only to
@@ -120,6 +121,11 @@ CMD ["node", "server.js"]
 **Dependencies are copied before the source on purpose.** Each line is a cached
 layer, so an edit to application code reuses the install step; copying source first
 reinstalls every dependency on every rebuild.
+
+**A `network: host` container or a `kind: process` workload declares
+`listenPort:` instead of `ports:`** — it publishes no mapping, so without it
+nephos knows of no port for the service and it cannot be reported, exposed on
+the tailnet, or published with `--public`.
 
 **Bind `0.0.0.0`, never `localhost`.** Inside a container `localhost` means the
 container itself, so a service bound to it is unreachable from outside and looks
