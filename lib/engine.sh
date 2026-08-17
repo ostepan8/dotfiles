@@ -97,15 +97,23 @@ apply_copy() {
   [ "${DRY_RUN:-0}" = "1" ] && { action "copy   $dest"; return 0; }
   mkdir -p "$(dirname "$dest")"
   backup_once "$dest"
+  # Drop an existing symlink first: `cp -f` FOLLOWS a symlink and writes through
+  # to its target, so copying onto a previously-linked dest silently edits the
+  # repo instead of replacing the link. That is how a row changed from link to
+  # copy kept behaving like a link.
+  [ -L "$dest" ] && rm -f "$dest"
   cp -f "$src" "$dest"
   action "copy   $dest"
 }
 
 apply_seed() {
   local src="$1" dest="$2"
-  [ -e "$dest" ] && return 0
+  # -e follows symlinks, so a dangling or repo-pointing link would read as
+  # "already present" and the seed would never happen.
+  [ -e "$dest" ] && [ ! -L "$dest" ] && return 0
   [ "${DRY_RUN:-0}" = "1" ] && { action "seed   $dest"; return 0; }
   mkdir -p "$(dirname "$dest")"
+  [ -L "$dest" ] && rm -f "$dest"
   cp -f "$src" "$dest"
   action "seed   $dest (machine-specific from here on)"
 }

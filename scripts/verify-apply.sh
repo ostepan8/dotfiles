@@ -125,6 +125,18 @@ echo "$out_extra" | grep -q 'already up to date' \
 [ -f "$H/.claude-personal/skills/plugin-provided-skill/SKILL.md" ] \
   && ok "extra profile skills are preserved" || bad "apply deleted an untracked skill"
 
+# A row can change mode between releases (lazy-lock.json went link -> copy for
+# servers). `cp -f` follows a symlink and writes through to its target, so a
+# copy onto a previously-linked dest silently edits the REPO and leaves the link
+# in place — the mode change appears to apply while changing nothing.
+ln -sfn "$DOTFILES/base/nvim/init.lua" "$H/.config/aerospace/displays.env"
+run_apply "$H" >/dev/null
+if [ -L "$H/.config/aerospace/displays.env" ]; then
+  bad "copy/seed wrote through a symlinked dest instead of replacing it"
+else
+  ok "a symlinked dest is replaced by a real file on mode change"
+fi
+
 # ---------------------------------------------------------------------------
 echo "${DIM}[3/5] per-machine files survive re-apply${OFF}"
 printf 'MACHINE_SPECIFIC=1\n' > "$H/.config/aerospace/displays.env"
