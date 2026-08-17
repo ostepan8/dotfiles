@@ -110,6 +110,21 @@ echo "$out2" | grep -qE '^[[:space:]]*(would )?reload ' \
   && bad "idle run fired a reload (this is the top-bar-flash bug)" \
   || ok "idle run fired no reloads"
 
+# A Claude profile accumulates skills from plugins that this repo does not
+# track. Those extras must neither be deleted nor make the tree look
+# permanently different — the second cost the MacBook a full re-copy of every
+# skill on every apply, silently, because the comparison was bidirectional
+# while the copy was additive.
+mkdir -p "$H/.claude-personal/skills/plugin-provided-skill"
+echo "not tracked here" > "$H/.claude-personal/skills/plugin-provided-skill/SKILL.md"
+ln -sfn ../../nowhere/plugin "$H/.claude-personal/skills/dangling-plugin-link"
+out_extra="$(run_apply "$H")"
+echo "$out_extra" | grep -q 'already up to date' \
+  && ok "extra profile skills do not trigger a re-copy" \
+  || bad "unmanaged profile content makes every apply re-copy the tree"
+[ -f "$H/.claude-personal/skills/plugin-provided-skill/SKILL.md" ] \
+  && ok "extra profile skills are preserved" || bad "apply deleted an untracked skill"
+
 # ---------------------------------------------------------------------------
 echo "${DIM}[3/5] per-machine files survive re-apply${OFF}"
 printf 'MACHINE_SPECIFIC=1\n' > "$H/.config/aerospace/displays.env"

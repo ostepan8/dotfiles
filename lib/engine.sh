@@ -110,15 +110,29 @@ apply_seed() {
   action "seed   $dest (machine-specific from here on)"
 }
 
+# Does dest lack anything the repo has, or hold a stale copy of it?
+#
+# Compared one-directionally on purpose. `tree` copies src -> dest additively and
+# never deletes, so anything present only in dest is fine — Claude profiles
+# legitimately accumulate skills from plugins that this repo does not track.
+# Comparing both directions made those extras read as a difference forever, so
+# every apply re-copied the whole tree and never reported "already up to date".
+#
+# stderr is dropped because a dangling symlink inside either tree makes diff
+# complain without that being a difference: several tracked skills are symlinks
+# into a plugin directory that only resolves once installed.
+_tree_differs() {
+  local src="$1" dest="$2"
+  [ -d "$dest" ] || return 0
+  diff -rq "$src" "$dest" 2>/dev/null | grep -v "^Only in ${dest}" | grep -q .
+}
+
 apply_tree() {
   local src="$1" dest="$2"
   [ -d "$src" ] || { note "SKIP   $src (not a directory)"; return 0; }
-  [ "${DRY_RUN:-0}" = "1" ] && {
-    diff -rq "$src" "$dest" >/dev/null 2>&1 || action "tree   $dest"
-    return 0
-  }
+  _tree_differs "$src" "$dest" || return 0
+  [ "${DRY_RUN:-0}" = "1" ] && { action "tree   $dest"; return 0; }
   mkdir -p "$dest"
-  if diff -rq "$src" "$dest" >/dev/null 2>&1; then return 0; fi
   cp -R "$src/." "$dest/"
   action "tree   $dest"
 }
