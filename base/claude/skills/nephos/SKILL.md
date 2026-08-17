@@ -162,6 +162,23 @@ actionable in a way "no eligible node" is not.
   has no container runtime. No isolation and no cgroup accounting; `image:`, `gpu:`
   and `volumes:` are refused on a process manifest rather than silently ignored.
 
+**`kind: process` also runs on a schedule instead of continuously** — add
+`schedule:` (systemd's own calendar syntax, e.g. `"daily"`, `"*-*-* 02:00:00"`,
+`"Mon *-*-* 09:00:00"` — not cron):
+
+```yaml
+kind: process
+command: ["/usr/bin/backup.sh"]
+schedule: "*-*-* 02:00:00"    # every night at 2am
+```
+
+Deploys a `.timer` unit alongside the service instead of starting it now —
+the service only runs when the timer fires, runs to completion, and stops
+(no restart-on-exit, no boot-autostart of its own). Linux only for now;
+launchd needs a structurally different mechanism (a dict, not a calendar
+string) that isn't built yet — deploying with `schedule:` to the Mac Studio
+refuses clearly rather than silently running continuously instead.
+
 **Ports are exposed on the tailnet automatically.** They stay *bound* to
 loopback — tailscale proxies to them — so a deploy prints where it can actually
 be reached:
