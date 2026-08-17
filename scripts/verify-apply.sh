@@ -79,6 +79,24 @@ done < "$DOTFILES/manifest.conf"
 [ "$mismatch" -eq 0 ] && ok "content matches repo for all $checked linked files" \
   || bad "$mismatch destination(s) missing or differing"
 
+# Every `render` row must have a renderer. apply_render SKIPs with a note when
+# the script is missing, which scrolls past unnoticed — after the phase-3 move
+# both renderers were orphaned (their slug gained a 'workstation-' prefix) and
+# nothing failed, so clangd config and the phantom-window helper silently
+# stopped being generated on both Macs.
+missing_render=0
+while read -r layer mode source dest reload; do
+  case "$layer" in ''|\#*) continue ;; esac
+  [ "$mode" = "render" ] || continue
+  slug="${source%.*}"; slug="${slug//\//-}"
+  if [ ! -f "$DOTFILES/lib/render/$slug.sh" ]; then
+    echo "     no renderer for $source (expected lib/render/$slug.sh)"
+    missing_render=$((missing_render+1))
+  fi
+done < "$DOTFILES/manifest.conf"
+[ "$missing_render" -eq 0 ] && ok "every render row has a renderer" \
+  || bad "$missing_render render row(s) would be silently skipped"
+
 # ---------------------------------------------------------------------------
 echo "${DIM}[2/5] idempotence — second run must change nothing${OFF}"
 out2="$(run_apply "$H")"
