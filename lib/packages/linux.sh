@@ -72,6 +72,24 @@ have_pkg() {
   esac
 }
 
+# Verify a binary actually runs, and remove it if not.
+#
+# A wrong-architecture binary still satisfies `command -v`, so `need <tool>`
+# returns true forever and the correct package can never install. That happened
+# on the aarch64 Pi: the amd64 fallback dropped an x86-64 lazygit into
+# /usr/local/bin, which looked installed and silently shadowed the working apt
+# build. Anything fetched by architecture gets checked.
+verify_bin() {
+  local name="$1" path
+  path="$(command -v "$name" 2>/dev/null)" || return 1
+  if "$path" --version >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "  WARN: $path does not execute here (wrong arch?) — removing"
+  sudo rm -f "$path"
+  return 1
+}
+
 pkg_install() {
   case "$PKG" in
     apt)    sudo apt install -y "$@" ;;
@@ -94,6 +112,7 @@ esac
 
 echo "  git tools"
 # lazygit and delta: distro package when available, arch-correct download if not.
+verify_bin lazygit >/dev/null 2>&1 || true
 if ! need lazygit; then
   if have_pkg lazygit; then pkg_install lazygit
   elif [ "$PKG" = "dnf" ]; then sudo dnf copr enable atim/lazygit -y && sudo dnf install -y lazygit
@@ -107,6 +126,7 @@ if ! need lazygit; then
       v=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
       curl -fsSLo /tmp/lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${v}_${LG_ARCH}.tar.gz" \
         && sudo tar xf /tmp/lazygit.tar.gz -C /usr/local/bin lazygit && rm -f /tmp/lazygit.tar.gz
+      verify_bin lazygit || echo "  WARN: no working lazygit for $ARCH"
     else
       echo "  WARN: no lazygit build for $ARCH"
     fi
