@@ -23,6 +23,7 @@ SKIP_PACKAGES=0
 
 . "$DOTFILES/lib/reloads.sh"
 . "$DOTFILES/lib/engine.sh"
+. "$DOTFILES/lib/setup.sh"
 
 ACTIVE_LAYERS="$(resolve_layers)"
 export ACTIVE_LAYERS
@@ -31,15 +32,14 @@ OS="$(uname)"
 echo "==> machine: ${OS}, layers: $ACTIVE_LAYERS"
 
 # ---------------------------------------------------------------------------
-# 1. record the machine type, if it was never set
+# 1. interview — only asks about what is not configured yet
 # ---------------------------------------------------------------------------
-if [ ! -f "$HOME/.dotfiles-host" ]; then
-  echo
-  echo "  No ~/.dotfiles-host — this machine will get the 'base' layer only."
-  echo "  To give it more, write a type from hosts/layers.conf, e.g.:"
-  echo "      echo studio > ~/.dotfiles-host    # then re-run"
-  echo
-fi
+echo "==> setup"
+run_setup_scripts
+
+# The host type may have just been written, which changes the layer set.
+ACTIVE_LAYERS="$(resolve_layers)"
+export ACTIVE_LAYERS
 
 # ---------------------------------------------------------------------------
 # 2. packages

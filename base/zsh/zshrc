@@ -185,6 +185,11 @@ command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 # ---------- atuin ----------
 command -v atuin >/dev/null && eval "$(atuin init zsh --disable-up-arrow)"
 
+# ---------- nephos ----------
+# Sourced only when this machine is set up for the personal cloud. The helpers
+# fetch credentials on demand into this shell and never write them to disk.
+[ -f "$HOME/dotfiles/base/zsh/nephos.zsh" ] && source "$HOME/dotfiles/base/zsh/nephos.zsh"
+
 # ---------- host-type overrides ----------
 # ~/.dotfiles-host holds this machine's *type* ("macbook", "studio"), not a
 # unique per-device id — a second Studio would get the same file. It lives

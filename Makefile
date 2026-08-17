@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check verify test apply dry-run hooks
+.PHONY: help check verify test apply dry-run setup hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -18,6 +18,9 @@ dry-run:  ## Show what apply would change on THIS machine
 
 apply:  ## Put this machine's config in place
 	@bash apply.sh
+
+setup:  ## Re-run the interview for anything not yet configured
+	@bash scripts/setup.sh
 
 hooks:  ## Install the pre-push hook that runs `make check`
 	@mkdir -p .git/hooks
