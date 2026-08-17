@@ -27,10 +27,13 @@ alt - space : ws=$(/opt/homebrew/bin/aerospace list-workspaces --focused); osasc
 
 # ---------- Chrome profiles (new window, stays on current workspace) ----------
 # Opt+B → personal Chrome (Owen, ohstep23@gmail.com)
-alt - b : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --profile-directory="Default" --new-window
+# Profile directory is resolved by ACCOUNT, not hardcoded: Chrome names profile
+# dirs in creation order, so "Default" is the personal account on the Studio but
+# an empty "Person 1" on the MacBook. Resolving by email is correct on both.
+alt - b : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --profile-directory="$(~/.config/skhd/chrome-profile.sh ohstep23@gmail.com Default)" --new-window
 
 # Opt+W → work Chrome (owen@subconscious.dev)
-alt - w : open -a "Google Chrome" --new --args --profile-directory="Profile 13" --new-window
+alt - w : open -a "Google Chrome" --new --args --profile-directory="$(~/.config/skhd/chrome-profile.sh owen@subconscious.dev 'Profile 13')" --new-window
 
 # ---------- Other apps ----------
 # Opt+E → new Finder window

@@ -10,6 +10,11 @@ vim.opt.relativenumber = true
 vim.opt.termguicolors = false
 vim.opt.background = "dark"    -- or "light" if you prefer
 
+-- Use the macOS system clipboard for ALL yanks/deletes/pastes, so a plain
+-- `yy` copies the line straight to the clipboard (Cmd+V works in any app) and
+-- `p` pastes whatever you last copied elsewhere. No more "+ prefix needed.
+vim.opt.clipboard = "unnamedplus"
+
 -- Set leader key
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "

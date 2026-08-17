@@ -119,6 +119,22 @@ function ccdr()  { ccd  --resume "$@"; }
 function ccdrs() { ccds --resume "$@"; }
 function ccdrw() { ccdw --resume "$@"; }
 
+# Isolated profile for a locally-served model: no MCP servers, no plugins, no
+# personal skills/rules — keeps Claude Code's system prompt small so a local
+# model (slow prefill, no server-side prompt caching) stays responsive. Points
+# at Ollama's Anthropic-compatible endpoint.
+#
+# Shared rather than macbook-only: defining a function costs nothing on a
+# machine that never calls it, and either Mac may run Ollama.
+function ccd-local() {
+  _ccd_title "Claude · local (qwen3.6)" \
+    env CLAUDE_CONFIG_DIR="$HOME/.claude-local" \
+        ANTHROPIC_BASE_URL="http://localhost:11434" \
+        ANTHROPIC_AUTH_TOKEN="ollama" \
+        ANTHROPIC_API_KEY="" \
+    claude --dangerously-skip-permissions "$@"
+}
+
 alias ll='ls -lh'
 alias la='ls -lAh'
 alias ..='cd ..'
