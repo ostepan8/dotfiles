@@ -48,11 +48,35 @@ if [ "$SKIP_PACKAGES" = "1" ]; then
   echo "==> skipping packages (--no-packages)"
 else
   echo "==> packages"
+
+  # Because ~/.zshrc and friends are symlinks into this repo, any installer that
+  # "helpfully" appends to a shell rc edits TRACKED, fleet-wide config. atuin's
+  # installer did exactly that on three machines, leaving their repos dirty and
+  # blocking later fleet updates. Snapshot before, compare after, revert what an
+  # installer touched — and say so, rather than letting it ride to every machine.
+  _repo_before="$(git -C "$DOTFILES" status --porcelain 2>/dev/null)"
+
   case "$OS" in
     Darwin) . "$DOTFILES/lib/packages/darwin.sh" ;;
     Linux)  . "$DOTFILES/lib/packages/linux.sh" ;;
     *)      echo "  unknown OS '$OS' — skipping packages" ;;
   esac
+
+  _repo_after="$(git -C "$DOTFILES" status --porcelain 2>/dev/null)"
+  if [ "$_repo_before" != "$_repo_after" ]; then
+    echo
+    echo "  An installer modified tracked config in the repo (via a symlink):"
+    diff <(printf '%s\n' "$_repo_before") <(printf '%s\n' "$_repo_after") \
+      | grep '^>' | sed 's/^> /    /'
+    while read -r _st _f; do
+      [ -z "${_f:-}" ] && continue
+      [ "$_st" = "M" ] || continue
+      git -C "$DOTFILES" checkout -- "$_f" 2>/dev/null && echo "    reverted $_f"
+    done < <(diff <(printf '%s\n' "$_repo_before") <(printf '%s\n' "$_repo_after") \
+             | grep '^>' | sed 's/^> //')
+    echo "  If one of those edits was actually wanted, add it to the repo properly."
+    echo
+  fi
 fi
 
 # ---------------------------------------------------------------------------

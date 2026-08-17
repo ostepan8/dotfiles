@@ -46,39 +46,82 @@ esac
 need pyright || sudo npm install -g pyright
 need black   || pip3 install --user black 2>/dev/null || pip install --user black
 
+# Prefer the distro package for everything it actually ships. The upstream
+# curl installers and .deb downloads below are fallbacks for older releases —
+# and the .deb URLs were hardcoded to amd64, which silently produced no zoxide,
+# atuin or delta on the aarch64 Pi while reporting success.
+ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+
+have_pkg() {  # is this installable from the distro?
+  case "$PKG" in
+    apt)    apt-cache policy "$1" 2>/dev/null | grep -q 'Candidate: [0-9]' ;;
+    dnf)    dnf -q list --available "$1" >/dev/null 2>&1 || dnf -q list --installed "$1" >/dev/null 2>&1 ;;
+    pacman) pacman -Si "$1" >/dev/null 2>&1 ;;
+  esac
+}
+
+pkg_install() {
+  case "$PKG" in
+    apt)    sudo apt install -y "$@" ;;
+    dnf)    sudo dnf install -y "$@" ;;
+    pacman) sudo pacman -S --noconfirm "$@" ;;
+  esac
+}
+
 echo "  terminal tools"
 case "$PKG" in
   apt)
-    sudo apt install -y fd-find bat
+    pkg_install fd-find bat
     # Debian ships these under alternate names to avoid collisions.
     need fdfind && ! need fd  && sudo ln -sf "$(command -v fdfind)" /usr/local/bin/fd
     need batcat && ! need bat && sudo ln -sf "$(command -v batcat)" /usr/local/bin/bat
-    need zoxide || curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
     ;;
-  dnf)    sudo dnf install -y fd-find bat zoxide ;;
-  pacman) sudo pacman -S --noconfirm fd bat zoxide ;;
+  dnf)    pkg_install fd-find bat ;;
+  pacman) pkg_install fd bat ;;
 esac
 
 echo "  git tools"
-case "$PKG" in
-  apt)
-    if ! need lazygit; then
+# lazygit and delta: distro package when available, arch-correct download if not.
+if ! need lazygit; then
+  if have_pkg lazygit; then pkg_install lazygit
+  elif [ "$PKG" = "dnf" ]; then sudo dnf copr enable atim/lazygit -y && sudo dnf install -y lazygit
+  else
+    case "$ARCH" in
+      amd64|x86_64) LG_ARCH=Linux_x86_64 ;;
+      arm64|aarch64) LG_ARCH=Linux_arm64 ;;
+      *) LG_ARCH="" ;;
+    esac
+    if [ -n "$LG_ARCH" ]; then
       v=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
-      curl -Lo /tmp/lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${v}_Linux_x86_64.tar.gz" \
+      curl -fsSLo /tmp/lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${v}_${LG_ARCH}.tar.gz" \
         && sudo tar xf /tmp/lazygit.tar.gz -C /usr/local/bin lazygit && rm -f /tmp/lazygit.tar.gz
+    else
+      echo "  WARN: no lazygit build for $ARCH"
     fi
-    if ! need delta; then
-      v=$(curl -s "https://api.github.com/repos/dandavison/delta/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
-      curl -Lo /tmp/delta.deb "https://github.com/dandavison/delta/releases/latest/download/git-delta_${v}_amd64.deb" \
-        && sudo dpkg -i /tmp/delta.deb && rm -f /tmp/delta.deb
-    fi
-    ;;
-  dnf)
-    sudo dnf install -y git-delta
-    need lazygit || { sudo dnf copr enable atim/lazygit -y && sudo dnf install -y lazygit; }
-    ;;
-  pacman) sudo pacman -S --noconfirm lazygit git-delta ;;
-esac
+  fi
+fi
+
+if ! need delta; then
+  if   have_pkg git-delta; then pkg_install git-delta
+  elif have_pkg git_delta; then pkg_install git_delta
+  else echo "  WARN: no git-delta package for this distro/arch — skipping"
+  fi
+fi
+
+# zoxide and atuin ship in modern Debian/Fedora. Only fall back to the upstream
+# installers when they do not — those append to ~/.zshrc, which is a symlink
+# into this repo, so they dirty tracked config for the whole fleet.
+if ! need zoxide; then
+  if have_pkg zoxide; then pkg_install zoxide
+  else curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
+  fi
+fi
+
+if ! need atuin; then
+  if have_pkg atuin; then pkg_install atuin
+  else curl -sSf https://setup.atuin.sh | bash
+  fi
+fi
 
 need starship || curl -sS https://starship.rs/install.sh | sh -s -- -y
 need atuin    || curl -sSf https://setup.atuin.sh | bash
