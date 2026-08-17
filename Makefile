@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check hooks
+.PHONY: help check verify test apply dry-run hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -7,6 +7,17 @@ help:  ## Show available targets
 
 check:  ## Scan tracked files for secrets, fleet identifiers, private addresses
 	@bash scripts/check-secrets.sh
+
+verify:  ## Prove the apply engine against a throwaway HOME (touches nothing)
+	@bash scripts/verify-apply.sh
+
+test: check verify  ## Run every check
+
+dry-run:  ## Show what apply would change on THIS machine
+	@bash apply.sh --dry-run
+
+apply:  ## Put this machine's config in place
+	@bash apply.sh
 
 hooks:  ## Install the pre-push hook that runs `make check`
 	@mkdir -p .git/hooks
