@@ -10,8 +10,13 @@
 # but it is not a secret manager — use `nephos-unenv` when you are done, and do
 # not export credentials in a shell you are screen-sharing.
 
-[ -f "$HOME/.config/nephos/env" ] || return 0
-set -a; . "$HOME/.config/nephos/env"; set +a
+# Load this machine's endpoints if it has them. Deliberately NOT an early return
+# for the whole file: what a machine is ALLOWED to do is a property of its role,
+# not of whether it has been pointed at a control plane yet. On a machine that
+# is not set up, `nephos-role` should still answer — the setup interview and the
+# agent skill both ask before anything is configured. Only the operational
+# commands need the env, and they say so when it is missing.
+[ -f "$HOME/.config/nephos/env" ] && { set -a; . "$HOME/.config/nephos/env"; set +a; }
 
 # nephos-tier — what this machine is allowed to do.
 #
@@ -63,6 +68,10 @@ nephos-role() {
 }
 
 _nephos_require() {
+  if [ ! -f "$HOME/.config/nephos/env" ]; then
+    echo "nephos: not set up on this machine (no ~/.config/nephos/env) — run: make setup" >&2
+    return 1
+  fi
   if command -v tailscale >/dev/null 2>&1 && ! tailscale status >/dev/null 2>&1; then
     echo "nephos: tailscale is down — the control plane is unreachable" >&2
     return 1
