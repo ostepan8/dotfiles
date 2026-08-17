@@ -6,8 +6,8 @@
 #
 # Design note: the allowlist holds known-PLACEHOLDER *values*, not exempt files.
 # Exempting a path would blind the scanner to exactly the directory a leak most
-# recently came from (claude/skills/yeelight shipped the real bulb list). With a
-# value allowlist, a genuine address in that same file still fires.
+# recently came from. With a value allowlist, a genuine address in an otherwise
+# innocent file still fires.
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -72,8 +72,6 @@ self_test() {
 ALLOW=(
   "127.0.0.1"        # loopback — nephos env.template, lifeos LaunchAgent
   "0.0.0.0"
-  "10.0.0.10"        # yeelight bulbs.txt.template placeholder
-  "10.0.0.11"        # yeelight bulbs.txt.template placeholder
   "sk-proj-xxxxx"    # claude/rules/typescript/security.md — "don't do this" example
 )
 

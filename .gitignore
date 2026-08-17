@@ -11,14 +11,15 @@
 .dotfiles-apply/
 .secretscan.*
 
+# Python bytecode — several skills ship .py scripts that are run in place
+# (youtube-transcribe, new-project), so caches appear next to the sources.
+__pycache__/
+*.py[cod]
+
 # --- machine-specific / secret, never committed ---
 # Filled-in env files. The .template versions ARE tracked.
 **/env
 !**/env.template
-
-# Bulb addresses, display IDs, and anything else describing one machine or one
-# LAN. These live in ~/.config/<tool>/ instead.
-claude/skills/yeelight/references/bulbs.txt
 
 # Claude local-only settings and per-session state — machine-scoped, and
 # settings.local.json routinely accumulates absolute paths.
