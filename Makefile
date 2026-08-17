@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check verify roles acl test apply dry-run fleet fleet-dry setup hooks
+.PHONY: help check verify roles acl test apply dry-run fleet fleet-dry setup vault-backup hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -30,6 +30,9 @@ fleet:  ## Update every reachable machine to the current commit
 
 fleet-dry:  ## Show what each machine in the fleet would change
 	@bash scripts/fleet.sh --dry-run
+
+vault-backup:  ## Passphrase-encrypted off-machine backup of ~/.vault (interactive)
+	@bash scripts/vault-backup.sh $(DEST)
 
 setup:  ## Re-run the interview for anything not yet configured
 	@bash scripts/setup.sh

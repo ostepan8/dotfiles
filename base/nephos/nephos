@@ -9,8 +9,18 @@
 # cron, scripts, launchd and non-interactive shells, where an rc file is never
 # read. That is the whole reason this is a wrapper and not a shell function.
 #
-# The wrapper is tracked; the binary it wraps is not (31MB, and it is built per
-# platform). Install the binary to ~/.local/libexec/nephos.
+# The wrapper is tracked; the binary it wraps is not (31MB, built per platform).
+#
+# WHERE THE BINARY COMES FROM: it is built from the nephos Go source, which on
+# the Studio lives at ~/projects/nephos-cloud-wt (module `nephos`):
+#
+#     cd ~/projects/nephos-cloud-wt
+#     go build -o ~/.local/libexec/nephos .
+#
+# That source has NO git remote — it exists on one machine, unbacked. It is not
+# vendored here (a 31MB per-platform binary does not belong in a dotfiles repo,
+# and the source is not public), but it should be pushed somewhere before it is
+# the only copy of the thing the whole fleet depends on.
 [ -r "$HOME/.config/nephos/env" ] && . "$HOME/.config/nephos/env"
 : "${NEPHOS_CONTROL_ADDR:=http://127.0.0.1:7930}"
 export NEPHOS_CONTROL_ADDR
