@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check verify test apply dry-run setup hooks
+.PHONY: help check verify roles acl test apply dry-run setup hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -11,7 +11,13 @@ check:  ## Scan tracked files for secrets, fleet identifiers, private addresses
 verify:  ## Prove the apply engine against a throwaway HOME (touches nothing)
 	@bash scripts/verify-apply.sh
 
-test: check verify  ## Run every check
+roles:  ## Check roles/ and the generated ACL agree
+	@bash scripts/gen-nephos-acl.sh --check >/dev/null && echo "roles coherent"
+
+acl:  ## Print the Tailscale ACL generated from roles/
+	@bash scripts/gen-nephos-acl.sh
+
+test: check verify roles  ## Run every check
 
 dry-run:  ## Show what apply would change on THIS machine
 	@bash apply.sh --dry-run

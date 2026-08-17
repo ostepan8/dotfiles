@@ -21,8 +21,13 @@ first and scope your suggestions to it — proposing a provisioning step on a wo
 node wastes a round trip on a command that is meant to fail.
 
 ```bash
-nephos-tier    # keeper | operator | node | unknown
+nephos-role            # this machine's role and everything it permits
+nephos-can provision   # test one action; exit 0 = allowed
 ```
+
+Both read `~/dotfiles/roles/nephos-<tier>.role` — the same file the Tailscale ACL
+and the control plane's `authorized_keys` restrictions are generated from. So if
+`nephos-can` says no, the network says no too; they cannot disagree.
 
 | Tier | Machine | May |
 |---|---|---|

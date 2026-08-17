@@ -37,6 +37,31 @@ nephos-tier() {
   esac
 }
 
+# nephos-can <action> — may THIS machine do that?
+#
+# Reads roles/<tier>.role, the same file the Tailscale ACL and the
+# authorized_keys lines are generated from. One source, so the shell guardrail
+# cannot say yes to something the network denies.
+nephos-can() {
+  local action="${1:-}" tier role_file a
+  [ -z "$action" ] && { echo "usage: nephos-can <action>" >&2; return 2; }
+  tier="$(nephos-tier)"
+  role_file="$HOME/dotfiles/roles/nephos-$tier.role"
+  [ -f "$role_file" ] || return 1
+  for a in $(awk '!/^[[:space:]]*#/ && $1 == "may" { $1=""; print }' "$role_file"); do
+    [ "$a" = "$action" ] && return 0
+  done
+  return 1
+}
+
+# nephos-role — what this machine is, and what that permits.
+nephos-role() {
+  local tier; tier="$(nephos-tier)"
+  local f="$HOME/dotfiles/roles/nephos-$tier.role"
+  if [ ! -f "$f" ]; then echo "tier: $tier (no role file)"; return 0; fi
+  awk '!/^[[:space:]]*#/ && NF { printf "%-14s %s\n", $1, substr($0, index($0,$2)) }' "$f"
+}
+
 _nephos_require() {
   if command -v tailscale >/dev/null 2>&1 && ! tailscale status >/dev/null 2>&1; then
     echo "nephos: tailscale is down — the control plane is unreachable" >&2
@@ -107,11 +132,10 @@ nephos-unenv() {
 nephos-provision() {
   local app="${1:-}"
   [ -z "$app" ] && { echo "usage: nephos-provision <app>" >&2; return 2; }
-  local tier; tier="$(nephos-tier)"
-  case "$tier" in
-    keeper|operator) ;;
-    *) echo "nephos: tier '$tier' does not provision" >&2; return 1 ;;
-  esac
+  if ! nephos-can provision; then
+    echo "nephos: role '$(nephos-tier)' does not provision — run this from the keeper" >&2
+    return 1
+  fi
   _nephos_require || return 1
   _nephos_run keys new "$app"
 }
