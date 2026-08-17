@@ -274,15 +274,22 @@ the free ntfy app (iOS/Android), subscribe to the configured topic, done.
 
 ```bash
 nephos self-update build "$NEPHOS_CONTROL_ADDR"   # cross-compile + upload, once
-ssh <node> 'nephos agent self-update '"$NEPHOS_CONTROL_ADDR"   # per node
+nephos self-update fleet "$NEPHOS_CONTROL_ADDR"   # every OTHER node, over SSH
+nephos agent self-update "$NEPHOS_CONTROL_ADDR"   # this machine, run directly (not through fleet)
 ```
 
 `self-update build` derives which platforms to build for from whatever's
-actually registered — no target list to maintain by hand. `agent self-update`
-downloads that node's own build, verifies its checksum, atomically replaces
-the binary currently running it, and best-effort restarts whichever of that
-node's own nephos services are actually present. A node with no self-update
-support yet (predates this feature) still needs the old manual
+actually registered — no target list to maintain by hand. `self-update fleet`
+loops over every registered node except the one you're running it from and
+SSHes `agent self-update` to each — one node failing doesn't stop the rest.
+`agent self-update` downloads that node's own build, verifies its checksum,
+atomically replaces the binary currently running it, and best-effort restarts
+whichever of that node's own nephos services are actually present. **Caveat**:
+on the inference host specifically, this kills any nephos-managed LLM tier
+(`fast` via mlx-lm) since it's a child process of the restarted agent — Ollama
+is unaffected (manages its own lifecycle). Run `nephos llm up <alias>`
+afterward if needed. A node with no self-update support yet (predates this
+feature) still needs the old manual
 `scp`+`install`+`systemctl restart` sequence once — after that, this handles
 it.
 
@@ -337,10 +344,12 @@ plane, no off-site backup.
 
 ## Not built yet
 
-- **Building from a GitHub repo** — `--build` takes a local directory. Deploying
-  straight from a repo URL is designed but unbuilt.
-- **No node-removal command** — a rebuilt machine leaves a ghost registration.
 - **No off-site backup** for the bulk disk.
+
+`nephos deploy` also takes a repo URL now — `nephos deploy github.com/user/repo`
+(or a full URL) shallow-clones it locally first, then runs the same `--build`
+pipeline as a local directory. `nephos nodes remove <id>` forgets a rebuilt or
+retired machine's registration (doesn't touch anything running there).
 
 ---
 
