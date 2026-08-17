@@ -9,5 +9,15 @@ summary       runs workloads; cannot provision
 control_port  deny
 ssh_command   ${HOME}/bin/nephos node-agent --node=%NODE%
 holds         own-service-credentials
+# Ports this role may reach ON THE CONTROL HOST. Tailscale ACLs are allow-only
+# with no "except", so denying the control API means enumerating everything else
+# a node legitimately needs. Deliberately excludes 7930 (the control API) —
+# that omission IS the boundary. Review before applying: a port missing here is
+# a service that silently stops working for every worker.
+#   22    ssh
+#   80    443   http/https via the gateway
+#   9000  9001  MinIO (S3 API + console)
+#   11434 Ollama inference
+service_ports 22,80,443,9000,9001,11434
 may           run-workloads use-credentials
 may_not       provision revoke read-vault deploy

@@ -8,5 +8,6 @@ summary       holds the master vault; mints and revokes credentials
 control_port  allow
 ssh_command   -
 holds         master-vault
+service_ports *
 may           provision revoke deploy read-vault run-workloads use-credentials
 may_not       -

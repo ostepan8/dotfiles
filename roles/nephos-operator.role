@@ -9,5 +9,6 @@ summary       provisions and deploys; holds no long-lived secrets
 control_port  allow
 ssh_command   -
 holds         nothing-at-rest
+service_ports *
 may           provision deploy run-workloads use-credentials
 may_not       revoke read-vault
