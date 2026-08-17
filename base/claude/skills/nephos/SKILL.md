@@ -24,7 +24,8 @@ nephos nodes                  # every machine, its capabilities, free capacity
 nephos ps                     # services across the fleet, grouped by node
 nephos deploy ./svc           # pick a node that fits, dispatch, run
 nephos deploy ./svc --dry-run # show the decision and why, without making it
-nephos down <name>            # stop and remove (run ON the node running it)
+nephos deploy ./svc --public api  # …and give it a public HTTPS hostname
+nephos down <name>            # stop and remove, on whichever node runs it
 nephos logs <name> -f         # any service, any node, any log source
 nephos secrets set <svc> …    # env values that follow the service
 nephos llm up|down|ls <tier>  # start/stop an inference tier
@@ -55,9 +56,13 @@ Everything lives in one directory:
 
 ```bash
 nephos secrets set myapp --env-file .env    # once, and after any .env change
-nephos deploy . --build                     # source -> built on a node -> running
+nephos deploy .                             # source -> built on a node -> running
 nephos logs myapp -f
 ```
+
+A deploy builds automatically when the manifest names no `image:` and the
+directory has a Dockerfile; `--build` only forces a rebuild over an explicit
+`image:`.
 
 `--build` archives the directory, the control plane picks a node with a container
 runtime **and the right architecture**, that node builds natively and pushes to the
@@ -136,8 +141,32 @@ actionable in a way "no eligible node" is not.
   has no container runtime. No isolation and no cgroup accounting; `image:`, `gpu:`
   and `volumes:` are refused on a process manifest rather than silently ignored.
 
-**Published ports bind to loopback.** A fresh deploy is unreachable even from the
-tailnet until exposed with `tailscale serve --bg --tcp <port> tcp://127.0.0.1:<port>`.
+**Ports are exposed on the tailnet automatically.** They stay *bound* to
+loopback — tailscale proxies to them — so a deploy prints where it can actually
+be reached:
+
+```
+deployed myapp on node gpu2
+  tailnet: 100.110.53.32:8000
+```
+
+If exposure fails the deploy still succeeds and says so, rather than reporting a
+running service that nothing can connect to.
+
+**`--public <name>` gives it an HTTPS hostname** through the shared Cloudflare
+tunnel:
+
+```bash
+nephos deploy . --public myapp     # -> https://myapp.<zone>
+```
+
+A bare label gains the configured zone; a hostname outside that zone is refused
+**before** the build runs, not after a service is already live under a name it
+cannot be reached by. The origin is the node's tailnet address, so this works
+from any node, not just the one running the tunnel.
+
+`nephos down` removes the route and its DNS record along with the service, so a
+torn-down service never leaves a hostname returning a bad gateway.
 
 ---
 
@@ -188,6 +217,23 @@ nephos llm down big    # free the memory
 A tier with `autostart: true` starts itself when a request arrives; one with
 `idleTimeoutSeconds` stops after that long unused. Worth knowing: an Ollama-backed
 tier already does both itself, so autostart there is redundant.
+
+---
+
+## Taking something down
+
+```bash
+nephos down myapp              # finds the node running it and stops it there
+nephos down myapp --node gpu1  # when the same name runs in more than one place
+nephos down myapp --all        # stop every copy
+nephos down myapp --local      # this machine only, no control plane involved
+```
+
+Removes the unit, its secrets file, its tailnet exposure, its public route and
+DNS record, and its capacity allocation. A name found on more than one node is
+**refused** rather than guessed at — that means two nodes are serving different
+versions of one thing, and picking silently is how a "stopped" service keeps
+answering.
 
 ---
 
@@ -242,8 +288,6 @@ plane, no off-site backup.
 
 - **Building from a GitHub repo** — `--build` takes a local directory. Deploying
   straight from a repo URL is designed but unbuilt.
-- **`nephos down` has no `--node`** — deploy is remote, teardown is local; ssh to
-  the node running it.
 - **No node-removal command** — a rebuilt machine leaves a ghost registration.
 - **No off-site backup** for the bulk disk.
 
