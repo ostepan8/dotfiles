@@ -199,6 +199,12 @@ command -v fzf >/dev/null && source <(fzf --zsh)
 command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 
 # ---------- atuin ----------
+# Its installer puts the binary in ~/.atuin/bin on Linux and appends a PATH line
+# to ~/.zshrc. That file is now a symlink into this repo, so the append lands in
+# the TRACKED file and dirties the repo on every machine it runs on — which is
+# exactly what happened on gpu1 and gpu2, and then blocked fleet updates there.
+# Put the path on ourselves so the installer's edit is redundant.
+[ -d "$HOME/.atuin/bin" ] && export PATH="$HOME/.atuin/bin:$PATH"
 command -v atuin >/dev/null && eval "$(atuin init zsh --disable-up-arrow)"
 
 # ---------- nephos ----------
