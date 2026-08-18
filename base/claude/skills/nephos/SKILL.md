@@ -55,10 +55,16 @@ Everything lives in one directory:
 ```
 
 ```bash
-nephos secrets set myapp --env-file .env    # once, and after any .env change
-nephos deploy .                             # source -> built on a node -> running
+nephos deploy .                             # syncs .env, then: source -> built on a node -> running
 nephos logs myapp -f
 ```
+
+**A `.env` file next to `nephos.yaml` is synced to the control plane
+automatically on every `nephos deploy`** — no separate `nephos secrets set`
+step, and it can never go stale relative to what's actually on disk. Silent
+when there's no `.env` (most manifests have none). `--no-env-sync` turns it
+off if that's ever not wanted; `--dry-run` never syncs either, since a
+preview must not have side effects.
 
 A deploy builds automatically when the manifest names no `image:` and the
 directory has a Dockerfile; `--build` only forces a rebuild over an explicit
@@ -211,11 +217,15 @@ torn-down service never leaves a hostname returning a bad gateway.
 ## Environment values and secrets
 
 ```bash
-nephos secrets set myapp --env-file .env      # load a whole file
+nephos secrets set myapp --env-file .env      # load a whole file — deploy does this automatically now
 nephos secrets set myapp DATABASE_URL=…       # one value
 nephos secrets set myapp API_KEY --stdin      # keeps it out of shell history
 nephos secrets ls myapp                       # names only, never values
 ```
+
+`--env-file` is what `nephos deploy` itself calls automatically whenever a
+`.env` sits next to the manifest — reach for these directly only for a single
+value, a value piped from somewhere else, or syncing without also deploying.
 
 Values are held by the control plane and **injected into the deploy**, so they
 follow the service to whichever node runs it. They land in a `0600` env file and
