@@ -284,14 +284,38 @@ centrally, so there is no retention window and nothing to fill up.
 
 ## Storage & databases
 
+Two different models: **a dedicated database per app**, and **one shared object
+store with a bucket per app**. A file you store and fetch whole (image, dataset,
+backup) → a bucket. Structured data you query/filter/update → a database. Apps
+often use both — a DB row points at the bucket key holding the big file.
+
+**Databases — one dedicated DB per app:**
+
 ```bash
-nephos db <recipe>            # one-command backing DB add-on (e.g. Postgres/Mongo/Redis)
-                              # — deploys it as a service and prints its connection details
+nephos db create <name> --type postgres|mongo|redis   # dedicated DB + generated credential
+nephos db create feed --type postgres --project feed  # tag it so `nephos project down` tears it down with the app
 ```
 
-Object storage is **endpoint-only** (no `nephos` subcommand): an S3-compatible
-MinIO service. Point any S3 client at the `NEPHOS_S3` endpoint in
-`~/.config/nephos/env` with a MinIO access/secret key. Use it like any S3 bucket.
+Deploys a dedicated database container for that app with a fresh random credential
+and a **durable named volume** (`<name>-data`) mounted at the image's data dir, so
+its data survives being recreated — a redeploy, an image bump, or `nephos down` +
+up. The volume outlives teardown (Podman keeps external named volumes); wipe it
+deliberately with `podman volume rm <name>-data` on the node. Connect from a
+same-node app over loopback; expose cross-node with `tailscale serve`.
+
+**Object storage — one shared MinIO, a bucket per app** (exactly like real S3: one
+endpoint, many buckets):
+
+```bash
+nephos storage buckets                 # every bucket + size
+nephos storage bucket create <name>    # carve out storage for an app (fails if it exists)
+nephos storage bucket rm <name>        # remove an empty bucket
+```
+
+Bucket lifecycle is first-class (routed through the control plane, so it works from
+any machine). Putting and getting **objects** is still done with any S3 client
+against the `NEPHOS_S3` endpoint in `~/.config/nephos/env`, using a MinIO
+access/secret key.
 
 Deploy source can be a **local dir or a git URL**: `nephos deploy <path>` or
 `nephos deploy <repo-url>` (it clones and builds the repo the same way `--build`
