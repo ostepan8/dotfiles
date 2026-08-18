@@ -31,6 +31,9 @@ nephos secrets set <svc> …    # env values that follow the service
 nephos llm up|down|ls <tier>  # start/stop an inference tier
 nephos keys new <app>         # mint a scoped API key
 nephos models                 # configured inference tiers
+nephos run ./job              # queue a run-to-completion kind: job
+nephos jobs                   # queued / running / succeeded / failed / canceled
+nephos job cancel|logs <id>   # act on one job by id
 nephos guide <topic>          # task-based walkthroughs
 ```
 
@@ -185,6 +188,13 @@ launchd needs a structurally different mechanism (a dict, not a calendar
 string) that isn't built yet — deploying with `schedule:` to the Mac Studio
 refuses clearly rather than silently running continuously instead.
 
+**`schedule:` is not the same primitive as `kind: job`** (below) even though
+both run once and stop — `schedule:` is "this recurring thing runs itself, on
+a timer, on one specific node you named at deploy time." A job is "run this
+once, right now, on whichever node has a free slot" with no timer and no
+node commitment. Recurring + unattended → `schedule:`. On-demand, ad hoc, or
+needs a concurrency limit shared with other work → `kind: job`.
+
 **Ports are exposed on the tailnet automatically.** They stay *bound* to
 loopback — tailscale proxies to them — so a deploy prints where it can actually
 be reached:
@@ -325,6 +335,67 @@ mean to include. `--yes` skips the prompt for scripted use.
 automatically — a background sweeper on the control plane checks every 60s and
 removes anything past its expiry, no need to remember to clean up a preview or
 branch deploy.
+
+---
+
+## Jobs — run-to-completion work with a queue
+
+nephos has a second noun besides "service." A service (`kind: container` /
+`kind: process`) is something that should run *forever* — if it dies, restart
+it. A **job** (`kind: job`) is something that runs *once and finishes* — a
+batch task, an overnight crunch, anything whose success looks like "exited
+0," not "still up." This replaced a hand-rolled queue-plus-concurrency-limit
+wrapper script (`loomd`) that existed only because nephos itself had no way
+to say "never run two of these heavy things at once."
+
+```yaml
+schemaVersion: 1
+name: roblox-intel
+kind: job                # run to completion, don't keep alive — no restart, no boot-autostart
+command: [/opt/homebrew/bin/node, ./roblox-intel.ts]
+queue: gpu                # named concurrency lane (omit: gated only by node fit, no lane)
+concurrency: 1             # max jobs from this lane running at once, across the whole fleet
+```
+
+```bash
+nephos run ./job               # queue it — returns a job id immediately, doesn't block
+nephos run ./job --node gpu1   # pin to one node (a command whose paths exist on only one machine)
+nephos jobs                    # queued / running / succeeded / failed / canceled, newest first
+nephos jobs --state running
+nephos job cancel <id>         # queued: dropped from the queue. running: stopped, capacity freed.
+nephos job logs <id> -f        # streams from the node it ran on; stays readable after it finishes
+```
+
+**The queue is the actual payoff.** `nephos run` enqueues; the control plane
+only dispatches a job once its named `queue` lane has a free `concurrency`
+slot. Give every heavy GPU/inference batch task the same `queue: gpu,
+concurrency: 1` and the platform makes thrashing (two heavy jobs stomping on
+the same hardware at once) structurally impossible instead of an operator's
+vigilance. Jobs with no `queue:` are gated only by ordinary node capacity fit,
+same as a service.
+
+**Lifecycle:** `queued → running → succeeded | failed | canceled` — a
+finished job stays listed with how it ended, never silently dropped. State
+lives durably on the control plane (`jobs.json`), not derived from fleet
+polling like `nephos ps`, because a job can be waiting in the queue before it
+touches any node at all, and its whole point is a terminal exit nothing in
+the service model tracks.
+
+**Known sharp edges** (documented, not blocking): a job pinned to a node
+that's gone missing sits queued until you cancel it — it doesn't reroute. A
+running job whose node drops out of the registry isn't auto-reaped. Set
+`concurrency:` consistently across a queue's manifests — the dispatcher uses
+whatever the *admitting* job declares. `job logs` depends on the node having
+reported through the normal fleet-report pipeline.
+
+`schedule:` and `kind: job` look similar (both run-to-completion) but answer
+different questions — see the note in the `schedule:` section above.
+
+**Rollout note**: jobs need the node agent's completion-probe support. The
+control plane and the Mac Studio have it; the other Linux nodes need one
+`nephos self-update fleet` before a job can actually be dispatched to them —
+until then a job pinned there sits queued. Check `nephos nodes` if a job
+seems stuck.
 
 ---
 
