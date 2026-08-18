@@ -37,9 +37,13 @@ hardcode tailnet addresses.
 - **Control plane** — one node runs `nephos-control.service` (a **`systemctl --user`**
   service, NOT system-wide, NOT via sudo/fsudo). Its state + config live in
   `~/.config/nephos/` on that node: `gateway-config.yaml`, `keys.json`, `nodes.json`,
-  `allocations.json`, `jobs.json`, `schedules.json`, `publish-config.yaml`,
-  `ui-auth.json`, and `releases/` (uploaded binaries). Losing a state file loses that
-  slice of fleet/queue state — there is no off-site backup; back these up.
+  `allocations.json`, `jobs.json`, `schedules.json`, `secrets.json`,
+  `publish-config.yaml`, `ui-auth.json`, and `releases/` (uploaded binaries). Losing a
+  state file loses that slice of fleet/queue state — there is no off-site backup; back
+  these up. `secrets.json` is the secret store: it holds every service's injected
+  env values, including the credentials `nephos db create` generates — lose it and
+  those databases become unreachable (the password lives only there and in the
+  already-initialized data volume).
 - **Agents** — every node runs a deploy listener (`nephos-deploy.service` on Linux,
   the `com.nephos.serve` launchd agent on macOS) plus a reporter (`nephos-report` /
   `com.nephos.report`). Jobs and deploys execute here.
@@ -153,6 +157,30 @@ nephos ui            # manage the embedded web dashboard (fleet / inference / st
 nephos ui passwd     # set the dashboard password (hash in ~/.config/nephos/ui-auth.json)
 ```
 Mounted on the control plane's listener; reach it over the tailnet (or publish it).
+
+---
+
+## Storage & databases (the control-plane side)
+
+Operators USE these (the `nephos` skill: `nephos storage bucket …`, `nephos db
+create …`); what the control room owns is the config that makes them work.
+
+- **`--storage-config` gates BOTH the dashboard storage view AND bucket management.**
+  `nephos control start --storage-config <file>` builds the MinIO client the whole
+  storage surface needs. Without it, an operator's `nephos storage bucket create`
+  gets a clear **503 "object storage is not configured"** — the first thing to check
+  when buckets "don't work." The file gives the MinIO admin/S3 endpoint plus
+  `accessKey`/`secretKey` as *shell commands* (resolved once at load, never literals
+  in the file — same vault-agnostic pattern as manifest secrets). One shared MinIO,
+  many buckets: bucket lifecycle is first-class, but putting/getting objects is still
+  done with any S3 client against the endpoint.
+- **`nephos db create` is a per-app dedicated database**, deployed through the normal
+  dispatch. Its generated credential is stored ONCE in the secret store (`secrets.json`)
+  and injected into every deploy, and its data sits in a durable named volume
+  (`<name>-data`) on the node. Two consequences for you: `secrets.json` is critical
+  backup state (above), and a database's real password can never be regenerated — a
+  redeploy reuses the stored one, matching the volume's first-init password. To wipe a
+  database for real: tear it down AND `podman volume rm <name>-data` on its node.
 
 ---
 
