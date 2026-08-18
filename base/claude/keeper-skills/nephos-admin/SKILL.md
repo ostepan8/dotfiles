@@ -196,6 +196,25 @@ create …`); what the control room owns is the config that makes them work.
 
 ---
 
+## Alerts (ntfy)
+
+Push alerting is **enabled**: the control plane runs with `--ntfy-topic` (and
+`--ntfy-url`), and the topic lives in `~/.config/nephos/env` as
+`NEPHOS_NTFY_TOPIC` — machine-local, never hardcode it. One topic carries three
+event sources:
+
+- a **service** going running→down (report comparison on each node report),
+- a whole **node** going offline, and its recovery (a control-plane heartbeat sweep
+  — the piece that catches a box that has died and stopped reporting, which the
+  service-down check structurally cannot),
+- **job** completion / failure (the queue dispatcher).
+
+An ntfy topic is semi-private (anyone who knows it can read it), so keep it out of
+the public dotfiles repo. To change it, edit `--ntfy-topic` in the control-plane
+systemd unit and restart `nephos-control`; an empty topic disables all alerting.
+
+---
+
 ## Diagnosing the fleet
 
 - **`nephos logs` can't read a macOS launchd service** (it reaches for journalctl) —

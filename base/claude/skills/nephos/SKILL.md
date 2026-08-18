@@ -280,6 +280,11 @@ nephos logs --project myapp    # every service in a group, across nodes, labelle
 Logs are read on demand from each node's own source. Nothing is shipped or stored
 centrally, so there is no retention window and nothing to fill up.
 
+**Push alerts are on.** You don't have to watch the logs to catch a failure — the
+control plane pushes to an ntfy topic (`NEPHOS_NTFY_TOPIC` in `~/.config/nephos/env`)
+whenever a service goes down, a whole node goes offline (or recovers), or a job
+finishes/fails. Subscribe to that topic in the ntfy app.
+
 ---
 
 ## Storage & databases
