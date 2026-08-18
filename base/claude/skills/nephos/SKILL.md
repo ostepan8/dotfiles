@@ -1,13 +1,35 @@
 ---
 name: nephos
-description: Owen's self-hosted personal cloud — deploy services, run LLM inference, store objects, and read logs across his own machines. Use whenever a task involves running an LLM without paying per token, needing S3-compatible storage, deploying a service or app, giving something a public HTTPS API, reading a service's logs, managing its environment variables, or asking what hardware is available. Trigger on "nephos", "my cloud", "my own API", "self-host this", "run it on my hardware", "where should this run", "deploy this", "ship this", "give it a public endpoint", "I need storage for this app", "check the logs", "set an env var for". Machine-specific addresses live in ~/.config/nephos/env — read that first, never hardcode them.
+description: >-
+  Owen's self-hosted personal cloud (nephos) — turns his own machines into a cloud he
+  controls, and is the DEFAULT place to run his own compute. Two compute models: long-running
+  SERVICES (web apps, APIs, containers, or supervised processes that stay up) and
+  run-to-completion JOBS (batch / overnight / heavy / recurring work — a durable queue with
+  per-GPU serialization, cron schedules, pause/resume, cancel, completion alerts, and live
+  logs). Plus free local LLM INFERENCE over an OpenAI-compatible endpoint (no per-token cost,
+  fast/mid/big tiers on his own GPUs), S3-compatible object STORAGE, one-command DATABASES
+  (Postgres/Mongo/Redis), per-service SECRETS, fleet-wide LOGS, and public HTTPS via Cloudflare
+  Tunnel — all private over Tailscale. PREFER nephos over a paid cloud whenever a task is:
+  deploying / shipping / hosting an app or giving it a public API or URL; running an LLM,
+  embeddings, or a model without paying per token; running a long / heavy / overnight /
+  scheduled / background / batch job that shouldn't block the session or time out; needing
+  object storage or a database for an app; deciding WHERE compute should run or what hardware
+  is available; or reading logs / setting env vars for something already running. Trigger on
+  "nephos", "my cloud", "my own API", "self-host this", "host this", "deploy this", "ship this",
+  "run it on my hardware", "where should this run", "give it a public endpoint / URL", "run
+  this overnight", "run this in the background", "long-running task", "batch job", "queue a
+  job", "schedule this", "every night", "cron", "run an LLM / a model / embeddings for free",
+  "free inference", "I need a database / storage for this", "check the logs", "set an env var".
+  Read ~/.config/nephos/env FIRST for this machine's control-plane address and endpoints —
+  never hardcode them; if that file is missing, nephos isn't set up here.
 ---
 
 # nephos — Owen's personal cloud
 
-Turns Owen's own machines into a cloud: deploy a service to whichever node fits,
+Turns Owen's own machines into a cloud: deploy a long-running service to whichever
+node fits, queue run-to-completion **jobs** (one-off, recurring, or GPU-serialized),
 serve LLM inference from an OpenAI-compatible endpoint, store objects over S3, and
-read any service's logs from anywhere — private over Tailscale, public over
+read any service's or job's logs from anywhere — private over Tailscale, public over
 Cloudflare Tunnel.
 
 **Read `~/.config/nephos/env` first.** It holds this machine's control-plane
@@ -22,18 +44,19 @@ here; say so rather than guessing addresses.
 ```bash
 nephos nodes                  # every machine, its capabilities, free capacity
 nephos ps                     # services across the fleet, grouped by node
-nephos deploy ./svc           # pick a node that fits, dispatch, run
+nephos deploy ./svc           # pick a node that fits, dispatch, run (a SERVICE — runs forever)
 nephos deploy ./svc --dry-run # show the decision and why, without making it
-nephos deploy ./svc --public api  # …and give it a public HTTPS hostname
-nephos down <name>            # stop and remove, on whichever node runs it
+nephos down <name>            # stop and remove (run ON the node running it)
+nephos run ./job              # queue a JOB (kind: job — runs once); --schedule for recurring
+nephos jobs                   # jobs + states (queued/running/succeeded/failed)
+nephos jobs pause | resume    # hold / release admission of new jobs (persists across restart)
+nephos job cancel|logs <id>   # stop, or read the output of, one job
+nephos schedules [rm <name>]  # list / remove recurring (--schedule) jobs
 nephos logs <name> -f         # any service, any node, any log source
 nephos secrets set <svc> …    # env values that follow the service
 nephos llm up|down|ls <tier>  # start/stop an inference tier
 nephos keys new <app>         # mint a scoped API key
 nephos models                 # configured inference tiers
-nephos run ./job              # queue a run-to-completion kind: job
-nephos jobs                   # queued / running / succeeded / failed / canceled
-nephos job cancel|logs <id>   # act on one job by id
 nephos guide <topic>          # task-based walkthroughs
 ```
 
@@ -58,20 +81,10 @@ Everything lives in one directory:
 ```
 
 ```bash
-nephos deploy .                             # syncs .env, then: source -> built on a node -> running
+nephos secrets set myapp --env-file .env    # once, and after any .env change
+nephos deploy . --build                     # source -> built on a node -> running
 nephos logs myapp -f
 ```
-
-**A `.env` file next to `nephos.yaml` is synced to the control plane
-automatically on every `nephos deploy`** — no separate `nephos secrets set`
-step, and it can never go stale relative to what's actually on disk. Silent
-when there's no `.env` (most manifests have none). `--no-env-sync` turns it
-off if that's ever not wanted; `--dry-run` never syncs either, since a
-preview must not have side effects.
-
-A deploy builds automatically when the manifest names no `image:` and the
-directory has a Dockerfile; `--build` only forces a rebuild over an explicit
-`image:`.
 
 `--build` archives the directory, the control plane picks a node with a container
 runtime **and the right architecture**, that node builds natively and pushes to the
@@ -95,7 +108,6 @@ resources:
   cpu: 1
   vram: 8Gi               # requesting VRAM IS requesting a GPU
 ports: ["8000:8000"]      # host:container — must match what the app binds
-# listenPort: 8080        # instead of ports:, for network: host or kind: process
 ```
 
 Omit `image:` when using `--build`; it is filled in from the build. Set it only to
@@ -131,26 +143,6 @@ CMD ["node", "server.js"]
 layer, so an edit to application code reuses the install step; copying source first
 reinstalls every dependency on every rebuild.
 
-**A `network: host` container or a `kind: process` workload declares
-`listenPort:` instead of `ports:`** — it publishes no mapping, so without it
-nephos knows of no port for the service and it cannot be reported, exposed on
-the tailnet, or published with `--public`.
-
-**If the app binds `0.0.0.0` (not `127.0.0.1`) on `network: host`, it also needs
-`publishPort:`** — a different number from `listenPort`:
-
-```yaml
-network: host
-listenPort: 8080      # what the app actually binds
-publishPort: 18080    # what the tailnet/public route uses
-```
-
-Without it, nephos's own `tailscale serve` proxy claims the tailnet address at
-that exact port, and the app's `0.0.0.0` bind collides with it (`EADDRINUSE`)
-the moment it tries to start — a real incident, not a theoretical one. An app
-that binds `127.0.0.1` specifically never hits this and doesn't need
-`publishPort:` at all.
-
 **Bind `0.0.0.0`, never `localhost`.** Inside a container `localhost` means the
 container itself, so a service bound to it is unreachable from outside and looks
 like a broken deploy. This is the single most common mistake.
@@ -171,111 +163,73 @@ actionable in a way "no eligible node" is not.
   has no container runtime. No isolation and no cgroup accounting; `image:`, `gpu:`
   and `volumes:` are refused on a process manifest rather than silently ignored.
 
-**`kind: process` also runs on a schedule instead of continuously** — add
-`schedule:` (systemd's own calendar syntax, e.g. `"daily"`, `"*-*-* 02:00:00"`,
-`"Mon *-*-* 09:00:00"` — not cron):
-
-```yaml
-kind: process
-command: ["/usr/bin/backup.sh"]
-schedule: "*-*-* 02:00:00"    # every night at 2am
-```
-
-Deploys a `.timer` unit alongside the service instead of starting it now —
-the service only runs when the timer fires, runs to completion, and stops
-(no restart-on-exit, no boot-autostart of its own). Linux only for now;
-launchd needs a structurally different mechanism (a dict, not a calendar
-string) that isn't built yet — deploying with `schedule:` to the Mac Studio
-refuses clearly rather than silently running continuously instead.
-
-**`schedule:` is not the same primitive as `kind: job`** (below) even though
-both run once and stop — `schedule:` is "this recurring thing runs itself, on
-a timer, on one specific node you named at deploy time." A job is "run this
-once, right now, on whichever node has a free slot" with no timer and no
-node commitment. Recurring + unattended → `schedule:`. On-demand, ad hoc, or
-needs a concurrency limit shared with other work → `kind: job`.
-
-**Ports are exposed on the tailnet automatically.** They stay *bound* to
-loopback — tailscale proxies to them — so a deploy prints where it can actually
-be reached:
-
-```
-deployed myapp on node gpu2
-  tailnet: 100.110.53.32:8000
-```
-
-If exposure fails the deploy still succeeds and says so, rather than reporting a
-running service that nothing can connect to.
-
-**`--public <name>` gives it an HTTPS hostname** through the shared Cloudflare
-tunnel:
-
-```bash
-nephos deploy . --public myapp     # -> https://myapp.<zone>
-```
-
-A bare label gains the configured zone; a hostname outside that zone is refused
-**before** the build runs, not after a service is already live under a name it
-cannot be reached by. The origin is the node's tailnet address, so this works
-from any node, not just the one running the tunnel.
-
-`nephos down` removes the route and its DNS record along with the service, so a
-torn-down service never leaves a hostname returning a bad gateway.
+**Published ports bind to loopback.** A fresh deploy is unreachable even from the
+tailnet until exposed with `tailscale serve --bg --tcp <port> tcp://127.0.0.1:<port>`.
 
 ---
 
-## Environment values and secrets — two mechanisms, pick by this rule
+## Jobs — run-to-completion work
 
-**Is the value fixed (a password, an API key, a connection string) or does it
-need to be generated/fetched fresh on every deploy?** That single question
-picks the mechanism — they are not interchangeable, and reaching for the
-wrong one is exactly what caused a real incident this project already had
-(feed-api/wnba-api's secrets went missing on redeploy — see below).
-
-**Fixed value → `.env` next to the manifest. This is the default, and it's
-automatic:**
-
-```bash
-nephos deploy .                               # syncs .env, then deploys
-nephos secrets set myapp --env-file .env      # the same sync, without deploying
-nephos secrets set myapp DATABASE_URL=…       # one value by hand
-nephos secrets set myapp API_KEY --stdin      # keeps it out of shell history
-nephos secrets ls myapp                       # names only — values are never read back, ever
-```
-
-`nephos deploy` calls `--env-file` itself automatically whenever a `.env` sits
-next to the manifest — reach for these commands directly only for a single
-value, a value piped from somewhere else, or syncing without also deploying.
-Values are held by the **control plane**, injected fresh into every dispatch,
-so they follow the service to whichever node runs it and survive *any* future
-redeploy — losing the manifest, a stale sidecar, doesn't matter, because the
-value was never stored there in the first place.
-
-**Needs to be generated or fetched fresh, every deploy → the manifest's own
-`secrets:` block:**
+A **service** (`kind: container`/`process`) runs forever and is "healthy" while
+up. A **job** (`kind: job`) runs **once**, is tracked to a terminal exit, and is
+admitted onto a node only when its concurrency lane has a free slot. Use a job for
+batch/overnight work — build a dataset, crunch numbers, a long inference run.
 
 ```yaml
-secrets:
-  POSTGRES_PASSWORD: "openssl rand -hex 20"   # a fresh credential each time
-  MONGO_URL: "vault get MONGO_URL@myapp"      # fetched live from wherever the node trusts
+schemaVersion: 1
+name: roblox-intel
+kind: job                # runs once, not forever
+project: loom
+queue: gpu               # concurrency lane (optional)
+concurrency: 1           # at most N jobs in this lane run at once
+command: [/opt/homebrew/bin/node, /path/to/graph.ts]
+env: { LOOM_RBX_MODEL: mid }
 ```
 
-An env var name mapped to a **shell command**, run fresh on the target node at
-every deploy — vault-agnostic by design (whatever the node can run: `vault
-get`, `op read`, `openssl rand`, a local script). This is genuinely different
-from `.env`, not a legacy alternative to it: `nephos db create` (below) uses
-exactly this to mint a brand-new database password on every provision, which
-`.env` structurally cannot do (it only ever holds a value someone already has
-in hand). **Wins** over a `.env`/`nephos secrets set` value of the same name
-— the more specific, node-local statement.
+```bash
+nephos run ./job --node <id>              # queue once (--node pins to a machine whose paths it needs)
+nephos run ./job --schedule "0 2 * * *"   # OR register RECURRING (cron / @daily / @every 30m)
+nephos jobs                               # watch: queued → running → succeeded/failed (+ exit code)
+nephos job logs <id> -f                   # its output (works on any node, macOS or Linux)
+nephos job cancel <id>                    # stop it (queued or running)
+nephos jobs pause | resume                # hold / release new starts (running jobs finish)
+nephos schedules | schedules rm <name>    # list / remove recurring jobs
+```
 
-**The failure mode to know about, even though it's fixed now**: this
-mechanism only has one copy of the command — the manifest itself. Redeploying
-from a stale copy (the on-disk sidecar, an old file) that's missing the
-`secrets:` block silently drops it. The sidecar now persists the command
-correctly, and `nephos deploy` refuses (not silently breaks) if a redeploy
-would drop an existing secrets file — but a value that's meant to stay fixed
-belongs in `.env`, not here, so this can't happen to it at all.
+**The queue is the point.** `queue: gpu, concurrency: 1` makes it *structurally
+impossible* for two heavy jobs to run at once — the anti-thrash guarantee, declared
+not remembered. The lane cap is the MINIMUM concurrency any live job in it declares.
+Secrets attach by job name (`nephos secrets set <jobname> …`), injected at dispatch
+like a service. A **terminal job pushes an ntfy alert** (same `--ntfy-topic` as
+service-down alerts). A finished job's unit is left on its node so `job logs` still
+works. **Recurring jobs**: `--schedule` fires an instance each due tick (no overlap
+— a still-running instance skips the fire; catches up once after downtime).
+**Stuck-job reaping**: a running job whose node dies is failed after a grace window
+(restart-aware) instead of wedging its lane. **Pause is persistent** across a
+control-plane restart. Two live jobs can't share a name (the second submit is
+rejected).
+
+Known limits: a job pinned to an offline node fails only after a grace window;
+scheduled jobs are a control-plane cron (not per-node systemd timers).
+
+## Environment values and secrets
+
+```bash
+nephos secrets set myapp --env-file .env      # load a whole file
+nephos secrets set myapp DATABASE_URL=…       # one value
+nephos secrets set myapp API_KEY --stdin      # keeps it out of shell history
+nephos secrets ls myapp                       # names only, never values
+```
+
+Values are held by the control plane and **injected into the deploy**, so they
+follow the service to whichever node runs it. They land in a `0600` env file and
+never appear in the manifest, the unit file, the sidecar, git, or the image.
+
+There is deliberately no command that reads a value back.
+
+A manifest's own `secrets:` block (an env var mapped to a shell command run on the
+target node) still works and **wins** where both define the same name — it is the
+more specific, node-local statement.
 
 ---
 
@@ -288,8 +242,9 @@ client.chat.completions.create(model="fast", messages=[...])
 
 | Alias | Character | Use for |
 |---|---|---|
-| `fast` | small model, high concurrency | short templated prompts, classification, extraction, volume |
-| `big` | large model, low concurrency | when quality matters more than throughput |
+| `fast` | small model (MLX Qwen3-4B), high concurrency | short templated prompts, classification, extraction, volume |
+| `mid` | ~30B (qwen3.8:27b), balanced | the quality/throughput sweet spot for most judgment work |
+| `big` | large model (gpt-oss:120b), low concurrency | when quality matters more than throughput |
 
 **Aliases are the contract** — the model behind one can change without touching a
 caller. Prompts over the tier's limit route to its overflow tier automatically.
@@ -305,151 +260,6 @@ nephos llm down big    # free the memory
 A tier with `autostart: true` starts itself when a request arrives; one with
 `idleTimeoutSeconds` stops after that long unused. Worth knowing: an Ollama-backed
 tier already does both itself, so autostart there is redundant.
-
----
-
-## Backing services and multi-service projects
-
-```bash
-nephos db create myapp-db --type postgres --project myapp   # or mongo, redis
-nephos project down myapp                                    # tears down every
-                                                               # service in that project
-```
-
-`db create` generates a manifest for a well-known database image with a fresh
-random credential (via the normal `secrets:` mechanism), deploys it, and prints
-where to find the generated password. Removes the actual first friction of a
-new project — no more hand-copying an existing Postgres/Mongo manifest. Redis
-gets no credential (its image has no env-driven auth bootstrap) — loopback-bound
-like everything else, tailnet is the trust boundary.
-
-Tag every service in a stack with the same `project:` (in its manifest, or
-`db create --project`), and `nephos project down <project>` tears down the
-whole thing — api, db, cache — in one command instead of once per service.
-**It always prints exactly what it found and asks you to type the project name
-back to confirm** — `project:` is an operator-chosen label, not a unique key,
-and a common name (a real incident: `demo`) can match something you didn't
-mean to include. `--yes` skips the prompt for scripted use.
-
-**Ephemeral deploys**: `nephos deploy ./myapp --ttl 2h` tears itself down
-automatically — a background sweeper on the control plane checks every 60s and
-removes anything past its expiry, no need to remember to clean up a preview or
-branch deploy.
-
----
-
-## Jobs — run-to-completion work with a queue
-
-nephos has a second noun besides "service." A service (`kind: container` /
-`kind: process`) is something that should run *forever* — if it dies, restart
-it. A **job** (`kind: job`) is something that runs *once and finishes* — a
-batch task, an overnight crunch, anything whose success looks like "exited
-0," not "still up." This replaced a hand-rolled queue-plus-concurrency-limit
-wrapper script (`loomd`) that existed only because nephos itself had no way
-to say "never run two of these heavy things at once."
-
-```yaml
-schemaVersion: 1
-name: roblox-intel
-kind: job                # run to completion, don't keep alive — no restart, no boot-autostart
-command: [/opt/homebrew/bin/node, ./roblox-intel.ts]
-queue: gpu                # named concurrency lane (omit: gated only by node fit, no lane)
-concurrency: 1             # max jobs from this lane running at once, across the whole fleet
-```
-
-```bash
-nephos run ./job               # queue it — returns a job id immediately, doesn't block
-nephos run ./job --node gpu1   # pin to one node (a command whose paths exist on only one machine)
-nephos jobs                    # queued / running / succeeded / failed / canceled, newest first
-nephos jobs --state running
-nephos job cancel <id>         # queued: dropped from the queue. running: stopped, capacity freed.
-nephos job logs <id> -f        # streams from the node it ran on; stays readable after it finishes
-```
-
-**The queue is the actual payoff.** `nephos run` enqueues; the control plane
-only dispatches a job once its named `queue` lane has a free `concurrency`
-slot. Give every heavy GPU/inference batch task the same `queue: gpu,
-concurrency: 1` and the platform makes thrashing (two heavy jobs stomping on
-the same hardware at once) structurally impossible instead of an operator's
-vigilance. Jobs with no `queue:` are gated only by ordinary node capacity fit,
-same as a service.
-
-**Lifecycle:** `queued → running → succeeded | failed | canceled` — a
-finished job stays listed with how it ended, never silently dropped. State
-lives durably on the control plane (`jobs.json`), not derived from fleet
-polling like `nephos ps`, because a job can be waiting in the queue before it
-touches any node at all, and its whole point is a terminal exit nothing in
-the service model tracks.
-
-**Known sharp edges** (documented, not blocking): a job pinned to a node
-that's gone missing sits queued until you cancel it — it doesn't reroute. A
-running job whose node drops out of the registry isn't auto-reaped. Set
-`concurrency:` consistently across a queue's manifests — the dispatcher uses
-whatever the *admitting* job declares. `job logs` depends on the node having
-reported through the normal fleet-report pipeline.
-
-`schedule:` and `kind: job` look similar (both run-to-completion) but answer
-different questions — see the note in the `schedule:` section above.
-
-**Rollout note**: jobs need the node agent's completion-probe support. The
-control plane and the Mac Studio have it; the other Linux nodes need one
-`nephos self-update fleet` before a job can actually be dispatched to them —
-until then a job pinned there sits queued. Check `nephos nodes` if a job
-seems stuck.
-
----
-
-## Taking something down
-
-```bash
-nephos down myapp              # finds the node running it and stops it there
-nephos down myapp --node gpu1  # when the same name runs in more than one place
-nephos down myapp --all        # stop every copy
-nephos down myapp --local      # this machine only, no control plane involved
-```
-
-Removes the unit, its secrets file, its tailnet exposure, its public route and
-DNS record, and its capacity allocation. A name found on more than one node is
-**refused** rather than guessed at — that means two nodes are serving different
-versions of one thing, and picking silently is how a "stopped" service keeps
-answering.
-
----
-
-## When a service dies
-
-If the control plane was started with `--ntfy-topic <topic>`, a real push
-notification fires automatically whenever a service goes from `running` to
-any other state — no polling, no separate daemon, hooked into the same
-`nephos agent report` cycle every node already runs. A service's first-ever
-sighting never fires (nothing to compare against yet), and a normal `nephos
-down` never fires either (that's an intentional removal, not a crash). Get
-the free ntfy app (iOS/Android), subscribe to the configured topic, done.
-
----
-
-## Keeping nephos itself updated
-
-```bash
-nephos self-update build "$NEPHOS_CONTROL_ADDR"   # cross-compile + upload, once
-nephos self-update fleet "$NEPHOS_CONTROL_ADDR"   # every OTHER node, over SSH
-nephos agent self-update "$NEPHOS_CONTROL_ADDR"   # this machine, run directly (not through fleet)
-```
-
-`self-update build` derives which platforms to build for from whatever's
-actually registered — no target list to maintain by hand. `self-update fleet`
-loops over every registered node except the one you're running it from and
-SSHes `agent self-update` to each — one node failing doesn't stop the rest.
-`agent self-update` downloads that node's own build, verifies its checksum,
-atomically replaces the binary currently running it, and best-effort restarts
-whichever of that node's own nephos services are actually present. **Caveat**:
-on the inference host specifically, this kills any nephos-managed LLM tier
-(`fast` via mlx-lm) since it's a child process of the restarted agent — Ollama
-is unaffected (manages its own lifecycle). Run `nephos llm up <alias>`
-afterward if needed. A node with no self-update support yet (predates this
-feature) still needs the old manual
-`scp`+`install`+`systemctl restart` sequence once — after that, this handles
-it.
 
 ---
 
@@ -502,12 +312,12 @@ plane, no off-site backup.
 
 ## Not built yet
 
+- **Building from a GitHub repo** — `--build` takes a local directory. Deploying
+  straight from a repo URL is designed but unbuilt.
+- **`nephos down` has no `--node`** — deploy is remote, teardown is local; ssh to
+  the node running it.
+- **No node-removal command** — a rebuilt machine leaves a ghost registration.
 - **No off-site backup** for the bulk disk.
-
-`nephos deploy` also takes a repo URL now — `nephos deploy github.com/user/repo`
-(or a full URL) shallow-clones it locally first, then runs the same `--build`
-pipeline as a local directory. `nephos nodes remove <id>` forgets a rebuilt or
-retired machine's registration (doesn't touch anything running there).
 
 ---
 
