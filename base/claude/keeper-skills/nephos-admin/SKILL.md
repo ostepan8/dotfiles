@@ -179,8 +179,20 @@ create …`); what the control room owns is the config that makes them work.
   and injected into every deploy, and its data sits in a durable named volume
   (`<name>-data`) on the node. Two consequences for you: `secrets.json` is critical
   backup state (above), and a database's real password can never be regenerated — a
-  redeploy reuses the stored one, matching the volume's first-init password. To wipe a
-  database for real: tear it down AND `podman volume rm <name>-data` on its node.
+  redeploy reuses the stored one, matching the volume's first-init password. `nephos
+  db destroy <name> --yes` now does the full wipe (service + volume + credential +
+  any backup schedule) in one step; ordinary teardown still keeps the volume.
+- **Scoped keys are real MinIO service accounts.** `nephos storage key new` mints one
+  with an inline policy limited to a single bucket (root-owned; visible via `mc admin
+  user svcacct ls`). nephos only lists/revokes accounts whose description begins
+  `nephos scoped key for bucket ` — an account you add out-of-band with `mc` is
+  invisible to `storage key ls/rm` by design. `storage quota` is a MinIO hard quota.
+- **Backups.** `nephos db backup` dumps into the `nephos-backups` bucket via a job on
+  the DB's node, using a bucket-scoped key stored as the job's secret. The dump streams
+  through whatever `NEPHOS_S3` endpoint the job carries: the **public** endpoint works
+  from any node but round-trips through Cloudflare (slow for GB-scale dumps), so for a
+  DB co-located with MinIO pass `--endpoint http://127.0.0.1:9000`. Still no off-site
+  copy — a backup in `nephos-backups` lives on the same MinIO as everything else.
 
 ---
 

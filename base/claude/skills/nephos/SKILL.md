@@ -293,29 +293,42 @@ often use both — a DB row points at the bucket key holding the big file.
 
 ```bash
 nephos db create <name> --type postgres|mongo|redis   # dedicated DB + generated credential
-nephos db create feed --type postgres --project feed  # tag it so `nephos project down` tears it down with the app
+nephos db ls                                           # every database across the fleet, with type + node
+nephos db backup <name> [--schedule "0 3 * * *"]       # dump → nephos-backups bucket, once or recurring
+nephos db destroy <name> --yes                         # remove the service, its data volume, AND its credential
 ```
 
-Deploys a dedicated database container for that app with a fresh random credential
-and a **durable named volume** (`<name>-data`) mounted at the image's data dir, so
-its data survives being recreated — a redeploy, an image bump, or `nephos down` +
-up. The volume outlives teardown (Podman keeps external named volumes); wipe it
-deliberately with `podman volume rm <name>-data` on the node. Connect from a
-same-node app over loopback; expose cross-node with `tailscale serve`.
+`db create` deploys a dedicated database container with a fresh random credential
+and a **durable named volume** (`<name>-data`), so its data survives recreation (a
+redeploy, image bump, or `nephos down` + up). The credential is stored once and
+injected on every deploy (stable — never regenerated). `db destroy` is the complete
+inverse (service + volume + credential + any backup schedule) and needs `--yes`;
+plain `nephos down` deliberately keeps the volume so a redeploy retains data.
 
-**Object storage — one shared MinIO, a bucket per app** (exactly like real S3: one
-endpoint, many buckets):
+`db backup` submits a job that dumps the DB (via the container's own dump tool)
+straight into the `nephos-backups` bucket, pinned to the DB's node; `--schedule`
+makes it recurring (manage with `nephos schedules`). **Co-located tip:** when the
+DB is on the same node as MinIO, pass `--endpoint http://127.0.0.1:9000` — a 1 GB
+dump then finishes in seconds instead of round-tripping through the public endpoint.
+This is what makes a durable database also a *backed-up* one.
+
+**Object storage — one shared MinIO, a bucket per app** (exactly like real S3):
 
 ```bash
-nephos storage buckets                 # every bucket + size
-nephos storage bucket create <name>    # carve out storage for an app (fails if it exists)
-nephos storage bucket rm <name>        # remove an empty bucket
+nephos storage buckets                          # every bucket + size
+nephos storage bucket create|rm <name>          # carve out / remove a bucket (rm needs it empty)
+nephos storage put|get|ls|rm <bucket> …         # object I/O, direct to the S3 endpoint
+nephos storage key new <app> --bucket <b>       # mint a key SCOPED to one bucket (secret shown once)
+nephos storage key ls | rm <accessKey>          # list / revoke scoped keys
+nephos storage quota set <bucket> 10Gi | clear  # cap a bucket's size
 ```
 
-Bucket lifecycle is first-class (routed through the control plane, so it works from
-any machine). Putting and getting **objects** is still done with any S3 client
-against the `NEPHOS_S3` endpoint in `~/.config/nephos/env`, using a MinIO
-access/secret key.
+Bucket/key/quota management routes through the control plane (works from any
+machine). **Object I/O goes direct to the S3 endpoint** and needs a credential:
+`NEPHOS_S3_ACCESS_KEY` / `NEPHOS_S3_SECRET_KEY` (mint a bucket-scoped one with
+`storage key new`), against the `NEPHOS_S3` endpoint in `~/.config/nephos/env`. A
+scoped key can touch **only its bucket** — real isolation, not just a naming
+convention.
 
 Deploy source can be a **local dir or a git URL**: `nephos deploy <path>` or
 `nephos deploy <repo-url>` (it clones and builds the repo the same way `--build`
