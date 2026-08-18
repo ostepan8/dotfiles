@@ -282,6 +282,23 @@ centrally, so there is no retention window and nothing to fill up.
 
 ---
 
+## Storage & databases
+
+```bash
+nephos db <recipe>            # one-command backing DB add-on (e.g. Postgres/Mongo/Redis)
+                              # — deploys it as a service and prints its connection details
+```
+
+Object storage is **endpoint-only** (no `nephos` subcommand): an S3-compatible
+MinIO service. Point any S3 client at the `NEPHOS_S3` endpoint in
+`~/.config/nephos/env` with a MinIO access/secret key. Use it like any S3 bucket.
+
+Deploy source can be a **local dir or a git URL**: `nephos deploy <path>` or
+`nephos deploy <repo-url>` (it clones and builds the repo the same way `--build`
+builds a directory).
+
+---
+
 ## Real limits — check these before promising anything
 
 **Inference concurrency is capped, plus a live-token budget priced on the LONGEST
@@ -318,12 +335,12 @@ plane, no off-site backup.
 
 ## Not built yet
 
-- **Building from a GitHub repo** — `--build` takes a local directory. Deploying
-  straight from a repo URL is designed but unbuilt.
 - **`nephos down` has no `--node`** — deploy is remote, teardown is local; ssh to
   the node running it.
-- **No node-removal command** — a rebuilt machine leaves a ghost registration.
 - **No off-site backup** for the bulk disk.
+
+(Note: `nephos deploy <repo-url>` — cloning a git URL and building it — and `nephos
+nodes remove <id>` both DO exist; they used to be listed here as unbuilt.)
 
 ---
 

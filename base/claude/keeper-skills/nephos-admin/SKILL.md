@@ -138,11 +138,13 @@ only needs the base `nephos` skill, not this one.
 - **Private (tailnet):** the control plane binds loopback; reach it over Tailscale.
   A freshly-deployed service's ports also bind loopback — expose with
   `tailscale serve --bg --tcp <port> tcp://127.0.0.1:<port>` on its node.
-- **Public:** `nephos publish <service>` adds a Cloudflare Tunnel route under your
-  public apex domain; the zone + credentials live in `publish-config.yaml` on the
-  control-plane node, served by the `cloudflared` service. The tunnel terminates TLS
-  at the edge. (The apex/endpoints are machine-local — read them from
-  `~/.config/nephos/env`, never hardcode them.)
+- **Public:** `nephos publish <service> --config <publish-config.yaml>` adds a
+  Cloudflare Tunnel route under your public apex domain (`--config` is REQUIRED; the
+  zone + credentials live in that file on the control-plane node). It only ADDS the
+  route — it does not run cloudflared; deploy the `cloudflared` connector separately
+  with the token `publish` prints once. The tunnel terminates TLS at the edge. (The
+  apex/endpoints are machine-local — read them from `~/.config/nephos/env`, never
+  hardcode them.)
 
 ## The dashboard (admin panel)
 
