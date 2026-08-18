@@ -37,6 +37,12 @@ address, endpoints, and node aliases. Those values are deliberately not in this 
 — it ships in a public dotfiles repo. If that file is missing, nephos isn't set up
 here; say so rather than guessing addresses.
 
+**This skill is about USING the cloud.** Operating the cloud itself — rebuilding and
+shipping the nephos binary, managing the control plane, adding nodes, configuring
+inference tiers — lives in a separate **`nephos-admin`** skill that only the
+control-room machine has. If a task needs those and this machine has no
+`nephos-admin` skill, it isn't the control room; say so.
+
 ---
 
 ## The commands
