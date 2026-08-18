@@ -258,6 +258,36 @@ tier already does both itself, so autostart there is redundant.
 
 ---
 
+## Backing services and multi-service projects
+
+```bash
+nephos db create myapp-db --type postgres --project myapp   # or mongo, redis
+nephos project down myapp                                    # tears down every
+                                                               # service in that project
+```
+
+`db create` generates a manifest for a well-known database image with a fresh
+random credential (via the normal `secrets:` mechanism), deploys it, and prints
+where to find the generated password. Removes the actual first friction of a
+new project — no more hand-copying an existing Postgres/Mongo manifest. Redis
+gets no credential (its image has no env-driven auth bootstrap) — loopback-bound
+like everything else, tailnet is the trust boundary.
+
+Tag every service in a stack with the same `project:` (in its manifest, or
+`db create --project`), and `nephos project down <project>` tears down the
+whole thing — api, db, cache — in one command instead of once per service.
+**It always prints exactly what it found and asks you to type the project name
+back to confirm** — `project:` is an operator-chosen label, not a unique key,
+and a common name (a real incident: `demo`) can match something you didn't
+mean to include. `--yes` skips the prompt for scripted use.
+
+**Ephemeral deploys**: `nephos deploy ./myapp --ttl 2h` tears itself down
+automatically — a background sweeper on the control plane checks every 60s and
+removes anything past its expiry, no need to remember to clean up a preview or
+branch deploy.
+
+---
+
 ## Taking something down
 
 ```bash
