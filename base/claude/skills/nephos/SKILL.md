@@ -214,28 +214,58 @@ torn-down service never leaves a hostname returning a bad gateway.
 
 ---
 
-## Environment values and secrets
+## Environment values and secrets — two mechanisms, pick by this rule
+
+**Is the value fixed (a password, an API key, a connection string) or does it
+need to be generated/fetched fresh on every deploy?** That single question
+picks the mechanism — they are not interchangeable, and reaching for the
+wrong one is exactly what caused a real incident this project already had
+(feed-api/wnba-api's secrets went missing on redeploy — see below).
+
+**Fixed value → `.env` next to the manifest. This is the default, and it's
+automatic:**
 
 ```bash
-nephos secrets set myapp --env-file .env      # load a whole file — deploy does this automatically now
-nephos secrets set myapp DATABASE_URL=…       # one value
+nephos deploy .                               # syncs .env, then deploys
+nephos secrets set myapp --env-file .env      # the same sync, without deploying
+nephos secrets set myapp DATABASE_URL=…       # one value by hand
 nephos secrets set myapp API_KEY --stdin      # keeps it out of shell history
-nephos secrets ls myapp                       # names only, never values
+nephos secrets ls myapp                       # names only — values are never read back, ever
 ```
 
-`--env-file` is what `nephos deploy` itself calls automatically whenever a
-`.env` sits next to the manifest — reach for these directly only for a single
+`nephos deploy` calls `--env-file` itself automatically whenever a `.env` sits
+next to the manifest — reach for these commands directly only for a single
 value, a value piped from somewhere else, or syncing without also deploying.
+Values are held by the **control plane**, injected fresh into every dispatch,
+so they follow the service to whichever node runs it and survive *any* future
+redeploy — losing the manifest, a stale sidecar, doesn't matter, because the
+value was never stored there in the first place.
 
-Values are held by the control plane and **injected into the deploy**, so they
-follow the service to whichever node runs it. They land in a `0600` env file and
-never appear in the manifest, the unit file, the sidecar, git, or the image.
+**Needs to be generated or fetched fresh, every deploy → the manifest's own
+`secrets:` block:**
 
-There is deliberately no command that reads a value back.
+```yaml
+secrets:
+  POSTGRES_PASSWORD: "openssl rand -hex 20"   # a fresh credential each time
+  MONGO_URL: "vault get MONGO_URL@myapp"      # fetched live from wherever the node trusts
+```
 
-A manifest's own `secrets:` block (an env var mapped to a shell command run on the
-target node) still works and **wins** where both define the same name — it is the
-more specific, node-local statement.
+An env var name mapped to a **shell command**, run fresh on the target node at
+every deploy — vault-agnostic by design (whatever the node can run: `vault
+get`, `op read`, `openssl rand`, a local script). This is genuinely different
+from `.env`, not a legacy alternative to it: `nephos db create` (below) uses
+exactly this to mint a brand-new database password on every provision, which
+`.env` structurally cannot do (it only ever holds a value someone already has
+in hand). **Wins** over a `.env`/`nephos secrets set` value of the same name
+— the more specific, node-local statement.
+
+**The failure mode to know about, even though it's fixed now**: this
+mechanism only has one copy of the command — the manifest itself. Redeploying
+from a stale copy (the on-disk sidecar, an old file) that's missing the
+`secrets:` block silently drops it. The sidecar now persists the command
+correctly, and `nephos deploy` refuses (not silently breaks) if a redeploy
+would drop an existing secrets file — but a value that's meant to stay fixed
+belongs in `.env`, not here, so this can't happen to it at all.
 
 ---
 
