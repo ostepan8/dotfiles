@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.nephos.llm.big</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/owenstepan/.local/share/nephos/dspark-env/bin/mlx-dspark</string>
+    <string>serve</string>
+    <string>--model</string><string>mlx-community/Qwen3.8-27B-4bit</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8005</string>
+    <string>--max-batch</string><string>4</string>
+  </array>
+  <key>RunAtLoad</key><false/>
+  <key>KeepAlive</key><false/>
+  <key>StandardOutPath</key><string>/Users/owenstepan/.local/share/nephos/logs/llm-big.log</string>
+  <key>StandardErrorPath</key><string>/Users/owenstepan/.local/share/nephos/logs/llm-big.log</string>
+</dict>
+</plist>

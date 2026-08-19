@@ -1,0 +1,40 @@
+#!/bin/sh
+# nephos memory guard — sheds inference load BEFORE macOS swaps itself to death.
+# macOS has no OOM killer; under exhaustion it thrashes swap and freezes. This
+# evicts the big model (the largest memory user) once free memory crosses a
+# danger line, turning a system crash into a recoverable failed request + alert.
+UID_=$(id -u)
+LOG="$HOME/.local/share/nephos/logs/memguard.log"
+COOLDOWN="/tmp/nephos-memguard.cooldown"
+WATCH=25   # log a trail below this % free
+SHED=13    # evict big below this % free
+CRIT=8     # also drop fast + ollama below this
+. "$HOME/.config/nephos/env" 2>/dev/null || true
+
+free=$(memory_pressure 2>/dev/null | grep -i "free percentage" | grep -oE '[0-9]+' | tail -1)
+[ -z "$free" ] && exit 0
+
+stamp=$(date '+%Y-%m-%d %H:%M:%S')
+big_up() { pgrep -f "mlx_lm.server.*8005" >/dev/null 2>&1; }
+
+alert() {
+  [ -n "$NEPHOS_NTFY_TOPIC" ] || return 0
+  curl -s -m 5 -H "Title: nephos memguard" -H "Priority: high" \
+    -d "$1" "${NEPHOS_NTFY_URL:-https://ntfy.sh}/$NEPHOS_NTFY_TOPIC" >/dev/null 2>&1 || true
+}
+
+if [ "$free" -lt "$SHED" ] && big_up; then
+  # cooldown: don't re-shed within 3 min
+  if [ -f "$COOLDOWN" ] && [ $(( $(date +%s) - $(stat -f %m "$COOLDOWN") )) -lt 180 ]; then exit 0; fi
+  touch "$COOLDOWN"
+  echo "$stamp SHED: free ${free}% < ${SHED}% — evicting big" >> "$LOG"
+  launchctl kill TERM gui/$UID_/com.nephos.llm.big 2>/dev/null
+  /Applications/Ollama.app/Contents/Resources/ollama stop --all 2>/dev/null || true
+  if [ "$free" -lt "$CRIT" ]; then
+    echo "$stamp CRIT: also evicting fast" >> "$LOG"
+    launchctl kill TERM gui/$UID_/com.nephos.llm.fast 2>/dev/null
+  fi
+  alert "Mac at ${free}% free — evicted big to prevent a crash. Restart with: nephos llm up big"
+elif [ "$free" -lt "$WATCH" ]; then
+  echo "$stamp watch: free ${free}%" >> "$LOG"
+fi

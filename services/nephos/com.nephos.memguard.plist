@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.nephos.memguard</string>
+  <key>ProgramArguments</key><array><string>/Users/owenstepan/.local/bin/nephos-memguard</string></array>
+  <key>StartInterval</key><integer>15</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardErrorPath</key><string>/Users/owenstepan/.local/share/nephos/logs/memguard-err.log</string>
+</dict></plist>
