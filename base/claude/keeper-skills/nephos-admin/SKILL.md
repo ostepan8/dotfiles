@@ -63,40 +63,66 @@ Source: `~/projects/nephos-cloud-wt` (Go module `nephos`), pushed to
 `github.com:ostepan8/nephos`.
 
 ```bash
-# 1. Cross-compile for every fleet arch and upload to the control plane's releases/
+# 1. Cross-compile for every fleet arch, SIGN each, and upload to releases/
 nephos self-update build "$NEPHOS_CONTROL_ADDR" --source-dir ~/projects/nephos-cloud-wt
 #    (detects arches from the node registry: darwin/arm64 + linux/amd64 + linux/arm64)
 ```
 
+`self-update build` signs each binary with the operator's ed25519 key at
+`~/Library/Application Support/nephos/signing.key` (created on first use — it prints
+a WARNING and the public key). **BACK THAT FILE UP.** Lose it and the fleet can't be
+updated until you hand-re-pin a new public key on every node. It also stamps a
+monotonic version into the signature (anti-rollback: agents refuse a version older
+than the one they recorded).
+
 Then install on each machine and **restart its service** — a running process keeps
-the OLD binary until restarted. **Swap with `mv`, never `cp` over the live file**
-(Linux gives "text file busy"; write `.new` then `mv`).
+the OLD binary until restarted. **Never `cp` over the live file** (Linux "text file
+busy"); use `mv` a `.new`, or `agent self-update`.
 
 ```bash
-# Control plane + its agent (Linux, ~/bin/nephos):
-ssh <control-node> 'cp ~/.config/nephos/releases/linux-amd64/nephos ~/bin/nephos.new \
-  && chmod +x ~/bin/nephos.new && mv ~/bin/nephos.new ~/bin/nephos \
-  && systemctl --user restart nephos-control nephos-deploy'
-
-# The macOS agent (~/.local/libexec/nephos):
-cp /path/to/darwin-build ~/.local/libexec/nephos.new && chmod +x ~/.local/libexec/nephos.new \
-  && mv ~/.local/libexec/nephos.new ~/.local/libexec/nephos
-launchctl kickstart -k gui/$(id -u)/com.nephos.serve
-
-# Other Linux agents:
+# Linux agents (self-update verifies the signature against the node's pinned key):
 for n in <node-aliases>; do
-  ssh "$n" "~/bin/nephos agent self-update $NEPHOS_CONTROL_ADDR; systemctl --user restart nephos-deploy"
+  ssh "$n" "~/bin/nephos agent self-update $NEPHOS_CONTROL_ADDR; systemctl --user restart nephos-deploy nephos-report"
 done
+
+# Control plane + its agent (Linux). Restart all three core units:
+ssh <control-node> '~/bin/nephos agent self-update '"$NEPHOS_CONTROL_ADDR"'; \
+  systemctl --user restart nephos-control nephos-deploy nephos-report'
+
+# The macOS agent (real binary ~/.local/libexec/nephos; ~/.local/bin/nephos is a wrapper):
+~/.local/libexec/nephos agent self-update "$NEPHOS_CONTROL_ADDR"   # verifies + installs
+launchctl kickstart -k gui/$(id -u)/com.nephos.serve
+launchctl kickstart -k gui/$(id -u)/com.nephos.report
 ```
 
+**Signature verification is FAIL-CLOSED.** Each node needs the operator's PUBLIC key
+pinned at `<config>/nephos/trusted-signing.pub` (Linux `~/.config/nephos/`, macOS
+`~/Library/Application Support/nephos/`) or `agent self-update` REFUSES. Pin it once:
+`printf '%s\n' '<pubkey>' > <that path>`. Use `--allow-unsigned` only to update a
+node that hasn't been pinned yet (checksum-only, insecure). Derive the pubkey from
+the signing key if you don't have it handy:
+`python3 -c "import base64;d=base64.b64decode(open('...signing.key').read().strip());print(base64.b64encode(d[32:]).decode())"`.
+
+**Bootstrapping signing (first time): order matters.** The release store only KEEPS
+a signature if the control plane binary understands it. So update the control-plane
+node to a signing-aware binary FIRST (via `--allow-unsigned`), THEN re-run
+`self-update build` so the signatures actually land — otherwise the old control plane
+silently drops them and every pinned node refuses the download ("carried no signature").
+
+**GOTCHA — `--gateway-listen`.** The dedicated gateway listener is OPT-IN (empty
+default). Do NOT set it to `:7931` — that collides with the `agent serve` port on the
+control node and crash-loops both. Enable it only on a free loopback port, and only
+when you also repoint the published `llm.*` tunnel origin at it.
+
 **Which machines need the new binary depends on what changed:**
-- Control-plane-only change (dispatcher, HTTP handlers, scheduling) → just restart the
-  control-plane node.
-- Agent-side change (execution / quadlet / log resolution) → every agent.
+- Control-plane-only change (dispatcher, HTTP handlers, scheduling) → just the control node.
+- Agent-side change (execution / quadlet / fingerprint / log resolution) → every agent.
 - Both → the whole fleet.
 
 Restarting the control plane briefly blips the inference gateway (`llm.` host) —
-in-flight requests fail and retry; acceptable.
+in-flight requests fail and retry; acceptable. A node re-registers its fingerprint on
+agent restart **only if the control plane is up** — if control is down/crash-looping
+when an agent restarts, that node keeps its stale registration until it re-reports.
 
 ---
 
