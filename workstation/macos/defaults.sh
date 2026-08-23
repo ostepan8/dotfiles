@@ -63,9 +63,18 @@ defaults write com.apple.dock show-recents -bool false
 # =============================================================================
 # Menu bar (sketchybar replaces native bar; hide native)
 # =============================================================================
-defaults write NSGlobalDomain _HIHideMenuBar -bool false   # show in full-screen apps
-# "Always hide" setting — controlled via System Settings > Control Center manually
-# (no reliable defaults key; must be toggled in UI on first run)
+# MUST stay true. This is the "Menu Bar > Automatically hide and show > Always"
+# setting, and the whole top-of-screen layout depends on it:
+#   true  -> nothing is reserved at the top, so NSScreen.visibleFrame == frame
+#            (1728x1117 on the built-in). Sketchybar draws over the notch strip
+#            (0-32pt) and aerospace's outer.top = 40 puts windows at y=40, i.e.
+#            8pt under the bar.
+#   false -> macOS reserves 38pt for its own menu bar, so every tiled window
+#            drops to y=78 and loses 38pt of height: fat black band under
+#            sketchybar and nothing reaches the screen edge any more.
+# The pref does NOT survive an unclean shutdown reliably, so re-assert it here;
+# the Dock restart at the bottom of this script makes it take effect live.
+defaults write NSGlobalDomain _HIHideMenuBar -bool true
 
 # =============================================================================
 # Keyboard
@@ -145,7 +154,6 @@ echo ""
 echo "macOS defaults applied."
 echo ""
 echo "A few things still need a manual toggle (no reliable defaults key):"
-echo "  • Hide native menu bar: System Settings → Control Center → Menu Bar → Always hide"
 echo "  • Accessibility grants: System Settings → Privacy & Security → Accessibility"
 echo "      - skhd   (/opt/homebrew/bin/skhd)"
 echo "      - AeroSpace (/Applications/AeroSpace.app)"
