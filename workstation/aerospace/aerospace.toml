@@ -81,12 +81,19 @@ inner.vertical   = 8
 outer.left       = 8
 outer.bottom     = 8
 outer.right      = 8
-# Top gap: 40px reserved on the macOS main display only (where sketchybar
-# lives), 8px on the others (edge-to-edge tiling — no bar to clear). This
-# line is rewritten by set-main-display.sh on every Cmd+Opt+[/]/\ swap to
-# track whichever monitor is currently main. Hand-edit only the "40" or "8"
-# values — the monitor pattern is overwritten by the script.
-outer.top        = [{ monitor.'built-in' = 40 }, 8]
+# Top gap on the macOS main display (where sketchybar lives), 8px on the
+# others (edge-to-edge tiling — no bar to clear). The value depends on the
+# main display, because macOS already withholds part of the top strip:
+#   built-in (notched) -> 8. The 32pt notch strip is never part of
+#       NSScreen.visibleFrame (true even with the menu bar set to always-hide),
+#       and sketchybar draws inside it, so 8 is just the margin under the bar.
+#   external (no notch) -> 40 = 32pt bar + 8pt margin, since nothing up there
+#       is reserved for us.
+# Using 40 on the built-in stacks a second bar's worth of gap on top of the
+# notch strip: windows start at y=72 instead of y=40 and lose 32pt of height.
+# This line is rewritten by set-main-display.sh on every Ctrl+Opt+[/]/\ swap
+# to track whichever monitor is currently main, so hand-edit only the numbers.
+outer.top        = [{ monitor.'built-in' = 8 }, 8]
 
 # ==========================
 # Main mode bindings

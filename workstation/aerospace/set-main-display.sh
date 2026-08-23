@@ -200,8 +200,21 @@ with open(aerospace_toml) as f:
     original = f.read()
 content = original
 
-# 5a. outer.top — 40px gap on main, 8px on the rest.
-new_outer_top = f"outer.top        = [{{ monitor.'{gap_pattern}' = 40 }}, 8]"
+# 5a. outer.top — clear sketchybar on the main monitor, 8px on the rest.
+#
+# Sketchybar is 32pt tall and draws in the top strip of whichever display is
+# macOS-main. How much of that strip AeroSpace already skips depends on which
+# display that is:
+#   built-in (notched): macOS keeps the 32pt notch strip out of the usable area
+#       (NSScreen.visibleFrame stays 32pt short even with the menu bar set to
+#       always-hide) and that strip is exactly where sketchybar sits, so the bar
+#       is already accounted for — add only the 8pt margin.
+#   external (no notch): nothing is reserved up there, so the gap has to cover
+#       the bar itself: 32pt bar + 8pt margin = 40.
+# Getting this backwards costs every window 32pt of height and leaves a black
+# band between the bar and the top row of windows.
+main_top_gap = 8 if target["builtin"] else 40
+new_outer_top = f"outer.top        = [{{ monitor.'{gap_pattern}' = {main_top_gap} }}, 8]"
 content = re.sub(
     r"^outer\.top\s*=.*$",
     new_outer_top.replace("\\", "\\\\"),  # protect backrefs in re.sub replacement
