@@ -105,26 +105,35 @@ sketchybar --add item calendar left \
         script="$PLUGIN_DIR/calendar.sh"
 
 # ==============================================================
-# CENTER: transport controls + now-playing (Spotify or Apple Music)
+# NOW PLAYING: transport controls + track (Spotify or Apple Music)
 # Hidden when nothing is playing/paused. The `media` item polls and drives
 # the three control buttons, so only one script does the work.
+#
+# These sit in the LEFT cluster, not center, because the built-in display has
+# a camera housing. Sketchybar centers `center` items on the bar itself
+# (measured: the group stayed at x=745 even with 8 right-hand items hidden),
+# and the housing covers roughly x=770-960 — so anything centered here is
+# physically behind the camera and unreadable. In the left cluster the group
+# lands around x=170 (front_app ends near 158, and media.sh caps the label at
+# 42 chars) which stays clear of the housing even with a long track name.
+# On an external monitor as main this is only a cosmetic left-shift.
 # ==============================================================
-sketchybar --add item media.back center \
+sketchybar --add item media.back left \
     --set media.back drawing=off background.drawing=off label.drawing=off \
         icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
         click_script="$PLUGIN_DIR/media.sh prev"
 
-sketchybar --add item media.play center \
+sketchybar --add item media.play left \
     --set media.play drawing=off background.drawing=off label.drawing=off \
         icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
         click_script="$PLUGIN_DIR/media.sh playpause"
 
-sketchybar --add item media.next center \
+sketchybar --add item media.next left \
     --set media.next drawing=off background.drawing=off label.drawing=off \
         icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
         click_script="$PLUGIN_DIR/media.sh next"
 
-sketchybar --add item media center \
+sketchybar --add item media left \
     --set media \
         update_freq=10 \
         background.color=$BG_ITEM \
