@@ -7,6 +7,7 @@ help:  ## Show available targets
 
 check:  ## Scan tracked files for secrets, fleet identifiers, private addresses
 	@bash scripts/check-secrets.sh
+	@bash scripts/check-exec-bits.sh
 
 verify:  ## Prove the apply engine against a throwaway HOME (touches nothing)
 	@bash scripts/verify-apply.sh
