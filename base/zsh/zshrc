@@ -174,6 +174,33 @@ autoload -Uz compinit && compinit
 # survive as single candidates.
 _ta() { compadd -- ${(f)"$(tmux list-sessions -F '#S' 2>/dev/null)"} }
 compdef _ta ta
+
+# `claude-local <TAB>` -> its own flags, and installed Ollama tags after -m.
+# Without a spec, fzf-tab falls back to filename completion and offers the
+# whole home directory, which is never the answer to "which model?".
+#
+# The derived -cc tags are filtered out deliberately: they are an internal
+# detail of the context-length workaround, and picking one would only produce
+# a redundant round trip through cl_base_of.
+_claude_local_models() {
+  compadd -- ${(f)"$(ollama list 2>/dev/null | awk 'NR>1 && $1 != "" {print $1}' | grep -v -- '-cc$')"}
+}
+_claude_local() {
+  case ${words[CURRENT-1]} in
+    -m|--model) _claude_local_models; return ;;
+    --ctx)      compadd -- 8192 16384 32768 65536 131072; return ;;
+  esac
+  # claude's own flags are included because claude-local forwards anything it
+  # does not recognize, so they are genuinely valid here.
+  compadd -- --pick --set --list --model --ctx --help \
+             -l -m -h -c -p -r --continue --print --resume
+}
+compdef _claude_local claude-local
+
+# Bare model tag as the first argument, so `claude-local-setup <TAB>` offers
+# what is already installed rather than files.
+_claude_local_setup() { _claude_local_models }
+compdef _claude_local_setup claude-local-setup
 for __antidote in \
     /opt/homebrew/opt/antidote/share/antidote/antidote.zsh \
     /usr/local/opt/antidote/share/antidote/antidote.zsh \
