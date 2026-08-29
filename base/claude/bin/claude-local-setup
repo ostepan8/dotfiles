@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# claude-local-setup — provision (or re-provision) the local model that
+# `claude-local` drives. Idempotent: safe to re-run after a dotfiles pull, on a
+# new machine, or after editing the Modelfile.
+#
+# Two steps, because they fail for different reasons and deserve separate
+# errors: pull the stock weights (network, ~17GB), then derive the -cc tag that
+# carries the num_ctx override (local, instant, no extra disk).
+
+set -euo pipefail
+
+BASE_TAG="${CLAUDE_LOCAL_BASE_TAG:-qwen3.8:27b}"
+CC_TAG="${CLAUDE_LOCAL_MODEL:-qwen3.8:27b-cc}"
+
+# Resolve the Modelfile relative to this script so it works from the repo, from
+# the ~/.local/bin symlink, and from a checkout at any path.
+SELF="$0"
+while [[ -L "$SELF" ]]; do
+  link="$(readlink "$SELF")"
+  [[ "$link" == /* ]] && SELF="$link" || SELF="$(dirname "$SELF")/$link"
+done
+REPO_DIR="$(cd "$(dirname "$SELF")/.." && pwd)"
+MODELFILE="$REPO_DIR/modelfiles/${CC_TAG//:/-}.Modelfile"
+
+die() { printf '\033[31mclaude-local-setup:\033[0m %s\n' "$*" >&2; exit 1; }
+step() { printf '\033[1m==>\033[0m %s\n' "$*"; }
+
+command -v ollama >/dev/null 2>&1 || die "ollama is not installed (brew install ollama)"
+[[ -f "$MODELFILE" ]] || die "no Modelfile at $MODELFILE"
+
+step "Base weights: $BASE_TAG"
+if ollama show "$BASE_TAG" >/dev/null 2>&1; then
+  echo "    already present, skipping pull"
+else
+  ollama pull "$BASE_TAG"
+fi
+
+# Always rebuild: the create is instant and layer-deduplicated, so this is the
+# cheapest way to guarantee the live tag matches the committed Modelfile rather
+# than whatever an earlier version of it produced.
+step "Derived tag: $CC_TAG  (from $(basename "$MODELFILE"))"
+ollama create "$CC_TAG" -f "$MODELFILE"
+
+step "Verifying context length"
+ctx="$(ollama show "$CC_TAG" 2>/dev/null | awk '/num_ctx/ {print $2}')"
+if [[ -n "$ctx" ]]; then
+  echo "    num_ctx = $ctx"
+  [[ "$ctx" -ge 32768 ]] || die "num_ctx is only $ctx — Claude Code needs far more"
+else
+  echo "    warning: could not read num_ctx back from 'ollama show'" >&2
+fi
+
+printf '\n\033[32mReady.\033[0m Run: claude-local\n'

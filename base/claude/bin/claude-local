@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# claude-local — run Claude Code against a model served locally by Ollama.
+#
+# Ollama exposes an Anthropic-compatible /v1/messages endpoint, so Claude Code
+# can talk to it directly with no proxy: point ANTHROPIC_BASE_URL at the Ollama
+# port and name an Ollama tag as the model.
+#
+# Three things this wrapper exists to get right, each of which silently breaks
+# the session if left to the defaults:
+#
+#   1. Context length. Ollama defaults to num_ctx=4096 regardless of what the
+#      model supports. Claude Code's system prompt alone overruns that, so the
+#      conversation is truncated from the very first turn and the model answers
+#      nonsense. The -cc model tag (see modelfiles/) is a derived model whose
+#      only change is a large num_ctx. Never point this at a bare tag.
+#
+#   2. The small/fast model. Claude Code issues background calls (title
+#      generation, summarization) against a separate "small fast" model that
+#      defaults to a Haiku id. Ollama has no such tag and 404s, which surfaces
+#      as unexplained errors mid-session. Every model slot is pinned to the
+#      local tag below.
+#
+#   3. An isolated config dir. ~/.claude-local carries no MCP servers, no
+#      plugins and no personal rules, keeping the system prompt small. A local
+#      model has slow prefill and no server-side prompt caching, so every token
+#      of system prompt is paid for on every single turn.
+#
+# Overrides: CLAUDE_LOCAL_MODEL, CLAUDE_LOCAL_HOST, CLAUDE_LOCAL_CONFIG_DIR.
+
+set -euo pipefail
+
+MODEL="${CLAUDE_LOCAL_MODEL:-qwen3.8:27b-cc}"
+HOST="${CLAUDE_LOCAL_HOST:-http://localhost:11434}"
+CONFIG_DIR="${CLAUDE_LOCAL_CONFIG_DIR:-$HOME/.claude-local}"
+
+die() { printf '\033[31mclaude-local:\033[0m %s\n' "$*" >&2; exit 1; }
+note() { printf '\033[2mclaude-local:\033[0m %s\n' "$*" >&2; }
+
+command -v ollama >/dev/null 2>&1 || die "ollama is not installed (brew install ollama)"
+command -v claude >/dev/null 2>&1 || die "claude is not on PATH"
+
+# --- make sure the server is up -------------------------------------------
+# `ollama serve` is normally the menubar app on macOS; start it and wait rather
+# than failing, since a stopped Ollama is the common case after a reboot.
+if ! curl -fsS --max-time 2 "$HOST/api/tags" >/dev/null 2>&1; then
+  note "Ollama not responding at $HOST — starting it"
+  if [[ "$(uname -s)" == "Darwin" ]] && [[ -d /Applications/Ollama.app ]]; then
+    open -a Ollama
+  else
+    ollama serve >/dev/null 2>&1 &
+  fi
+  for _ in $(seq 1 30); do
+    curl -fsS --max-time 2 "$HOST/api/tags" >/dev/null 2>&1 && break
+    sleep 1
+  done
+  curl -fsS --max-time 2 "$HOST/api/tags" >/dev/null 2>&1 \
+    || die "Ollama still unreachable at $HOST after 30s"
+fi
+
+# --- make sure the model exists -------------------------------------------
+if ! ollama show "$MODEL" >/dev/null 2>&1; then
+  die "model '$MODEL' not found locally.
+    Build it with:  claude-local-setup
+    Or point elsewhere:  CLAUDE_LOCAL_MODEL=<tag> claude-local"
+fi
+
+# --- terminal title, restored on exit -------------------------------------
+if [[ -t 1 ]]; then
+  printf '\033]0;Claude · local (%s)\007' "$MODEL"
+  trap 'printf "\033]0;\007"' EXIT
+fi
+
+note "$MODEL via $HOST  (config: ${CONFIG_DIR/#$HOME/\~})"
+
+# ANTHROPIC_API_KEY is blanked deliberately: if a real key leaks in from the
+# environment, Claude Code may prefer it and quietly bill the hosted API
+# instead of using the local model, which is the exact opposite of the intent.
+exec env \
+  CLAUDE_CONFIG_DIR="$CONFIG_DIR" \
+  ANTHROPIC_BASE_URL="$HOST" \
+  ANTHROPIC_AUTH_TOKEN="ollama" \
+  ANTHROPIC_API_KEY="" \
+  ANTHROPIC_MODEL="$MODEL" \
+  ANTHROPIC_SMALL_FAST_MODEL="$MODEL" \
+  ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL" \
+  ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL" \
+  ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL" \
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1" \
+  claude --dangerously-skip-permissions "$@"

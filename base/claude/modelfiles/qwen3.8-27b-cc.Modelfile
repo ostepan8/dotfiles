@@ -1,0 +1,24 @@
+# qwen3.8:27b-cc — Qwen3.8-27B tuned for driving Claude Code.
+#
+# Derived from the stock tag, so it costs no extra disk: Ollama reuses the
+# 16.8GB weight layer and stores only this parameter override.
+#
+# num_ctx is the whole point. Ollama runs every model at 4096 tokens by default
+# no matter how long a context the weights support (this one supports 262144).
+# Claude Code's system prompt plus one file read blows straight past 4096, and
+# the failure is silent — the front of the conversation is dropped and the model
+# starts answering a question nobody asked. 65536 is the working ceiling on a
+# 64GB machine: weights (~17GB) plus KV cache still leave headroom under the
+# ~48GB the GPU is allowed to wire down.
+FROM qwen3.8:27b
+
+PARAMETER num_ctx 65536
+
+# Qwen's published sampling defaults for non-thinking use. Left explicit rather
+# than inherited so a future change to the upstream tag can't silently move
+# them underneath an agent workload, where a temperature drift shows up as
+# malformed tool calls rather than as prose that reads differently.
+PARAMETER temperature 0.7
+PARAMETER top_p 0.8
+PARAMETER top_k 20
+PARAMETER repeat_penalty 1.05
