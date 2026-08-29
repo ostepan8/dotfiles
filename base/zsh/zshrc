@@ -186,24 +186,26 @@ _claude_local_models() {
   compadd -- ${(f)"$(ollama list 2>/dev/null | awk 'NR>1 && $1 != "" {print $1}' | grep -v -- '-cc$')"}
 }
 #
-# _arguments rather than a bare compadd list. The first version offered only
-# flags, and since every candidate began with "-", zsh helpfully inserted that
-# longest common prefix before showing the menu — leaving a stray "-" on the
-# line, which claude-local forwarded to claude, which took it as the prompt.
-# Offering model tags in the same slot removes the shared prefix, so there is
-# nothing to auto-insert, and it is the more useful answer anyway.
+# The split is deliberate: a bare TAB completes the command's own options, and
+# model tags appear only where a model is actually being asked for — after
+# --pick, --set or -m. Offering tags at the top level instead was worse on both
+# counts: it buried the flags, and it answered a question the user had not
+# asked yet.
+#
+# zsh will still insert the shared "-" when every candidate is an option. That
+# is ordinary behavior for any command, and claude-local now discards a lone
+# dash rather than forwarding it as claude's prompt.
 _claude_local() {
   _arguments -S \
     '(-m --model)'{-m,--model}'[Ollama tag to run]:model:_claude_local_models' \
     '--ctx[context window in tokens]:tokens:(8192 16384 32768 65536 131072)' \
-    '--pick[choose a model for this run]' \
-    '--set[choose a model and save it as the default]' \
+    '--pick[choose a model for this run]::model:_claude_local_models' \
+    '--set[choose a model and save it as the default]::model:_claude_local_models' \
     '(-l --list)'{-l,--list}'[list installed models]' \
     '(-h --help)'{-h,--help}'[usage]' \
     '(-c --continue)'{-c,--continue}'[continue the last local conversation]' \
     '(-p --print)'{-p,--print}'[print mode]:prompt:' \
     '(-r --resume)'{-r,--resume}'[resume a session]' \
-    '1::model:_claude_local_models' \
     '*::claude args:'
 }
 compdef _claude_local claude-local

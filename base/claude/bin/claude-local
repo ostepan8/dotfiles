@@ -56,8 +56,21 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -m|--model) model="${2:?--model needs a model tag}"; shift 2 ;;
     --ctx)      CTX="${2:?--ctx needs a number}";        shift 2 ;;
-    --pick)     do_pick=1; shift ;;
-    --set)      do_pick=1; do_save=1; shift ;;
+    # Both take an OPTIONAL model. Bare, they open the picker; given a tag they
+    # use it directly. That is what makes `--pick <TAB>` coherent: completing
+    # to a tag and running it is the same operation as choosing that tag from
+    # the menu, so the two ways of answering "which model?" agree.
+    --pick|--set)
+      [[ "$1" == "--set" ]] && do_save=1
+      if [[ $# -ge 2 ]] && cl_is_installed_tag "${2:-}"; then
+        model="$2"; shift 2
+      else
+        do_pick=1; shift
+      fi ;;
+    # A lone dash is almost always a leftover from tab-completing flags. It used
+    # to be forwarded, and claude took it as the prompt and answered it instead
+    # of starting the session, which read as the command doing nothing at all.
+    -)  cl_note "ignoring a stray '-'"; shift ;;
     -l|--list)
       command -v ollama >/dev/null 2>&1 || cl_die "ollama is not installed"
       current="$(cl_resolve_model 2>/dev/null || echo '(none)')"
@@ -69,10 +82,11 @@ while [[ $# -gt 0 ]]; do
 claude-local — Claude Code against a model served locally by Ollama.
 
   claude-local                    run the saved default model
-  claude-local <tag>              run a specific Ollama tag
-  claude-local --pick             choose a model for this run
-  claude-local --set              choose a model and save it as the default
-  claude-local -m <tag>           same as a bare tag, but explicit
+  claude-local --pick             menu; choose a model for this run only
+  claude-local --pick <tag>       skip the menu, run that tag once
+  claude-local --set              menu; choose and save as the new default
+  claude-local --set <tag>        save that tag as the default and run it
+  claude-local <tag>              run a tag directly (-m <tag> is the same)
   claude-local -l, --list         list installed models, then exit
   claude-local --ctx <n>          context length (default 65536)
 
@@ -109,9 +123,15 @@ cl_ensure_server "$HOST"
 
 if [[ "$do_pick" == 1 ]]; then
   model="$(cl_pick_model)" || cl_die "no model selected"
-  [[ "$do_save" == 1 ]] && { cl_save_model "$model"; cl_note "default is now $model"; }
 fi
 [[ -n "$model" ]] || model="$(cl_resolve_model)"
+
+# After resolution, not inside the picker branch: --set has to persist the
+# choice whether it came from the menu or was named outright.
+if [[ "$do_save" == 1 ]]; then
+  cl_save_model "$model"
+  cl_note "default is now $model"
+fi
 
 # Resolve to the large-context sibling, building it if this is a model (or a
 # context length) we have not run before.
