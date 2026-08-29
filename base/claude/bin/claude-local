@@ -3,88 +3,155 @@
 # claude-local — run Claude Code against a model served locally by Ollama.
 #
 # Ollama exposes an Anthropic-compatible /v1/messages endpoint, so Claude Code
-# can talk to it directly with no proxy: point ANTHROPIC_BASE_URL at the Ollama
+# talks to it directly with no proxy: point ANTHROPIC_BASE_URL at the Ollama
 # port and name an Ollama tag as the model.
 #
-# Three things this wrapper exists to get right, each of which silently breaks
-# the session if left to the defaults:
+# Four defaults have to be overridden or the session breaks in ways that do
+# not look like configuration problems:
 #
-#   1. Context length. Ollama defaults to num_ctx=4096 regardless of what the
-#      model supports. Claude Code's system prompt alone overruns that, so the
-#      conversation is truncated from the very first turn and the model answers
-#      nonsense. The -cc model tag (see modelfiles/) is a derived model whose
-#      only change is a large num_ctx. Never point this at a bare tag.
+#   1. Context length. Ollama runs every model at num_ctx=4096 no matter what
+#      the weights support. Claude Code's system prompt alone overruns that, so
+#      the conversation is truncated from the first turn and the model answers
+#      a question nobody asked. Handled by deriving a "<tag>-cc" sibling.
 #
-#   2. The small/fast model. Claude Code issues background calls (title
-#      generation, summarization) against a separate "small fast" model that
-#      defaults to a Haiku id. Ollama has no such tag and 404s, which surfaces
-#      as unexplained errors mid-session. Every model slot is pinned to the
-#      local tag below.
+#   2. The small/fast model. Claude Code issues background calls (titles,
+#      summaries) against a separate model that defaults to a Haiku id. Ollama
+#      404s on it, surfacing as unexplained mid-session errors. Every model
+#      slot is pinned to the chosen local tag.
 #
-#   3. An isolated config dir. ~/.claude-local carries no MCP servers, no
-#      plugins and no personal rules, keeping the system prompt small. A local
-#      model has slow prefill and no server-side prompt caching, so every token
-#      of system prompt is paid for on every single turn.
+#   3. Auto-compact window. An Ollama tag is not a model Claude Code knows, so
+#      it assumes a 200k context and compacts against that number. With a real
+#      window of 65536 it would happily fill four times what the server can
+#      hold, putting us straight back into silent truncation.
+#      CLAUDE_CODE_MAX_CONTEXT_TOKENS pins it to what we actually built.
 #
-# Overrides: CLAUDE_LOCAL_MODEL, CLAUDE_LOCAL_HOST, CLAUDE_LOCAL_CONFIG_DIR.
+#   4. Config dir. ~/.claude-local carries no MCP servers, plugins or personal
+#      rules, keeping the system prompt short. A local model has slow prefill
+#      and no server-side prompt caching, so every system-prompt token is paid
+#      for again on every single turn.
+#
+# Only -m/-l/-h have short forms, and the model-selection flags are otherwise
+# long-only on purpose: claude itself already uses -c, -d, -n, -p, -r, -v and
+# -w, and shadowing -c/--continue or -p/--print here would be a trap. Every
+# unrecognized argument is forwarded to claude untouched.
 
 set -euo pipefail
 
-MODEL="${CLAUDE_LOCAL_MODEL:-qwen3.8:27b-cc}"
+SELF="$0"
+while [[ -L "$SELF" ]]; do
+  link="$(readlink "$SELF")"
+  [[ "$link" == /* ]] && SELF="$link" || SELF="$(dirname "$SELF")/$link"
+done
+# shellcheck source=lib/claude-local-lib.sh
+source "$(cd "$(dirname "$SELF")" && pwd)/lib/claude-local-lib.sh"
+
 HOST="${CLAUDE_LOCAL_HOST:-http://localhost:11434}"
 CONFIG_DIR="${CLAUDE_LOCAL_CONFIG_DIR:-$HOME/.claude-local}"
+CTX="$DEFAULT_CTX"
 
-die() { printf '\033[31mclaude-local:\033[0m %s\n' "$*" >&2; exit 1; }
-note() { printf '\033[2mclaude-local:\033[0m %s\n' "$*" >&2; }
+model=""; do_pick=0; do_save=0
+claude_args=()
 
-command -v ollama >/dev/null 2>&1 || die "ollama is not installed (brew install ollama)"
-command -v claude >/dev/null 2>&1 || die "claude is not on PATH"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -m|--model) model="${2:?--model needs a model tag}"; shift 2 ;;
+    --ctx)      CTX="${2:?--ctx needs a number}";        shift 2 ;;
+    --pick)     do_pick=1; shift ;;
+    --set)      do_pick=1; do_save=1; shift ;;
+    -l|--list)
+      command -v ollama >/dev/null 2>&1 || cl_die "ollama is not installed"
+      current="$(cl_resolve_model 2>/dev/null || echo '(none)')"
+      printf 'Installed local models (default: %s)\n\n' "$current"
+      ollama list
+      exit 0 ;;
+    -h|--help)
+      cat <<'USAGE'
+claude-local — Claude Code against a model served locally by Ollama.
 
-# --- make sure the server is up -------------------------------------------
-# `ollama serve` is normally the menubar app on macOS; start it and wait rather
-# than failing, since a stopped Ollama is the common case after a reboot.
-if ! curl -fsS --max-time 2 "$HOST/api/tags" >/dev/null 2>&1; then
-  note "Ollama not responding at $HOST — starting it"
-  if [[ "$(uname -s)" == "Darwin" ]] && [[ -d /Applications/Ollama.app ]]; then
-    open -a Ollama
-  else
-    ollama serve >/dev/null 2>&1 &
-  fi
-  for _ in $(seq 1 30); do
-    curl -fsS --max-time 2 "$HOST/api/tags" >/dev/null 2>&1 && break
-    sleep 1
-  done
-  curl -fsS --max-time 2 "$HOST/api/tags" >/dev/null 2>&1 \
-    || die "Ollama still unreachable at $HOST after 30s"
+  claude-local                    run the saved default model
+  claude-local --pick             choose a model for this run
+  claude-local --set              choose a model and save it as the default
+  claude-local -m <tag>           run a specific Ollama tag
+  claude-local -l, --list         list installed models, then exit
+  claude-local --ctx <n>          context length (default 65536)
+
+Any other argument is forwarded to claude, so the usual flags still work:
+  claude-local -c                 continue the last local conversation
+  claude-local -p "explain this"  print mode
+
+The chosen tag is served through a derived "<tag>-cc" sibling that raises
+num_ctx; Ollama otherwise caps every model at 4096 tokens, which silently
+truncates Claude Code's prompt. The derivation is automatic and costs no
+extra disk.
+USAGE
+      exit 0 ;;
+    *)          claude_args+=("$1"); shift ;;
+  esac
+done
+
+command -v ollama >/dev/null 2>&1 || cl_die "ollama is not installed (brew install ollama)"
+command -v claude >/dev/null 2>&1 || cl_die "claude is not on PATH"
+
+cl_ensure_server "$HOST"
+
+if [[ "$do_pick" == 1 ]]; then
+  model="$(cl_pick_model)" || cl_die "no model selected"
+  [[ "$do_save" == 1 ]] && { cl_save_model "$model"; cl_note "default is now $model"; }
 fi
+[[ -n "$model" ]] || model="$(cl_resolve_model)"
 
-# --- make sure the model exists -------------------------------------------
-if ! ollama show "$MODEL" >/dev/null 2>&1; then
-  die "model '$MODEL' not found locally.
-    Build it with:  claude-local-setup
-    Or point elsewhere:  CLAUDE_LOCAL_MODEL=<tag> claude-local"
-fi
+# Resolve to the large-context sibling, building it if this is a model (or a
+# context length) we have not run before.
+RUN_MODEL="$(cl_ensure_derived "$model" "$CTX")"
 
-# --- terminal title, restored on exit -------------------------------------
+# Keep the profile's settings.json in step with the tag actually being served.
+# Claude Code reads a model from settings as well as from the environment, and
+# a stale value there shows the wrong model in the UI at best and overrides the
+# environment at worst.
+python3 - "$CONFIG_DIR/settings.json" "$RUN_MODEL" <<'PY' 2>/dev/null || true
+import json, os, sys, tempfile
+path, model = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as fh:
+        settings = json.load(fh)
+except (OSError, ValueError):
+    settings = {}
+if settings.get("model") != model:
+    # Write a new dict and swap atomically: a crash mid-write must not leave a
+    # truncated settings file that breaks every future launch.
+    updated = {**settings, "model": model}
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".")
+    with os.fdopen(fd, "w") as fh:
+        json.dump(updated, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+PY
+
 if [[ -t 1 ]]; then
-  printf '\033]0;Claude · local (%s)\007' "$MODEL"
+  printf '\033]0;Claude · local (%s)\007' "$model"
   trap 'printf "\033]0;\007"' EXIT
 fi
 
-note "$MODEL via $HOST  (config: ${CONFIG_DIR/#$HOME/\~})"
+cl_note "$RUN_MODEL @ ${CTX} ctx via $HOST"
 
-# ANTHROPIC_API_KEY is blanked deliberately: if a real key leaks in from the
-# environment, Claude Code may prefer it and quietly bill the hosted API
-# instead of using the local model, which is the exact opposite of the intent.
+# ANTHROPIC_API_KEY is blanked deliberately: a real key leaking in from the
+# environment could make Claude Code bill the hosted API instead of using the
+# local model, which is the exact opposite of the intent.
+#
+# claude_args is expanded the long way round because macOS ships bash 3.2,
+# where "${arr[@]}" on an empty array trips `set -u` — which would mean plain
+# `claude-local`, the most common invocation of all, exits with an unbound
+# variable error.
 exec env \
   CLAUDE_CONFIG_DIR="$CONFIG_DIR" \
   ANTHROPIC_BASE_URL="$HOST" \
   ANTHROPIC_AUTH_TOKEN="ollama" \
   ANTHROPIC_API_KEY="" \
-  ANTHROPIC_MODEL="$MODEL" \
-  ANTHROPIC_SMALL_FAST_MODEL="$MODEL" \
-  ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL" \
-  ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL" \
-  ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL" \
+  ANTHROPIC_MODEL="$RUN_MODEL" \
+  ANTHROPIC_SMALL_FAST_MODEL="$RUN_MODEL" \
+  ANTHROPIC_DEFAULT_OPUS_MODEL="$RUN_MODEL" \
+  ANTHROPIC_DEFAULT_SONNET_MODEL="$RUN_MODEL" \
+  ANTHROPIC_DEFAULT_HAIKU_MODEL="$RUN_MODEL" \
+  CLAUDE_CODE_MAX_CONTEXT_TOKENS="$CTX" \
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1" \
-  claude --dangerously-skip-permissions "$@"
+  claude --dangerously-skip-permissions ${claude_args[@]+"${claude_args[@]}"}
