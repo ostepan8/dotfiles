@@ -49,7 +49,7 @@ HOST="${CLAUDE_LOCAL_HOST:-http://localhost:11434}"
 CONFIG_DIR="${CLAUDE_LOCAL_CONFIG_DIR:-$HOME/.claude-local}"
 CTX="$DEFAULT_CTX"
 
-model=""; do_pick=0; do_save=0
+model=""; do_pick=0; do_save=0; saw_positional=0
 claude_args=()
 
 while [[ $# -gt 0 ]]; do
@@ -69,9 +69,10 @@ while [[ $# -gt 0 ]]; do
 claude-local — Claude Code against a model served locally by Ollama.
 
   claude-local                    run the saved default model
+  claude-local <tag>              run a specific Ollama tag
   claude-local --pick             choose a model for this run
   claude-local --set              choose a model and save it as the default
-  claude-local -m <tag>           run a specific Ollama tag
+  claude-local -m <tag>           same as a bare tag, but explicit
   claude-local -l, --list         list installed models, then exit
   claude-local --ctx <n>          context length (default 65536)
 
@@ -85,7 +86,19 @@ truncates Claude Code's prompt. The derivation is automatic and costs no
 extra disk.
 USAGE
       exit 0 ;;
-    *)          claude_args+=("$1"); shift ;;
+    # A bare installed tag is taken as the model, so `claude-local qwen3.6:35b-a3b`
+    # works and TAB can offer model names in the first positional slot without
+    # the selection silently turning into claude's prompt. Only the first
+    # positional is eligible, and only when it matches an installed tag exactly,
+    # so a real prompt is never swallowed.
+    *)
+      if [[ -z "$model" && "$saw_positional" == 0 ]] && cl_is_installed_tag "$1"; then
+        model="$1"
+      else
+        claude_args+=("$1")
+      fi
+      saw_positional=1
+      shift ;;
   esac
 done
 

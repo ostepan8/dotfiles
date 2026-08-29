@@ -24,6 +24,14 @@ cl_base_models() {
 
 cl_model_exists() { ollama show "$1" >/dev/null 2>&1; }
 
+# Is this word an installed tag? Used to tell a bare model argument apart from
+# a prompt. Matched against the actual list rather than by shape: a tag looks
+# like ordinary text, so any pattern guess would misfire in both directions.
+cl_is_installed_tag() {
+  [[ -n "$1" ]] || return 1
+  ollama list 2>/dev/null | awk -v t="$1" 'NR>1 && $1 == t {found=1} END {exit !found}'
+}
+
 cl_is_derived() { [[ "$1" == *"${CC_SUFFIX}" ]]; }
 
 # Strip the suffix so passing an already-derived tag is idempotent rather than
