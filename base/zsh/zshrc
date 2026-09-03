@@ -104,17 +104,45 @@ export CLAUDE_CONFIG_DIR="$HOME/.claude-personal"
 
 alias claude-personal='CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude'
 alias claude-school='CLAUDE_CONFIG_DIR="$HOME/.claude-school" claude'
+# Resolve the account a profile is ACTUALLY logged into, straight from that
+# profile's own .claude.json. These labels used to be hardcoded per function,
+# which silently lied for months after .claude-personal was re-authed to a
+# different account: the tab claimed one identity while Remote Control (which
+# follows the profile's real OAuth token) connected as another. Derive it, so
+# the title can never drift from the login again.
+function _ccd_account() {
+  local email
+  email=$(jq -r '.oauthAccount.emailAddress // empty' "$1/.claude.json" 2>/dev/null)
+  print -r -- "${email:-logged out}"
+}
+
 function _ccd_title() {
-  local label="$1"; shift
-  (while true; do printf '\033]0;%s\007' "$label" > /dev/tty 2>/dev/null; sleep 1; done) &
+  local dir="$1"; shift
+  (
+    local label="" tick=0
+    while true; do
+      # Re-resolve periodically so the title self-corrects after a /login.
+      (( tick % 5 == 0 )) && label="Claude · $(_ccd_account "$dir")"
+      printf '\033]0;%s\007' "$label" > /dev/tty 2>/dev/null
+      (( tick++ ))
+      sleep 1
+    done
+  ) &
   local _pid=$!
   "$@"
   kill $_pid 2>/dev/null
   printf '\033]0;\007' > /dev/tty
 }
-function ccd()  { _ccd_title "Claude · ohstep23@gmail.com"       env CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude --dangerously-skip-permissions "$@"; }
-function ccds() { _ccd_title "Claude · stepan.o@northeastern.edu" env CLAUDE_CONFIG_DIR="$HOME/.claude-school"   claude --dangerously-skip-permissions "$@"; }
-function ccdw() { _ccd_title "Claude · owen@subconscious.dev"     env CLAUDE_CONFIG_DIR="$HOME/.claude-work"     claude --dangerously-skip-permissions "$@"; }
+
+# Single definition of the per-profile launch, so a config dir is never
+# spelled out in more than one place.
+function _ccd_run() {
+  local dir="$1"; shift
+  _ccd_title "$dir" env CLAUDE_CONFIG_DIR="$dir" claude --dangerously-skip-permissions "$@"
+}
+function ccd()  { _ccd_run "$HOME/.claude-personal" "$@"; }
+function ccds() { _ccd_run "$HOME/.claude-school"   "$@"; }
+function ccdw() { _ccd_run "$HOME/.claude-work"     "$@"; }
 function ccdr()  { ccd  --resume "$@"; }
 function ccdrs() { ccds --resume "$@"; }
 function ccdrw() { ccdw --resume "$@"; }
