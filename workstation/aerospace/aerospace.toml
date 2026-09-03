@@ -119,19 +119,23 @@ alt-shift-equal = 'balance-sizes'
 
 # --- Layout tweaks ---
 alt-slash = 'layout tiles horizontal vertical'   # toggle tile orientation
-# Accordion (stack view) toggles straight against tiles, behind alt-shift
-# rather than a bare alt-comma.
+# Alt+Shift+, pops the focused window OUT of the tiling grid so it can be
+# dragged and resized anywhere with the mouse; press again to snap it back into
+# the tiles. Bound on both comma and space — same command, two muscle memories.
 #
-# The stock binding is 'layout accordion horizontal vertical', which is a
-# one-way trip: it cycles h_accordion -> v_accordion -> h_accordion and never
-# returns to tiles. Both orientations just look like stacked windows, so
-# pressing it again reads as "nothing happens" — and the workspace's ROOT
-# container then stays accordion for its entire life, stacking every window
-# that lands there. That is how workspace 1 ended up permanently un-tiled.
-# 'accordion tiles' is a real on/off toggle: press to stack, press to tile.
-alt-shift-comma = 'layout accordion tiles' # toggle stack view on/off
+# This replaces an accordion (stack view) toggle that used to sit on this key.
+# Accordion only collapses windows into a stack you page through with the focus
+# keys; it never makes anything draggable, which is the only thing this key is
+# ever pressed for. It also had a nasty failure mode: the stock binding
+# 'layout accordion horizontal vertical' is a one-way trip that cycles
+# h_accordion -> v_accordion and never returns to tiles, so a single press left
+# the workspace's ROOT container stuck in accordion for its entire life,
+# stacking every window that landed there. That is how workspace 1 ended up
+# permanently un-tiled. Accordion is simply not bound any more; alt-slash still
+# toggles tile orientation, and 'layout accordion' remains available via the CLI.
+alt-shift-comma = 'layout floating tiling'        # toggle drag-anywhere floating
 alt-f     = 'fullscreen'
-alt-shift-space = 'layout floating tiling'        # toggle float/tile
+alt-shift-space = 'layout floating tiling'        # same toggle, alternate key
 
 # --- Workspaces (jump to) ---
 # Chaining 'move-mouse monitor-lazy-center' pulls the cursor onto the new
