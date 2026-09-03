@@ -119,7 +119,12 @@ alt-shift-equal = 'balance-sizes'
 
 # --- Layout tweaks ---
 alt-slash = 'layout tiles horizontal vertical'   # toggle tile orientation
-alt-comma = 'layout accordion horizontal vertical' # stack view
+# Accordion (stack view) sits behind alt-shift, not a bare alt-comma. A stray
+# Alt+, flips the workspace's ROOT container to accordion, and that sticks for
+# the life of the workspace: every window that lands there stacks on top of the
+# others instead of tiling, with no obvious way back. That is exactly how
+# workspace 1 ended up permanently un-tiled. Alt+/ restores tiles if it recurs.
+alt-shift-comma = 'layout accordion horizontal vertical' # stack view
 alt-f     = 'fullscreen'
 alt-shift-space = 'layout floating tiling'        # toggle float/tile
 
@@ -206,6 +211,31 @@ cmd-alt-shift-r = 'exec-and-forget ~/.config/aerospace/refresh-display-ids.sh'
 # ==========================
 # Apps that should always float (not tile)
 # ==========================
+# Baseline: everything tiles unless a rule below says otherwise.
+#
+# AeroSpace floats any window its dialog heuristic dislikes — per the guide,
+# "windows lacking fullscreen buttons are typically floated, except
+# terminals". That is why Ghostty and Claude always tiled while Chrome
+# windows kept landing floated and stacked on top of each other on whichever
+# workspace they opened in. Forcing 'layout tiling' as the first callback
+# overrides the heuristic; check-further-callbacks = true means processing
+# continues, so the explicit float rules below still win for the apps that
+# genuinely want to float.
+#
+# This callback also carries the phantom-window cleanup. That used to live in
+# a catch-all at the BOTTOM of this list, where it never fired for any window
+# matched by a rule above it: on-window-detected stops at the first matching
+# callback unless check-further-callbacks = true. The script is sub-100ms and
+# detached, so no perceptible launch lag.
+#
+# AeroSpace doesn't expose a window-CLOSED hook (kAXUIElementDestroyedNotification
+# is unreliable on macOS 15+), so hooking cleanup to every window OPEN is how we
+# sweep stale entries left behind by previous closes.
+[[on-window-detected]]
+if.app-name-regex-substring = '.*'
+run = ['layout tiling', 'exec-and-forget ~/.config/aerospace/cleanup-phantoms.sh']
+check-further-callbacks = true
+
 [[on-window-detected]]
 if.app-id = 'com.apple.systempreferences'
 run = 'layout floating'
@@ -283,20 +313,3 @@ run = ['move-node-to-workspace 8', 'layout floating']
 [[on-window-detected]]
 if.window-title-regex-substring = '(?i)preferences'
 run = 'layout floating'
-
-# ==========================
-# Phantom-window cleanup on every window open
-# ==========================
-# AeroSpace doesn't expose a window-CLOSED hook (that's the bug we're
-# working around — kAXUIElementDestroyedNotification is unreliable on
-# macOS 15+). It DOES fire on-window-detected on every open. Hooking
-# cleanup here means: any time anything new appears, we sweep stale
-# entries left behind by previous closes.
-#
-# All matching on-window-detected rules run in declaration order
-# (per AeroSpace docs), so this catch-all runs alongside the per-app
-# rules above without overriding them. The cleanup script is sub-100ms
-# and detached, so no perceptible launch lag for new windows.
-[[on-window-detected]]
-if.app-name-regex-substring = '.*'
-run = ['exec-and-forget ~/.config/aerospace/cleanup-phantoms.sh']
