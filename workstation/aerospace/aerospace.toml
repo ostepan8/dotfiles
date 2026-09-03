@@ -119,12 +119,17 @@ alt-shift-equal = 'balance-sizes'
 
 # --- Layout tweaks ---
 alt-slash = 'layout tiles horizontal vertical'   # toggle tile orientation
-# Accordion (stack view) sits behind alt-shift, not a bare alt-comma. A stray
-# Alt+, flips the workspace's ROOT container to accordion, and that sticks for
-# the life of the workspace: every window that lands there stacks on top of the
-# others instead of tiling, with no obvious way back. That is exactly how
-# workspace 1 ended up permanently un-tiled. Alt+/ restores tiles if it recurs.
-alt-shift-comma = 'layout accordion horizontal vertical' # stack view
+# Accordion (stack view) toggles straight against tiles, behind alt-shift
+# rather than a bare alt-comma.
+#
+# The stock binding is 'layout accordion horizontal vertical', which is a
+# one-way trip: it cycles h_accordion -> v_accordion -> h_accordion and never
+# returns to tiles. Both orientations just look like stacked windows, so
+# pressing it again reads as "nothing happens" — and the workspace's ROOT
+# container then stays accordion for its entire life, stacking every window
+# that lands there. That is how workspace 1 ended up permanently un-tiled.
+# 'accordion tiles' is a real on/off toggle: press to stack, press to tile.
+alt-shift-comma = 'layout accordion tiles' # toggle stack view on/off
 alt-f     = 'fullscreen'
 alt-shift-space = 'layout floating tiling'        # toggle float/tile
 
