@@ -73,6 +73,9 @@ ALLOW=(
   "127.0.0.1"        # loopback — nephos env.template, lifeos LaunchAgent
   "0.0.0.0"
   "sk-proj-xxxxx"    # claude/rules/typescript/security.md — "don't do this" example
+  # Clerk's own sign-in docs, vendored verbatim under base/agents/skills.
+  # A literal from upstream documentation, not a credential.
+  "password: 'newSecurePassword123'"
 )
 
 is_allowed() {

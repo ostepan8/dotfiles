@@ -46,6 +46,6 @@ EOF
     echo "    NOTE: tailscale is installed but not up — run 'sudo tailscale up'"
   fi
 else
-  echo "    skipped — copy base/claude/skills/nephos/env.template to $_env by hand"
+  echo "    skipped — copy base/agents/skills/nephos/env.template to $_env by hand"
 fi
 unset _env _tier _ctl _domain
