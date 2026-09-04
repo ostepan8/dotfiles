@@ -1,0 +1,730 @@
+#!/usr/bin/env python3
+"""ff - find files using natural language queries.
+
+Examples:
+    ff python files about authentication
+    ff large pdfs in downloads
+    ff images modified today
+    ff files containing TODO in my project
+    ff react components
+    ff logs from yesterday
+    ff json configs
+    ff dockerfile
+    ff .env files
+    ff zshrc
+    ff -a hidden config files       # include junk dirs
+    ff -n 10 large videos           # limit results
+"""
+
+import subprocess
+import sys
+import re
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+
+# --- Junk paths to filter from results ---
+JUNK_PATH_PARTS = {
+    "node_modules", ".git", "dist", "build", "__pycache__", ".next",
+    ".nuxt", ".cache", ".venv", "venv", ".env_cache", "target",
+    ".gradle", ".idea", "Pods", "DerivedData", ".turbo", ".parcel-cache",
+    "bower_components", ".tox", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+    ".terraform", "vendor", ".vercel", ".serverless", "site-packages",
+    "Caches", "WebKitCache", "GPUCache", "Code Cache", "ScriptCache",
+}
+
+# Dirs to prune when doing find-based fallback search (heavy macOS dirs that
+# cause find to take forever). Separate from JUNK_PATH_PARTS because we still
+# want mdfind to return results from these locations, just not find.
+FIND_PRUNE_EXTRA = {
+    "Library", ".Trash", ".npm", ".cargo", ".rustup", ".bun", ".nvm",
+    ".pyenv", ".rbenv", ".gem", ".m2", ".android", ".docker", ".colima",
+    "go", ".local",
+}
+
+# --- Well-known filename patterns (user term -> exact name patterns) ---
+WELL_KNOWN_FILES = {
+    "dockerfile": ["Dockerfile", "dockerfile", "*.dockerfile", "Dockerfile.*"],
+    "makefile": ["Makefile", "makefile", "GNUmakefile", "*.mk"],
+    "gitignore": [".gitignore"],
+    "gitattributes": [".gitattributes"],
+    "gitconfig": [".gitconfig"],
+    "zshrc": [".zshrc"],
+    "bashrc": [".bashrc"],
+    "bash_profile": [".bash_profile"],
+    "vimrc": [".vimrc", ".vim"],
+    "tmux": [".tmux.conf"],
+    "readme": ["README", "README.md", "README.txt", "README.rst", "readme.md"],
+    "license": ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING"],
+    "changelog": ["CHANGELOG", "CHANGELOG.md", "CHANGES.md", "HISTORY.md"],
+    "env": [".env", ".env.local", ".env.development", ".env.production",
+            ".env.staging", ".env.test", ".env.example", ".env.sample"],
+    "package": ["package.json"],
+    "tsconfig": ["tsconfig.json", "tsconfig.*.json"],
+    "pyproject": ["pyproject.toml"],
+    "requirements": ["requirements.txt", "requirements-*.txt", "requirements/*.txt"],
+    "pipfile": ["Pipfile", "Pipfile.lock"],
+    "cargo": ["Cargo.toml", "Cargo.lock"],
+    "gemfile": ["Gemfile", "Gemfile.lock"],
+    "podfile": ["Podfile", "Podfile.lock"],
+    "claude": ["CLAUDE.md", ".claude"],
+    "sshkey": ["id_rsa", "id_rsa.pub", "id_ed25519", "id_ed25519.pub",
+               "id_ecdsa", "id_ecdsa.pub", "*.pem", "authorized_keys", "known_hosts"],
+}
+
+# Aliases that map to well-known keys
+WELL_KNOWN_ALIASES = {
+    "dockerfiles": "dockerfile",
+    "docker": "dockerfile",
+    "makefiles": "makefile",
+    "make": "makefile",
+    "readmes": "readme",
+    "licenses": "license",
+    "package.json": "package",
+    "tsconfig.json": "tsconfig",
+    "pyproject.toml": "pyproject",
+    ".env": "env",
+    "envs": "env",
+    "envfile": "env",
+    "envfiles": "env",
+    "dotenv": "env",
+    ".gitignore": "gitignore",
+    ".zshrc": "zshrc",
+    ".bashrc": "bashrc",
+    ".vimrc": "vimrc",
+    "ssh": "sshkey",
+    "sshkeys": "sshkey",
+    "ssh_keys": "sshkey",
+}
+
+# Words to drop after consuming a well-known token (so "ssh keys" → just sshkey)
+WELL_KNOWN_DROP_NEIGHBORS = {
+    "sshkey": {"keys", "key"},
+    "env": {"variables", "var", "vars"},
+    "package": {"json"},
+    "tsconfig": {"json"},
+    "pyproject": {"toml"},
+}
+
+# --- Colors ---
+BOLD = "\033[1m"
+DIM = "\033[2m"
+CYAN = "\033[36m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+MAGENTA = "\033[35m"
+RESET = "\033[0m"
+
+# --- Extension / type mappings ---
+EXT_MAP = {
+    "python": ["py", "pyx", "pyi"],
+    "javascript": ["js", "jsx", "mjs", "cjs"],
+    "typescript": ["ts", "tsx", "mts", "cts"],
+    "react": ["jsx", "tsx"],
+    "rust": ["rs"],
+    "go": ["go"],
+    "java": ["java"],
+    "kotlin": ["kt", "kts"],
+    "swift": ["swift"],
+    "c": ["c", "h"],
+    "cpp": ["cpp", "cc", "cxx", "hpp", "hxx", "h"],
+    "ruby": ["rb"],
+    "php": ["php"],
+    "shell": ["sh", "bash", "zsh"],
+    "bash": ["sh", "bash"],
+    "html": ["html", "htm"],
+    "css": ["css", "scss", "sass", "less"],
+    "sql": ["sql"],
+    "markdown": ["md", "mdx"],
+    "yaml": ["yaml", "yml"],
+    "json": ["json", "jsonc", "json5"],
+    "toml": ["toml"],
+    "xml": ["xml"],
+    "csv": ["csv"],
+    "image": ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp", "tiff"],
+    "photo": ["png", "jpg", "jpeg", "heic", "heif", "raw", "cr2", "nef"],
+    "video": ["mp4", "mov", "avi", "mkv", "webm", "m4v"],
+    "audio": ["mp3", "wav", "flac", "aac", "ogg", "m4a"],
+    "pdf": ["pdf"],
+    "doc": ["doc", "docx", "odt"],
+    "spreadsheet": ["xls", "xlsx", "csv", "ods"],
+    "presentation": ["ppt", "pptx", "key"],
+    "font": ["ttf", "otf", "woff", "woff2"],
+    "archive": ["zip", "tar", "gz", "bz2", "7z", "rar"],
+    "log": ["log"],
+    "config": ["cfg", "conf", "ini", "env", "toml", "yaml", "yml", "json"],
+    "test": None,  # handled specially
+    "component": None,  # handled specially
+}
+
+# Singular -> plural and vice versa normalization
+TYPE_ALIASES = {
+    "js": "javascript",
+    "ts": "typescript",
+    "py": "python",
+    "rb": "ruby",
+    "rs": "rust",
+    "sh": "shell",
+    "md": "markdown",
+    "yml": "yaml",
+    "img": "image",
+    "images": "image",
+    "photos": "photo",
+    "videos": "video",
+    "audios": "audio",
+    "pdfs": "pdf",
+    "docs": "doc",
+    "documents": "doc",
+    "logs": "log",
+    "configs": "config",
+    "scripts": "shell",
+    "pics": "image",
+    "pictures": "image",
+    "movies": "video",
+    "music": "audio",
+    "songs": "audio",
+    "fonts": "font",
+    "archives": "archive",
+    "zips": "archive",
+    "spreadsheets": "spreadsheet",
+    "presentations": "presentation",
+    "slides": "presentation",
+    "components": None,
+    "tests": None,
+}
+
+# --- Directory aliases ---
+DIR_ALIASES = {
+    "downloads": "~/Downloads",
+    "desktop": "~/Desktop",
+    "documents": "~/Documents",
+    "home": "~",
+    "pictures": "~/Pictures",
+    "music": "~/Music",
+    "movies": "~/Movies",
+    "applications": "/Applications",
+    "apps": "/Applications",
+    "tmp": "/tmp",
+    "temp": "/tmp",
+}
+
+
+def parse_query(words):
+    """Parse natural language into search parameters."""
+    query = " ".join(words).lower()
+    params = {
+        "extensions": [],
+        "name_pattern": None,
+        "content_pattern": None,
+        "directory": None,
+        "size_filter": None,
+        "date_filter": None,
+        "name_keywords": [],
+        "exact_names": [],   # exact filenames or glob patterns to search via -name
+        "mdfind_extra": [],
+    }
+
+    # --- Detect well-known filenames before stripping ---
+    # We work on raw words to preserve dots in things like "package.json"
+    raw_words = [w.strip(".,!?").lower() for w in words]
+    consumed = set()
+    for i, w in enumerate(raw_words):
+        if i in consumed or not w:
+            continue
+        # Check well-known aliases and direct keys
+        key = WELL_KNOWN_ALIASES.get(w, w)
+        if key in WELL_KNOWN_FILES:
+            params["exact_names"].extend(WELL_KNOWN_FILES[key])
+            consumed.add(i)
+            # Drop neighbor words that would otherwise pollute the keyword list
+            drop = WELL_KNOWN_DROP_NEIGHBORS.get(key, set())
+            for j in (i - 1, i + 1):
+                if 0 <= j < len(raw_words) and raw_words[j] in drop:
+                    consumed.add(j)
+            continue
+        # Detect filename-like tokens (contain a dot, look like name.ext)
+        if "." in w and not w.startswith(".") and re.match(r'^[\w\-]+\.[\w\-]+$', w):
+            params["exact_names"].append(w)
+            consumed.add(i)
+            continue
+        # Detect dotfiles (.something)
+        if w.startswith(".") and len(w) > 1 and re.match(r'^\.[\w\-.]+$', w):
+            params["exact_names"].append(w)
+            consumed.add(i)
+            continue
+
+    # Rebuild query string excluding consumed tokens
+    query = " ".join(w for i, w in enumerate(raw_words) if i not in consumed and w)
+
+    # --- Extract "containing/with content X" ---
+    m = re.search(r'(?:containing|with content|that (?:contain|have|say)s?)\s+["\']?(.+?)["\']?\s*$', query)
+    if m:
+        params["content_pattern"] = m.group(1).strip()
+        query = query[:m.start()].strip()
+
+    # --- Extract directory ---
+    m = re.search(r'(?:in|inside|under|from|within)\s+(?:my\s+)?([~\/]?\S+)', query)
+    if m:
+        raw_dir = m.group(1).strip().rstrip(".,")
+        resolved = DIR_ALIASES.get(raw_dir, raw_dir)
+        expanded = os.path.expanduser(resolved)
+        if os.path.isdir(expanded):
+            params["directory"] = expanded
+            query = query[:m.start()] + query[m.end():]
+
+    # --- Extract size ---
+    m = re.search(r'\b(large|big|huge|small|tiny|empty)\b', query)
+    if m:
+        size_word = m.group(1)
+        if size_word in ("large", "big", "huge"):
+            params["size_filter"] = "large"
+        elif size_word in ("small", "tiny"):
+            params["size_filter"] = "small"
+        elif size_word == "empty":
+            params["size_filter"] = "empty"
+        query = query[:m.start()] + query[m.end():]
+
+    # --- Extract date ---
+    m = re.search(r'\b(today|yesterday|this week|last week|this month|last month|recent(?:ly)?)\b', query)
+    if m:
+        params["date_filter"] = m.group(1).replace("recently", "recent")
+        query = query[:m.start()] + query[m.end():]
+
+    # --- Extract file type ---
+    remaining_words = query.split()
+    stop_words = {"find", "search", "for", "all", "the", "my", "me", "show", "list",
+                  "get", "a", "an", "some", "any", "about", "related", "to",
+                  "with", "named", "called", "files", "file", "modified", "created",
+                  "and", "or", "that", "are", "is", "was", "were", "of"}
+
+    found_type = False
+    keyword_words = []
+
+    for word in remaining_words:
+        word_clean = word.strip(".,!?")
+        if not word_clean:
+            continue
+
+        # Check direct type match
+        type_key = TYPE_ALIASES.get(word_clean, word_clean)
+        if type_key in EXT_MAP and not found_type:
+            exts = EXT_MAP[type_key]
+            if exts is not None:
+                params["extensions"] = exts
+                found_type = True
+                continue
+            elif type_key in (None,) or word_clean in ("test", "tests"):
+                params["name_keywords"].append("test")
+                found_type = True
+                continue
+            elif word_clean in ("component", "components"):
+                params["extensions"] = ["jsx", "tsx"]
+                params["name_keywords"].append("component")
+                found_type = True
+                continue
+
+        # Check if it looks like an extension (.py, .ts)
+        if word_clean.startswith(".") and len(word_clean) > 1:
+            params["extensions"] = [word_clean.lstrip(".")]
+            found_type = True
+            continue
+
+        if word_clean not in stop_words:
+            keyword_words.append(word_clean)
+
+    # Remaining keywords become name search terms
+    if keyword_words:
+        params["name_keywords"].extend(keyword_words)
+
+    return params
+
+
+def build_mdfind_query(params):
+    """Build an mdfind query string from parsed params."""
+    parts = []
+
+    # Extension filter
+    if params["extensions"]:
+        ext_parts = []
+        for ext in params["extensions"]:
+            ext_parts.append(f'kMDItemFSName == "*.{ext}"')
+        if len(ext_parts) == 1:
+            parts.append(ext_parts[0])
+        else:
+            parts.append("(" + " || ".join(ext_parts) + ")")
+
+    # Name keywords
+    for kw in params["name_keywords"]:
+        parts.append(f'kMDItemFSName == "*{kw}*"c')
+
+    # Size filter
+    if params["size_filter"] == "large":
+        parts.append("kMDItemFSSize > 10485760")  # > 10MB
+    elif params["size_filter"] == "small":
+        parts.append("kMDItemFSSize < 10240")  # < 10KB
+    elif params["size_filter"] == "empty":
+        parts.append("kMDItemFSSize == 0")
+
+    # Date filter
+    now = datetime.now()
+    if params["date_filter"]:
+        d = params["date_filter"]
+        if d == "today":
+            date_str = now.strftime("%Y-%m-%d")
+            parts.append(f'kMDItemContentModificationDate > $time.iso({date_str}T00:00:00Z)')
+        elif d == "yesterday":
+            yesterday = now - timedelta(days=1)
+            date_str = yesterday.strftime("%Y-%m-%d")
+            today_str = now.strftime("%Y-%m-%d")
+            parts.append(f'kMDItemContentModificationDate > $time.iso({date_str}T00:00:00Z)')
+        elif d in ("this week", "recent"):
+            week_ago = now - timedelta(days=7)
+            date_str = week_ago.strftime("%Y-%m-%d")
+            parts.append(f'kMDItemContentModificationDate > $time.iso({date_str}T00:00:00Z)')
+        elif d == "last week":
+            two_weeks = now - timedelta(days=14)
+            one_week = now - timedelta(days=7)
+            parts.append(f'kMDItemContentModificationDate > $time.iso({two_weeks.strftime("%Y-%m-%d")}T00:00:00Z)')
+            parts.append(f'kMDItemContentModificationDate < $time.iso({one_week.strftime("%Y-%m-%d")}T00:00:00Z)')
+        elif d == "this month":
+            month_start = now.replace(day=1).strftime("%Y-%m-%d")
+            parts.append(f'kMDItemContentModificationDate > $time.iso({month_start}T00:00:00Z)')
+        elif d == "last month":
+            this_month = now.replace(day=1)
+            last_month_end = this_month - timedelta(days=1)
+            last_month_start = last_month_end.replace(day=1)
+            parts.append(f'kMDItemContentModificationDate > $time.iso({last_month_start.strftime("%Y-%m-%d")}T00:00:00Z)')
+            parts.append(f'kMDItemContentModificationDate < $time.iso({this_month.strftime("%Y-%m-%d")}T00:00:00Z)')
+
+    # Extra mdfind attributes
+    parts.extend(params["mdfind_extra"])
+
+    return " && ".join(parts) if parts else None
+
+
+def _mdfind(directory, query=None, name=None, timeout=8):
+    """Run mdfind and return list of file paths."""
+    if query:
+        cmd = ["mdfind", "-onlyin", directory, query]
+    elif name:
+        cmd = ["mdfind", "-onlyin", directory, "-name", name]
+    else:
+        return []
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if out.returncode == 0:
+            return [f for f in out.stdout.strip().split("\n") if f]
+    except subprocess.TimeoutExpired:
+        return None  # signal timeout to caller
+    return []
+
+
+def _find(directory, name_pattern, timeout=15, max_results=1000):
+    """Fallback to `find` with aggressive dir pruning. Used for dotfiles and
+    common filenames that mdfind doesn't index or that overflow it."""
+    prune_names = JUNK_PATH_PARTS | FIND_PRUNE_EXTRA
+    prune_parts = []
+    for junk in prune_names:
+        if prune_parts:
+            prune_parts.append("-o")
+        prune_parts.extend(["-name", junk])
+
+    cmd = ["find", directory]
+    if prune_parts:
+        cmd += ["("] + prune_parts + [")", "-prune", "-o"]
+    cmd += ["-type", "f", "-iname", name_pattern, "-print"]
+
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        files = [f for f in out.stdout.strip().split("\n") if f]
+        return files[:max_results]
+    except subprocess.TimeoutExpired:
+        return []
+
+
+def _search_name(directory, name, prefer_find=False):
+    """Search for files by name. Tries mdfind, falls back to find for dotfiles
+    or when mdfind times out / returns nothing."""
+    is_dotfile = name.startswith(".")
+    if prefer_find or is_dotfile:
+        return _find(directory, name)
+
+    result = _mdfind(directory, name=name)
+    if result is None:  # timeout
+        return _find(directory, name)
+    if not result and not is_dotfile:
+        # mdfind returned nothing — try find as fallback in case the file is hidden or in an unindexed location
+        return _find(directory, name)
+    return result
+
+
+def _score_path(filepath, keywords, exact_names):
+    """Score a file by how well it matches keywords and exact names."""
+    path_lower = filepath.lower()
+    name_lower = os.path.basename(filepath).lower()
+    score = 0
+    # Exact name matches score very high
+    for exact in exact_names:
+        # Strip glob chars for matching
+        bare = exact.lower().strip("*").lstrip(".")
+        if name_lower == exact.lower() or name_lower == "." + bare:
+            score += 10
+        elif bare and bare in name_lower:
+            score += 5
+    for kw in keywords:
+        kw_lower = kw.lower()
+        if kw_lower in name_lower:
+            score += 2
+        elif kw_lower in path_lower:
+            score += 1
+    return score
+
+
+def _is_junk_path(filepath):
+    """Return True if the path lives inside a junk directory."""
+    parts = set(Path(filepath).parts)
+    return bool(parts & JUNK_PATH_PARTS)
+
+
+def run_search(params, include_junk=False):
+    """Execute the search and return results."""
+    directory = params["directory"] or os.getcwd()
+    keywords = params["name_keywords"]
+    exact_names = params["exact_names"]
+
+    # Build base query from non-keyword filters (extensions, size, date)
+    base_params = {**params, "name_keywords": []}
+    base_query = build_mdfind_query(base_params)
+
+    all_hits = {}  # filepath -> set of matching tokens
+
+    # 1. Search exact filenames / patterns (highest priority)
+    for exact in exact_names:
+        for f in _search_name(directory, exact):
+            all_hits.setdefault(f, set()).add(exact)
+
+    # 2. Search each fuzzy keyword in filenames via mdfind (fast index)
+    for kw in keywords:
+        result = _mdfind(directory, name=kw)
+        if result is None:
+            result = []  # don't fall back to find for fuzzy keywords (too slow)
+        for f in result:
+            all_hits.setdefault(f, set()).add(kw)
+
+    # 3. If we have base filters but no exact/keyword hits, use base query alone
+    if base_query and not all_hits:
+        base_files = _mdfind(directory, query=base_query)
+        if base_files is None:
+            base_files = []
+        for f in base_files:
+            all_hits.setdefault(f, set()).add("__base__")
+
+    # 4. If we have base filters AND keyword hits, intersect (keep only files matching base)
+    elif base_query and all_hits:
+        base_files = _mdfind(directory, query=base_query)
+        if base_files:
+            base_results = set(base_files)
+            all_hits = {f: kws for f, kws in all_hits.items() if f in base_results}
+
+    # Filter junk paths
+    if not include_junk:
+        all_hits = {f: kws for f, kws in all_hits.items() if not _is_junk_path(f)}
+
+    # Score and sort
+    def sort_key(f):
+        score = _score_path(f, keywords, exact_names)
+        try:
+            mtime = os.path.getmtime(f)
+        except OSError:
+            mtime = 0
+        return (score, mtime)  # higher score first, then most recent
+
+    results = sorted(all_hits.keys(), key=sort_key, reverse=True)
+
+    # Content search filter (use rg if available, else grep)
+    if params["content_pattern"] and results:
+        rg_available = subprocess.run(["which", "rg"], capture_output=True).returncode == 0
+        filtered = []
+        batch_size = 100
+        for i in range(0, len(results), batch_size):
+            batch = results[i:i + batch_size]
+            if rg_available:
+                cmd = ["rg", "-l", "--no-messages", params["content_pattern"]] + batch
+            else:
+                cmd = ["grep", "-rl", params["content_pattern"]] + batch
+            try:
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                if out.returncode == 0:
+                    filtered.extend(f for f in out.stdout.strip().split("\n") if f)
+            except subprocess.TimeoutExpired:
+                pass
+        results = filtered
+
+    # Deduplicate
+    seen = set()
+    unique = []
+    for r in results:
+        if r not in seen:
+            seen.add(r)
+            unique.append(r)
+
+    return unique
+
+
+def format_size(size_bytes):
+    """Format file size in human-readable form."""
+    if size_bytes < 1024:
+        return f"{size_bytes}B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f}K"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f}M"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f}G"
+
+
+def format_time(mtime):
+    """Format modification time relative to now."""
+    now = datetime.now()
+    dt = datetime.fromtimestamp(mtime)
+    diff = now - dt
+
+    if diff.days == 0:
+        hours = diff.seconds // 3600
+        if hours == 0:
+            mins = diff.seconds // 60
+            return f"{mins}m ago" if mins > 0 else "just now"
+        return f"{hours}h ago"
+    elif diff.days == 1:
+        return "yesterday"
+    elif diff.days < 7:
+        return f"{diff.days}d ago"
+    elif diff.days < 30:
+        return f"{diff.days // 7}w ago"
+    else:
+        return dt.strftime("%Y-%m-%d")
+
+
+def display_results(results, directory, max_results=20):
+    """Print results with metadata."""
+    if not results:
+        print(f"{YELLOW}No files found.{RESET}")
+        return
+
+    home = os.path.expanduser("~")
+
+    print(f"\n{BOLD}{GREEN}{len(results)} file{'s' if len(results) != 1 else ''} found{RESET}", end="")
+    if len(results) > max_results:
+        print(f" {DIM}(showing top {max_results}){RESET}")
+    else:
+        print()
+    print()
+
+    for filepath in results[:max_results]:
+        try:
+            stat = os.stat(filepath)
+            size = format_size(stat.st_size)
+            mtime = format_time(stat.st_mtime)
+        except OSError:
+            size = "?"
+            mtime = "?"
+
+        # Shorten path
+        display_path = filepath
+        if display_path.startswith(home):
+            display_path = "~" + display_path[len(home):]
+
+        name = os.path.basename(filepath)
+        parent = os.path.dirname(display_path)
+
+        print(f"  {BOLD}{CYAN}{name}{RESET}")
+        print(f"  {DIM}{parent}/{RESET}  {MAGENTA}{size}{RESET}  {DIM}{mtime}{RESET}")
+        print()
+
+
+def print_usage():
+    print(f"""{BOLD}ff{RESET} - find files using natural language
+
+{BOLD}Usage:{RESET}  ff [options] <query>
+
+{BOLD}Options:{RESET}
+  -a, --all       Include junk dirs (node_modules, .git, build, etc.)
+  -n N            Show top N results (default 20)
+  -h, --help      Show this help
+
+{BOLD}Examples:{RESET}
+  ff python files about auth
+  ff large pdfs in downloads
+  ff images modified today
+  ff react components
+  ff json configs containing database
+  ff logs from this week
+  ff dockerfile in projects
+  ff .env files
+  ff zshrc
+  ff package.json
+  ff -a hidden config files
+  ff -n 50 large videos""")
+
+
+def main():
+    args = sys.argv[1:]
+    if not args or "-h" in args or "--help" in args:
+        print_usage()
+        sys.exit(0)
+
+    # Parse flags
+    include_junk = False
+    max_results = 20
+    query_words = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("-a", "--all"):
+            include_junk = True
+        elif a == "-n" and i + 1 < len(args):
+            try:
+                max_results = int(args[i + 1])
+                i += 1
+            except ValueError:
+                query_words.append(a)
+        else:
+            query_words.append(a)
+        i += 1
+
+    if not query_words:
+        print_usage()
+        sys.exit(0)
+
+    params = parse_query(query_words)
+
+    # Show what we understood
+    desc_parts = []
+    if params["extensions"]:
+        desc_parts.append(f"type: {', '.join('.' + e for e in params['extensions'][:3])}")
+    if params["exact_names"]:
+        desc_parts.append(f"file: {', '.join(params['exact_names'][:3])}")
+    if params["name_keywords"]:
+        desc_parts.append(f"name: {', '.join(params['name_keywords'])}")
+    if params["content_pattern"]:
+        desc_parts.append(f"content: \"{params['content_pattern']}\"")
+    if params["date_filter"]:
+        desc_parts.append(f"modified: {params['date_filter']}")
+    if params["size_filter"]:
+        desc_parts.append(f"size: {params['size_filter']}")
+
+    search_dir = params["directory"] or os.getcwd()
+    home = os.path.expanduser("~")
+    display_dir = search_dir.replace(home, "~")
+
+    if desc_parts:
+        print(f"{DIM}Searching {display_dir} → {', '.join(desc_parts)}{RESET}")
+    else:
+        print(f"{DIM}Searching {display_dir} for \"{' '.join(query_words)}\"{RESET}")
+
+    results = run_search(params, include_junk=include_junk)
+    display_results(results, search_dir, max_results=max_results)
+
+
+if __name__ == "__main__":
+    main()
