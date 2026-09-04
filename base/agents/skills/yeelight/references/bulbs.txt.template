@@ -1,0 +1,12 @@
+# Yeelight bulb IPs — one bare address per line, no other syntax.
+#
+# This is the TEMPLATE and ships intentionally EMPTY of addresses. The real
+# file (references/bulbs.txt) holds this household's actual bulb addresses,
+# is machine-specific, and is gitignored — scripts/check-secrets.sh blocks LAN
+# addresses in tracked files, placeholders included, so none appear here.
+#
+# apply.sh seeds bulbs.txt from this file only when it is absent, so a
+# populated list is never overwritten.
+#
+# To populate: discover the bulbs on this network, then add one address per
+# line below. Until then every control command is a no-op against zero bulbs.

@@ -31,3 +31,4 @@ claude/**/.credentials.json
 
 # Backups written by the installer
 *.backup
+base/agents/skills/yeelight/references/bulbs.txt

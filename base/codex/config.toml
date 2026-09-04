@@ -1,0 +1,48 @@
+# Codex CLI configuration.
+# Tracked in ~/dotfiles (base/codex/config.toml). Edit there or here — apply.sh
+# uses `copy` for this file, hash-gated, so a live edit survives an idle apply.
+
+# Default is the Codex subscription (ChatGPT sign-in via `codex login`).
+# No top-level `model`/`model_provider`: leaving them unset is what selects the
+# subscription's own default model. The Subconscious gateway is preserved below
+# as a dormant profile — `codex --profile subconscious` — so switching back is
+# one flag rather than a config rewrite.
+model_reasoning_effort = "max"
+web_search = "disabled"
+
+# NOTE: model_catalog_json REPLACES Codex's built-in model list, it does not add
+# to it. Left top-level it made `/model` show only the three Subconscious slugs.
+# It now lives under [profiles.subconscious] so the default profile keeps the
+# stock OpenAI catalog.
+
+# Per-repo instructions: Codex reads AGENTS.md natively. Adding CLAUDE.md as a
+# fallback means one instruction file per project feeds BOTH tools, instead of
+# maintaining two copies that drift.
+project_doc_fallback_filenames = ["CLAUDE.md"]
+
+[features]
+apps = false
+plugins = false
+
+[apps._default]
+enabled = false
+
+[projects."/Users/ostepan"]
+trust_level = "trusted"
+
+# ---------------------------------------------------------------------------
+# Dormant: Subconscious gateway. Activate with `codex --profile subconscious`.
+# Requires SUBCONSCIOUS_API_KEY in the environment.
+# ---------------------------------------------------------------------------
+[model_providers.subconscious]
+name = "Subconscious Gateway"
+base_url = "https://api.subconscious.dev/v1"
+wire_api = "responses"
+env_key = "SUBCONSCIOUS_API_KEY"
+stream_idle_timeout_ms = 300000
+
+[profiles.subconscious]
+model = "subconscious/glm-5.2"
+model_provider = "subconscious"
+model_reasoning_effort = "max"
+model_catalog_json = "/Users/ostepan/.codex/model-catalog.json"
