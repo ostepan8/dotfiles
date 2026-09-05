@@ -104,25 +104,48 @@ export CLAUDE_CONFIG_DIR="$HOME/.claude-personal"
 
 alias claude-personal='CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude'
 alias claude-school='CLAUDE_CONFIG_DIR="$HOME/.claude-school" claude'
-# Resolve the account a profile is ACTUALLY logged into, straight from that
-# profile's own .claude.json. These labels used to be hardcoded per function,
-# which silently lied for months after .claude-personal was re-authed to a
-# different account: the tab claimed one identity while Remote Control (which
-# follows the profile's real OAuth token) connected as another. Derive it, so
-# the title can never drift from the login again.
+# Resolve the account an agent CLI is ACTUALLY logged into. These labels used to
+# be hardcoded per function, which silently lied for months after
+# .claude-personal was re-authed to a different account: the tab claimed one
+# identity while Remote Control (which follows the profile's real OAuth token)
+# connected as another. Derive them, so a title can never drift from the login.
 function _ccd_account() {
   local email
   email=$(jq -r '.oauthAccount.emailAddress // empty' "$1/.claude.json" 2>/dev/null)
   print -r -- "${email:-logged out}"
 }
 
-function _ccd_title() {
-  local dir="$1"; shift
+# Codex has ONE account (the subscription), so there is no profile dir to pass —
+# CODEX_HOME is always ~/.codex. auth.json exists only after `codex login`.
+# The address is normally a claim inside the id_token JWT rather than a plain
+# field, so fall through to decoding it. `codex login status` is no help: it
+# reports only the provider ("Logged in using ChatGPT"), never which account.
+function _cxd_account() {
+  local auth="$HOME/.codex/auth.json" email payload
+  [[ -f "$auth" ]] || { print -r -- "logged out"; return }
+  email=$(jq -r '[.. | objects | select(has("email")) | .email] | first // empty' "$auth" 2>/dev/null)
+  if [[ -z "$email" ]]; then
+    payload=$(jq -r '.tokens.id_token // empty' "$auth" 2>/dev/null | cut -d. -f2)
+    [[ -n "$payload" ]] && email=$(printf '%s' "$payload" | tr '_-' '/+' \
+      | awk '{ while (length($0) % 4) $0 = $0 "="; print }' \
+      | base64 -d 2>/dev/null \
+      | jq -r '[.. | objects | select(has("email")) | .email] | first // empty' 2>/dev/null)
+  fi
+  print -r -- "${email:-signed in}"
+}
+
+function _agent_label_claude() { print -r -- "Claude · $(_ccd_account "$1")"; }
+function _agent_label_codex()  { print -r -- "Codex · $(_cxd_account)"; }
+
+# Pin a terminal title for as long as an agent CLI runs. Shared by both families
+# so this loop exists once. The label is re-resolved every ~5s so it corrects
+# itself after an in-session login.
+function _agent_title() {
+  local labeler="$1" arg="$2"; shift 2
   (
     local label="" tick=0
     while true; do
-      # Re-resolve periodically so the title self-corrects after a /login.
-      (( tick % 5 == 0 )) && label="Claude · $(_ccd_account "$dir")"
+      (( tick % 5 == 0 )) && label="$("$labeler" "$arg")"
       printf '\033]0;%s\007' "$label" > /dev/tty 2>/dev/null
       (( tick++ ))
       sleep 1
@@ -138,7 +161,7 @@ function _ccd_title() {
 # spelled out in more than one place.
 function _ccd_run() {
   local dir="$1"; shift
-  _ccd_title "$dir" env CLAUDE_CONFIG_DIR="$dir" claude --dangerously-skip-permissions "$@"
+  _agent_title _agent_label_claude "$dir" env CLAUDE_CONFIG_DIR="$dir" claude --dangerously-skip-permissions "$@"
 }
 function ccd()  { _ccd_run "$HOME/.claude-personal" "$@"; }
 function ccds() { _ccd_run "$HOME/.claude-school"   "$@"; }
@@ -146,6 +169,24 @@ function ccdw() { _ccd_run "$HOME/.claude-work"     "$@"; }
 function ccdr()  { ccd  --resume "$@"; }
 function ccdrs() { ccds --resume "$@"; }
 function ccdrw() { ccdw --resume "$@"; }
+
+# --- Codex, mirroring the ccd family ---
+#
+# --dangerously-bypass-approvals-and-sandbox is Codex's counterpart to Claude's
+# --dangerously-skip-permissions: the FULL bypass. It is not --full-auto and not
+# `--ask-for-approval never`; both of those still confine the run to the sandbox.
+#
+# Codex resumes via a SUBCOMMAND, not a flag: bare `resume` opens the session
+# picker, `--last` continues the most recent. The bypass flag is accepted ahead
+# of a subcommand, so one runner covers every variant.
+function _cxd_run() {
+  _agent_title _agent_label_codex "" codex --dangerously-bypass-approvals-and-sandbox "$@"
+}
+function cxd()   { _cxd_run "$@"; }
+function cxdr()  { _cxd_run resume "$@"; }         # session picker
+function cxdrl() { _cxd_run resume --last "$@"; }  # most recent, no picker
+# The Subconscious gateway survives as a dormant profile in ~/.codex/config.toml.
+function cxdsub() { _cxd_run --profile subconscious "$@"; }
 
 # Claude Code against a locally-served model, via ~/.local/bin/claude-local.
 #
