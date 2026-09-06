@@ -255,8 +255,20 @@ function cxl() {
 # cannot think is rejected outright by Ollama ("does not support thinking") —
 # llama3.2 fails this way, the qwen3.x family does not. Pick a thinking model
 # for local work, or override per-run with -c model_reasoning_effort=none.
-function cxlr()  { cxl resume "$@"; }         # session picker
-function cxlrl() { cxl resume --last "$@"; }  # most recent, no picker
+# cxlr/cxlrl must HOIST a leading -m/--model ahead of the injected `resume`.
+# Without this the subcommand lands in $1, cxl's own -m parser never sees the
+# flag, and it is forwarded to codex after the subcommand where it means
+# something else entirely — so `cxlr -m <tag>` silently ran the default model
+# while the completion cheerfully offered tags for it.
+function _cxl_resume() {
+  local last="$1"; shift
+  local -a m
+  if [[ "$1" == "-m" || "$1" == "--model" ]]; then m=("$1" "$2"); shift 2; fi
+  if [[ "$last" == 1 ]]; then cxl "${m[@]}" resume --last "$@"
+  else                        cxl "${m[@]}" resume "$@"; fi
+}
+function cxlr()  { _cxl_resume 0 "$@"; }  # session picker
+function cxlrl() { _cxl_resume 1 "$@"; }  # most recent, no picker
 
 # Claude's side of the same pair, named for symmetry with the cx*/cc* families.
 # claude-local takes -m to override per-run; with no flags it reads the same
