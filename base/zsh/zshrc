@@ -233,9 +233,15 @@ function cxl() {
   ctx=$(ollama show "$model" 2>/dev/null | awk '$1=="num_ctx" {print $2; exit}')
   [[ -n "$ctx" ]] && ctxargs=(-c "model_context_window=$ctx" \
                               -c "model_auto_compact_token_limit=$(( ctx * 85 / 100 ))")
+  # CODEX_HOME is swapped to a stripped local profile, the same reason
+  # claude-local points at ~/.claude-local: it carries no MCP servers, so the
+  # prompt stays short. A local model re-pays every system-prompt token on every
+  # turn, and the cloud config's blender server alone doubled a trivial round
+  # trip from ~8k to ~16k tokens.
   _agent_title _agent_label_codex_local "$model" \
-    codex --oss --local-provider ollama -m "$model" "${ctxargs[@]}" \
-      --dangerously-bypass-approvals-and-sandbox "$@"
+    env CODEX_HOME="$HOME/.codex-local" \
+      codex --oss --local-provider ollama -m "$model" "${ctxargs[@]}" \
+        --dangerously-bypass-approvals-and-sandbox "$@"
 }
 # NOTE: config.toml sets model_reasoning_effort = "max", so a local model that
 # cannot think is rejected outright by Ollama ("does not support thinking") —

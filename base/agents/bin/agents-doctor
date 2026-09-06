@@ -65,6 +65,19 @@ command -v claude       >/dev/null 2>&1 && ok "claude installed"       || bad "c
 command -v claude-local >/dev/null 2>&1 && ok "claude-local on PATH"   || bad "claude-local missing" "cd ~/dotfiles && ./apply.sh"
 command -v codex        >/dev/null 2>&1 && ok "codex installed"        || bad "codex missing"        "npm i -g @openai/codex"
 
+# cxl runs against a SEPARATE codex home with no MCP servers. Without it, cxl
+# falls back to the cloud profile and every local turn re-pays for tool
+# definitions it cannot use offline.
+if [[ -f "$HOME/.codex-local/config.toml" ]]; then
+  if grep -q "mcp_servers" "$HOME/.codex-local/config.toml" 2>/dev/null; then
+    bad "~/.codex-local declares MCP servers (defeats the point)" "check base/codex/local-config.toml"
+  else
+    ok "codex local profile present, no MCP servers"
+  fi
+else
+  bad "~/.codex-local/config.toml missing (cxl would use the cloud profile)" "cd ~/dotfiles && ./apply.sh"
+fi
+
 # Codex reaches ollama over the Responses API, a different route than
 # claude-local's Anthropic /v1/messages. Check the one codex actually uses.
 if curl -s -o /dev/null --max-time 5 -X POST "$HOST/v1/responses" -H 'Content-Type: application/json' -d '{}' 2>/dev/null; then
