@@ -465,6 +465,15 @@
     <div class="keys"><code>cxl -m &lt;tag&gt;</code> / <code>ccl -m &lt;tag&gt;</code></div><div class="desc-cell">Use a different model for <em>this run only</em> — the shared default is untouched</div>
   </div>
 
+  <h3>Which local model</h3>
+  <div class="grid">
+    <div class="keys"><code>qwen3.6:35b-a3b</code></div><div class="desc-cell"><strong>Default.</strong> Sparse MoE, ~3B active per token — fast enough for many-turn tool calling</div>
+    <div class="keys"><code>qwen3.8:27b</code></div><div class="desc-cell">Newer and dense. Measured <strong>9.4&times; slower</strong> at the same tool call (423s vs 45s), with no better answer. Reach for it with <code>-m</code> when quality matters more than latency</div>
+  </div>
+  <p class="desc">Newer is not faster here: a sparse MoE activates a fraction of its parameters
+     per token, so the nominally larger 35B-A3B beats the dense 27B badly on agentic work,
+     which is mostly many short tool-calling turns.</p>
+
   <p class="desc">All of these tab-complete. Both offline commands read one shared file,
      <code>~/.claude-local/model</code>, so <code>claude-local-setup</code> switches Claude and Codex together.
      They run the derived <code>-cc</code> tag, never the base one — Ollama serves every tag at 4096 tokens
