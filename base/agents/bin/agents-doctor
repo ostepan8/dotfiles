@@ -86,6 +86,30 @@ if curl -s -o /dev/null --max-time 5 -X POST "$HOST/v1/responses" -H 'Content-Ty
   else ok "ollama Responses API present (codex --oss route)"; fi
 fi
 
+# Skills reach both offline profiles through symlink farms into ~/.agents/skills.
+# A dangling farm is the nastiest failure here: the directory still lists 56
+# entries, so nothing looks wrong until a skill is actually needed and the agent
+# quietly cannot read it — offline, with no way to look up why.
+for prof in "$HOME/.claude-local/skills" "$HOME/.codex-local/skills"; do
+  short="${prof/#$HOME/~}"
+  if [[ -d "$prof" ]]; then
+    # Skip hidden entries: codex maintains its own .system skills directory
+    # inside CODEX_HOME/skills, so counting it would make the two profiles
+    # report different totals for no reason a reader could act on.
+    total=$(find "$prof" -maxdepth 1 -mindepth 1 ! -name '.*' | wc -l | tr -d ' ')
+    broken=$(find "$prof" -maxdepth 1 -mindepth 1 ! -name '.*' -type l ! -exec test -e {} \; -print 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$total" -eq 0 ]]; then
+      bad "$short is empty" "cd ~/dotfiles && ./apply.sh"
+    elif [[ "$broken" -gt 0 ]]; then
+      bad "$short has $broken dangling link(s) of $total" "cd ~/dotfiles && ./apply.sh   # and check ~/.agents/skills exists"
+    else
+      ok "$short: $total skills, none dangling"
+    fi
+  else
+    bad "$short missing" "cd ~/dotfiles && ./apply.sh"
+  fi
+done
+
 # A thinking-capable model is required: config.toml sets reasoning effort to max,
 # and ollama rejects a model that cannot think.
 if [[ -n "$base" ]] && [[ "$base" != qwen3* ]]; then
