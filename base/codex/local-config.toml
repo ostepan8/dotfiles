@@ -1,0 +1,28 @@
+# CODEX_HOME for LOCAL/offline runs (cxl). Mirrors why ~/.claude-local exists.
+#
+# The point of a separate home is what is NOT here: no MCP servers. The blender
+# server alone adds 18 tool definitions to the system prompt, and a local model
+# has no server-side prompt caching — every system-prompt token is paid again on
+# every single turn. Measured on qwen3.6:35b-a3b-cc, a trivial round trip costs
+# ~8k tokens against this config and ~16k against the full ~/.codex one.
+#
+# It also keeps local sessions, history and rollouts out of the cloud profile,
+# so `cxdr` and `cxlr` do not offer each other's sessions in the picker.
+#
+# Auth is deliberately absent: --oss talks to Ollama and needs no credentials,
+# which is exactly what makes this work on a plane.
+
+model_reasoning_effort = "max"
+
+# Same as the cloud config: one instruction file per repo feeds both harnesses.
+project_doc_fallback_filenames = ["CLAUDE.md"]
+
+[features]
+apps = false
+plugins = false
+
+[apps._default]
+enabled = false
+
+[projects."/Users/ostepan"]
+trust_level = "trusted"
