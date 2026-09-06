@@ -208,6 +208,27 @@ function _local_model() {
 }
 function _agent_label_codex_local() { print -r -- "Codex · local · $1"; }
 
+# claude-local starts Ollama for you when it is not answering (cl_ensure_server);
+# cxl must do the same or the two halves of the offline setup behave differently
+# on exactly the morning you have no signal to look up why. Same strategy: open
+# the app on macOS, otherwise background the server, then wait for it.
+function _ensure_ollama() {
+  local host="${CLAUDE_LOCAL_HOST:-http://localhost:11434}" i
+  curl -fsS --max-time 2 "$host/api/tags" >/dev/null 2>&1 && return 0
+  print -u2 "cxl: Ollama not responding at $host — starting it"
+  if [[ "$(uname -s)" == "Darwin" && -d /Applications/Ollama.app ]]; then
+    open -a Ollama
+  else
+    (ollama serve >/dev/null 2>&1 &)
+  fi
+  for i in {1..30}; do
+    curl -fsS --max-time 2 "$host/api/tags" >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  print -u2 "cxl: Ollama still unreachable at $host after 30s"
+  return 1
+}
+
 # Codex against the local model. --oss selects the OSS provider path, which for
 # ollama speaks the Responses API on :11434 (NOT the Anthropic /v1/messages
 # route claude-local uses — the two CLIs reach the same server by different
@@ -225,6 +246,7 @@ function cxl() {
       print -u2 "cxl: no local model set — run: claude-local-setup <tag>"; return 1
     }
   fi
+  _ensure_ollama || return 1
   ollama show "$model" >/dev/null 2>&1 || {
     print -u2 "cxl: '$model' is not built — run: claude-local-setup ${model%-cc}"; return 1
   }
