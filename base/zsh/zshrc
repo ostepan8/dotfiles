@@ -338,6 +338,14 @@ _ccd_family() {
 }
 compdef _ccd_family ccd ccds ccdw ccdr ccdrs ccdrw
 
+# agents-doctor takes only --deep/--help; without a spec zsh offers filenames.
+_agents_doctor() {
+  _arguments -S \
+    '--deep[also make one real round trip per harness (slow)]' \
+    '(-h --help)'{-h,--help}'[usage]'
+}
+compdef _agents_doctor agents-doctor
+
 # `claude-local <TAB>` -> its own flags, and installed Ollama tags after -m.
 # Without a spec, fzf-tab falls back to filename completion and offers the
 # whole home directory, which is never the answer to "which model?".

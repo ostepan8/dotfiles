@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+#
+# agents-doctor — is this machine ready to run agents with NO network?
+#
+# Run it before boarding. Every check that fails prints the exact command that
+# fixes it, because the whole point is that you cannot look anything up once
+# you are offline.
+#
+#   agents-doctor          fast structural checks only (~1s)
+#   agents-doctor --deep   also does one real round trip per harness (slow:
+#                          loads the model, can take minutes on first run)
+set -uo pipefail
+
+DEEP=0
+[[ "${1:-}" == "--deep" ]] && DEEP=1
+[[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
+
+HOST="${CLAUDE_LOCAL_HOST:-http://localhost:11434}"
+STATE="${CLAUDE_LOCAL_STATE:-$HOME/.claude-local/model}"
+pass=0; fail=0
+ok()   { printf '  \033[32mOK\033[0m    %s\n' "$1"; pass=$((pass+1)); }
+bad()  { printf '  \033[31mFAIL\033[0m  %s\n'   "$1"; [[ -n "${2:-}" ]] && printf '        fix: %s\n' "$2"; fail=$((fail+1)); }
+note() { printf '        %s\n' "$1"; }
+
+echo "== offline agent readiness =="
+
+# --- the server ---
+if command -v ollama >/dev/null 2>&1; then ok "ollama installed"
+else bad "ollama missing" "brew install ollama"; fi
+
+if curl -s --max-time 5 "$HOST/api/version" >/dev/null 2>&1; then
+  ok "ollama server responding ($HOST)"
+else
+  bad "ollama server not responding at $HOST" "open -a Ollama   # or: ollama serve &"
+fi
+
+# --- the model ---
+base=""
+if [[ -r "$STATE" ]]; then
+  base="$(cat "$STATE" 2>/dev/null)"; base="${base%-cc}"
+fi
+if [[ -n "$base" ]]; then ok "local model selected: $base"
+else bad "no local model selected" "claude-local-setup <tag>   # e.g. qwen3.8:27b"; fi
+
+if [[ -n "$base" ]] && ollama show "$base" >/dev/null 2>&1; then
+  ok "base weights present: $base"
+elif [[ -n "$base" ]]; then
+  bad "base weights missing: $base" "ollama pull $base"
+fi
+
+# The derived sibling is the one both harnesses actually run. Without it Ollama
+# serves at num_ctx=4096 and every agent silently truncates its own prompt.
+derived="${base:+${base}-cc}"
+ctx=""
+if [[ -n "$derived" ]] && ollama show "$derived" >/dev/null 2>&1; then
+  ctx="$(ollama show "$derived" 2>/dev/null | awk '$1=="num_ctx"{print $2;exit}')"
+  if [[ -n "$ctx" && "$ctx" -gt 4096 ]]; then ok "context sibling built: $derived (num_ctx=$ctx)"
+  else bad "$derived has no usable num_ctx (${ctx:-unset})" "claude-local-setup $base"; fi
+elif [[ -n "$base" ]]; then
+  bad "context sibling missing: $derived" "claude-local-setup $base"
+fi
+
+# --- the harnesses ---
+command -v claude       >/dev/null 2>&1 && ok "claude installed"       || bad "claude missing"       "see claude.com/code"
+command -v claude-local >/dev/null 2>&1 && ok "claude-local on PATH"   || bad "claude-local missing" "cd ~/dotfiles && ./apply.sh"
+command -v codex        >/dev/null 2>&1 && ok "codex installed"        || bad "codex missing"        "npm i -g @openai/codex"
+
+# Codex reaches ollama over the Responses API, a different route than
+# claude-local's Anthropic /v1/messages. Check the one codex actually uses.
+if curl -s -o /dev/null --max-time 5 -X POST "$HOST/v1/responses" -H 'Content-Type: application/json' -d '{}' 2>/dev/null; then
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST "$HOST/v1/responses" -H 'Content-Type: application/json' -d '{}' 2>/dev/null)
+  if [[ "$code" == "404" ]]; then bad "ollama has no /v1/responses (codex --oss needs it)" "upgrade ollama"
+  else ok "ollama Responses API present (codex --oss route)"; fi
+fi
+
+# A thinking-capable model is required: config.toml sets reasoning effort to max,
+# and ollama rejects a model that cannot think.
+if [[ -n "$base" ]] && [[ "$base" != qwen3* ]]; then
+  note "warning: '$base' may not support thinking; codex sets reasoning effort max."
+  note "         qwen3.x works. Override per run: -c model_reasoning_effort=none"
+fi
+
+# --- optional real round trips ---
+if [[ "$DEEP" == 1 && -n "$derived" ]]; then
+  echo "  -- deep: one real call per harness (slow) --"
+  cargs=(-c "model_context_window=${ctx:-65536}")
+  if timeout 420 codex --oss --local-provider ollama -m "$derived" "${cargs[@]}" \
+       --dangerously-bypass-approvals-and-sandbox exec "Reply with exactly: PONG" </dev/null 2>&1 | grep -q PONG
+  then ok "codex round trip"; else bad "codex round trip failed" "cxl   # and read the error"; fi
+
+  if timeout 420 claude-local -p "Reply with exactly: PONG" </dev/null 2>&1 | grep -q PONG
+  then ok "claude-local round trip"; else bad "claude-local round trip failed" "claude-local   # and read the error"; fi
+fi
+
+echo "== pass=$pass fail=$fail =="
+[[ "$fail" -eq 0 ]] || exit 1
