@@ -439,6 +439,37 @@
   </div>
 </section>
 
+<!-- ------------------------------- AGENTS ---------------------------------- -->
+<section id="agents">
+  <h2><span class="emoji">🤖</span>Agents</h2>
+  <p class="desc">Two harnesses, same shape. <code>cc*</code> is Claude Code, <code>cx*</code> is Codex.
+     Anything ending in <code>l</code> runs against the <strong>local</strong> model and works with no network.</p>
+
+  <h3>Cloud</h3>
+  <div class="grid">
+    <div class="keys"><code>ccd</code> / <code>ccds</code> / <code>ccdw</code></div><div class="desc-cell">Claude — personal / school / work account</div>
+    <div class="keys"><code>ccdr</code> / <code>ccdrs</code> / <code>ccdrw</code></div><div class="desc-cell">…same three, resuming the last session</div>
+    <div class="keys"><code>cxd</code></div><div class="desc-cell">Codex on the subscription</div>
+    <div class="keys"><code>cxdr</code> / <code>cxdrl</code></div><div class="desc-cell">Codex resume — session picker / most recent</div>
+    <div class="keys"><code>cxdsub</code></div><div class="desc-cell">Codex via the Subconscious gateway profile</div>
+  </div>
+
+  <h3>Offline (local model)</h3>
+  <div class="grid">
+    <div class="keys"><code>ccl</code></div><div class="desc-cell">Claude Code against the local model</div>
+    <div class="keys"><code>cxl</code></div><div class="desc-cell">Codex against the local model</div>
+    <div class="keys"><code>cxlr</code> / <code>cxlrl</code></div><div class="desc-cell">…resuming — picker / most recent</div>
+    <div class="keys"><code>agents-doctor</code></div><div class="desc-cell"><strong>Run before boarding.</strong> Checks everything offline needs; each failure prints its own fix</div>
+    <div class="keys"><code>agents-doctor --deep</code></div><div class="desc-cell">…and makes one real call per harness (slow)</div>
+    <div class="keys"><code>claude-local-setup &lt;tag&gt;</code></div><div class="desc-cell">Install a model and make it the default for <em>both</em> harnesses</div>
+  </div>
+
+  <p class="desc">All of these tab-complete. Both offline commands read one shared file,
+     <code>~/.claude-local/model</code>, so <code>claude-local-setup</code> switches Claude and Codex together.
+     They run the derived <code>-cc</code> tag, never the base one — Ollama serves every tag at 4096 tokens
+     otherwise, which silently truncates the agent's own prompt and just looks like a dumb model.</p>
+</section>
+
 <!-- ------------------------------- CHROME ---------------------------------- -->
 <section id="chrome">
   <h2><span class="emoji">🌐</span>Chrome tabs</h2>
