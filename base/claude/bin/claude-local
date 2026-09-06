@@ -29,6 +29,10 @@
 #      rules, keeping the system prompt short. A local model has slow prefill
 #      and no server-side prompt caching, so every system-prompt token is paid
 #      for again on every single turn.
+#      Skills ARE installed here, unlike the above: measured at +274 tokens for
+#      all 56 (3124 -> 3398), which is 0.4% of a 65536 window and worth it to
+#      have them offline. MCP servers are the expensive ones — the blender
+#      server alone doubled a codex round trip from ~8k to ~16k.
 #
 # Only -m/-l/-h have short forms, and the model-selection flags are otherwise
 # long-only on purpose: claude itself already uses -c, -d, -n, -p, -r, -v and
