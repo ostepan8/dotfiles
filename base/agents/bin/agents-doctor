@@ -96,13 +96,27 @@ fi
 # --- optional real round trips ---
 if [[ "$DEEP" == 1 && -n "$derived" ]]; then
   echo "  -- deep: one real call per harness (slow) --"
+  # Capture, THEN match. Piping into `grep -q` looks natural and is wrong here:
+  # grep exits the moment it matches, the agent gets SIGPIPE, and `set -o
+  # pipefail` turns that into a failed pipeline — so a perfectly good round trip
+  # reports FAIL. (Same trap as _tree_differs in lib/engine.sh.) `|| true`
+  # because a non-zero exit is not itself the signal; the transcript is.
   cargs=(-c "model_context_window=${ctx:-65536}")
-  if timeout 420 codex --oss --local-provider ollama -m "$derived" "${cargs[@]}" \
-       --dangerously-bypass-approvals-and-sandbox exec "Reply with exactly: PONG" </dev/null 2>&1 | grep -q PONG
-  then ok "codex round trip"; else bad "codex round trip failed" "cxl   # and read the error"; fi
+  # CODEX_HOME must match what cxl actually uses, or this checks the cloud
+  # profile — a different config, with MCP servers cxl deliberately drops.
+  out="$(CODEX_HOME="$HOME/.codex-local" timeout 420 codex --oss --local-provider ollama \
+          -m "$derived" "${cargs[@]}" --dangerously-bypass-approvals-and-sandbox \
+          exec "Reply with exactly: PONG" </dev/null 2>&1 || true)"
+  case "$out" in *PONG*) ok "codex round trip" ;;
+    *) bad "codex round trip failed" "cxl   # and read the error"
+       note "last line: $(printf '%s' "$out" | tail -1 | cut -c1-70)" ;;
+  esac
 
-  if timeout 420 claude-local -p "Reply with exactly: PONG" </dev/null 2>&1 | grep -q PONG
-  then ok "claude-local round trip"; else bad "claude-local round trip failed" "claude-local   # and read the error"; fi
+  out="$(timeout 420 claude-local -p "Reply with exactly: PONG" </dev/null 2>&1 || true)"
+  case "$out" in *PONG*) ok "claude-local round trip" ;;
+    *) bad "claude-local round trip failed" "claude-local   # and read the error"
+       note "last line: $(printf '%s' "$out" | tail -1 | cut -c1-70)" ;;
+  esac
 fi
 
 echo "== pass=$pass fail=$fail =="
