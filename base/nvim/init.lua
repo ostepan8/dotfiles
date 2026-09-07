@@ -391,15 +391,15 @@ require("lazy").setup({
         -- Paints a rasterized PDF page (and any other image) into the terminal
         -- over the Kitty graphics protocol, which Ghostty implements. Only the
         -- `gi` image view needs this; the text view below works without it, so
-        -- this is loaded on demand and skipped entirely on a terminal that
-        -- cannot draw pixels (a plain ssh session, Terminal.app, a CI runner) —
-        -- where it would otherwise emit escape garbage into the buffer.
+        -- it loads on demand, and not at all where there is provably no
+        -- terminal to draw into (a headless run, TERM=dumb). Anything less
+        -- certain than that still loads: skipping on "I could not tell" is how
+        -- a perfectly capable setup ends up silently without images.
         {
                 "3rd/image.nvim",
                 ft = { "pdf" },
                 cond = function()
-                        local capable = require("pdfview.deps").graphics_capable()
-                        return capable
+                        return require("pdfview.deps").graphics_possible()
                 end,
                 opts = {
                         backend = "kitty",

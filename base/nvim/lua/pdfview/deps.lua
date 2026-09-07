@@ -68,19 +68,92 @@ function M.have(name)
   return false
 end
 
---- Terminals that speak the Kitty graphics protocol, which is what image.nvim
---- uses to actually paint pixels. Ghostty and Kitty both set TERM_PROGRAM.
---- @return boolean ok, string|nil reason
-function M.graphics_capable()
-  local program = (vim.env.TERM_PROGRAM or ""):lower()
-  if program:find("ghostty") or program:find("kitty") or program:find("wezterm") then
-    return true
+-- Terminals that implement the Kitty graphics protocol, which is what
+-- image.nvim uses to actually paint pixels.
+local GRAPHICS_TERMINALS = { "ghostty", "kitty", "wezterm" }
+
+local function names_a_graphics_terminal(value)
+  value = (value or ""):lower()
+  for _, name in ipairs(GRAPHICS_TERMINALS) do
+    if value:find(name, 1, true) then return true end
   end
-  if vim.env.KITTY_WINDOW_ID or vim.env.GHOSTTY_RESOURCES_DIR then
-    return true
+  return false
+end
+
+--- Classify a terminal from the identifying values available to us.
+---
+--- Three-valued on purpose. "unknown" is not a polite "no": most of the
+--- evidence here is circumstantial, and treating "I could not tell" as "no"
+--- is what silently disables the image view on a perfectly capable terminal.
+---
+--- @param env table { term, term_program, kitty, ghostty, tmux, tmux_client_term }
+--- @return string status "yes" | "no" | "unknown"
+--- @return string detail human-readable justification
+function M.classify_terminal(env)
+  if not env.term or env.term == "" or env.term == "dumb" then
+    return "no", "TERM is unset or dumb — this is not an interactive terminal"
   end
-  return false, ("this terminal (TERM_PROGRAM=%s) may not support the Kitty graphics protocol")
-    :format(vim.env.TERM_PROGRAM or "unset")
+
+  -- Inside tmux the inner values describe TMUX, not the terminal you are
+  -- looking at: TERM becomes tmux-256color and TERM_PROGRAM becomes "tmux".
+  -- Worse, tmux's global environment keeps whatever started the SERVER, which
+  -- for a session restored at boot is some other terminal entirely. The
+  -- attached client's own termname is the only honest answer.
+  if env.tmux then
+    if names_a_graphics_terminal(env.tmux_client_term) then
+      return "yes", ("tmux client is %s"):format(env.tmux_client_term)
+    end
+    if env.tmux_client_term and env.tmux_client_term ~= "" then
+      return "unknown", ("tmux client reports TERM=%s, which does not name a known "
+        .. "graphics terminal"):format(env.tmux_client_term)
+    end
+    return "unknown", "could not ask tmux which terminal is attached"
+  end
+
+  if env.ghostty or env.kitty then
+    return "yes", "the terminal exported its own marker variable"
+  end
+  if names_a_graphics_terminal(env.term_program) then
+    return "yes", ("TERM_PROGRAM=%s"):format(env.term_program)
+  end
+  if names_a_graphics_terminal(env.term) then
+    return "yes", ("TERM=%s"):format(env.term)
+  end
+
+  return "unknown", ("TERM=%s TERM_PROGRAM=%s names no known graphics terminal"):format(
+    env.term, env.term_program or "unset")
+end
+
+--- Ask tmux which terminal is attached to this client.
+--- @return string|nil
+local function tmux_client_term()
+  if vim.fn.executable("tmux") ~= 1 then return nil end
+  local out = vim.fn.system({ "tmux", "display-message", "-p", "#{client_termname}" })
+  if vim.v.shell_error ~= 0 then return nil end
+  local term = vim.trim(out)
+  return term ~= "" and term or nil
+end
+
+--- Can this terminal paint images?
+--- @return string status "yes" | "no" | "unknown"
+--- @return string detail
+function M.graphics()
+  return M.classify_terminal({
+    term = vim.env.TERM,
+    term_program = vim.env.TERM_PROGRAM,
+    kitty = vim.env.KITTY_WINDOW_ID ~= nil,
+    ghostty = vim.env.GHOSTTY_RESOURCES_DIR ~= nil,
+    tmux = vim.env.TMUX ~= nil,
+    tmux_client_term = vim.env.TMUX and tmux_client_term() or nil,
+  })
+end
+
+--- Should the image plugin be loaded at all? Only "no" — a positively
+--- identified non-terminal — is worth skipping it for. Refusing to load on
+--- "unknown" is how a working setup ends up silently without images.
+--- @return boolean
+function M.graphics_possible()
+  return M.graphics() ~= "no"
 end
 
 --- Inside tmux, image passthrough is off unless it has been switched on.
@@ -104,9 +177,10 @@ function M.show()
   end
 
   lines[#lines + 1] = ""
-  local graphics, graphics_reason = M.graphics_capable()
-  lines[#lines + 1] = ("  [%s] terminal graphics"):format(graphics and "ok" or "--")
-  if not graphics then lines[#lines + 1] = "       " .. graphics_reason end
+  local graphics, graphics_detail = M.graphics()
+  local marks = { yes = "ok", unknown = "??", no = "--" }
+  lines[#lines + 1] = ("  [%s] terminal graphics"):format(marks[graphics])
+  lines[#lines + 1] = "       " .. graphics_detail
 
   local tmux, tmux_reason = M.tmux_ready()
   lines[#lines + 1] = ("  [%s] tmux passthrough"):format(tmux and "ok" or "--")
