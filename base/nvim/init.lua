@@ -383,6 +383,53 @@ require("lazy").setup({
                 end,
         },
 
+        -- PDF IMAGE RENDERING
+        -- Paints a rasterized PDF page (and any other image) into the terminal
+        -- over the Kitty graphics protocol, which Ghostty implements. Only the
+        -- `gi` image view needs this; the text view below works without it, so
+        -- this is loaded on demand and skipped entirely on a terminal that
+        -- cannot draw pixels (a plain ssh session, Terminal.app, a CI runner) —
+        -- where it would otherwise emit escape garbage into the buffer.
+        {
+                "3rd/image.nvim",
+                ft = { "pdf" },
+                cond = function()
+                        local capable = require("pdfview.deps").graphics_capable()
+                        return capable
+                end,
+                opts = {
+                        backend = "kitty",
+                        -- magick_cli shells out to the `magick` binary from
+                        -- `brew install imagemagick`. The alternative,
+                        -- magick_rock, needs a working LuaRocks toolchain built
+                        -- against ImageMagick headers — a dependency this
+                        -- config would then have to reproduce on every machine.
+                        processor = "magick_cli",
+                        -- Every integration off on purpose: this plugin is here
+                        -- to serve pdfview's `gi`, and silently changing how
+                        -- markdown or HTML buffers render is not what was asked
+                        -- for. Turn one on deliberately if you want it.
+                        integrations = {
+                                markdown = { enabled = false },
+                                asciidoc = { enabled = false },
+                                neorg = { enabled = false },
+                                rst = { enabled = false },
+                                typst = { enabled = false },
+                                html = { enabled = false },
+                                css = { enabled = false },
+                        },
+                        hijack_file_patterns = {},
+                        max_width_window_percentage = 100,
+                        max_height_window_percentage = 100,
+                        -- Images are drawn into a dedicated split; clearing them
+                        -- when another window overlaps keeps them from bleeding
+                        -- over telescope and cmp popups.
+                        window_overlap_clear_enabled = true,
+                        editor_only_render_when_focused = true,
+                        tmux_show_only_in_active_window = true,
+                },
+        },
+
         -- COMPETITIVE PROGRAMMING (testcase manager + Codeforces import)
         -- Runs your solution against stored testcases and shows pass/WA/TLE with
         -- a diff. `<leader>tc` imports samples from the browser via the
@@ -480,6 +527,17 @@ vim.keymap.set("n", "<C-h>", "<C-w>h", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-j>", "<C-w>j", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-k>", "<C-w>k", { noremap = true, silent = true })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { noremap = true, silent = true })
+
+-- ============================
+-- PDF READING
+-- ============================
+-- `nvim paper.pdf` opens the document's text, searchable and yankable like any
+-- other buffer, instead of a screenful of binary. ]p / [p walk pages, `gi`
+-- renders the current page as an actual image (figures, equations, tables),
+-- `go` hands it to Preview, and :PdfHealth says which of those are available
+-- on this machine. Implementation lives in lua/pdfview/, tested by
+-- base/nvim/tests/run.sh.
+require("pdfview").setup()
 
 -- ============================
 -- C++ COMPETITIVE PROGRAMMING
