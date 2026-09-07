@@ -7,7 +7,11 @@ vim.opt.expandtab = true
 vim.opt.smartindent = true
 vim.opt.number = true
 vim.opt.relativenumber = true
-vim.opt.termguicolors = false
+-- 24-bit color: gives treesitter + gruvbox their full rich palette (without
+-- this, nvim is capped at 256 colors and even active treesitter looks flat).
+-- Requires truecolor through the terminal — Ghostty sets COLORTERM=truecolor
+-- and tmux advertises it via `terminal-features ",*:RGB"`.
+vim.opt.termguicolors = true
 vim.opt.background = "dark"    -- or "light" if you prefer
 
 -- Use the macOS system clipboard for ALL yanks/deletes/pastes, so a plain
