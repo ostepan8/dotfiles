@@ -186,8 +186,10 @@ function M.show(buf, path, page, cfg)
     return
   end
 
-  local graphics_ok, graphics_reason = deps.graphics_capable()
-  if not graphics_ok then util.warn(graphics_reason) end
+  -- Only a positive "no" is worth interrupting for. Warning on "unknown" would
+  -- fire on every render in any terminal we simply do not have a name for.
+  local graphics, graphics_detail = deps.graphics()
+  if graphics == "no" then util.warn(graphics_detail) end
   local tmux_ok, tmux_reason = deps.tmux_ready()
   if not tmux_ok then util.warn(tmux_reason) end
 

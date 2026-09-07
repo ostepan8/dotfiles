@@ -345,6 +345,79 @@ h.test("pdfview commands are not defined in an ordinary buffer", function()
   h.errors(function() vim.cmd("PdfPage 1") end, "PdfPage outside a pdf buffer")
 end)
 
+io.write("\nterminal graphics detection\n")
+
+local classify = require("pdfview.deps").classify_terminal
+
+h.test("a bare Ghostty session is recognised", function()
+  local status = classify({ term = "xterm-ghostty", term_program = "ghostty", ghostty = true })
+  h.eq(status, "yes", "status")
+end)
+
+h.test("Ghostty is recognised THROUGH tmux, via the attached client", function()
+  -- The bug this exists for: inside tmux, TERM is tmux-256color and
+  -- TERM_PROGRAM is "tmux", so sniffing them disables the image view on the
+  -- exact setup it was written for. tmux's own global environment is worse
+  -- still — it keeps whatever launched the server, which for a session
+  -- restored at boot is a completely different terminal.
+  local status, detail = classify({
+    term = "tmux-256color",
+    term_program = "tmux",
+    tmux = true,
+    tmux_client_term = "xterm-ghostty",
+  })
+  h.eq(status, "yes", "status")
+  h.contains(detail, "ghostty", "detail names the real terminal")
+end)
+
+h.test("kitty through tmux is recognised", function()
+  h.eq(classify({ term = "tmux-256color", tmux = true, tmux_client_term = "xterm-kitty" }),
+    "yes", "status")
+end)
+
+h.test("an unrecognised tmux client is unknown, never a flat no", function()
+  h.eq(classify({ term = "tmux-256color", tmux = true, tmux_client_term = "xterm-256color" }),
+    "unknown", "status")
+end)
+
+h.test("tmux that will not answer is unknown, not a flat no", function()
+  h.eq(classify({ term = "tmux-256color", tmux = true, tmux_client_term = nil }),
+    "unknown", "status")
+end)
+
+h.test("a headless run with no TERM is a definite no", function()
+  h.eq(classify({ term = nil }), "no", "unset")
+  h.eq(classify({ term = "" }), "no", "empty")
+  h.eq(classify({ term = "dumb" }), "no", "dumb")
+end)
+
+h.test("a plain xterm outside tmux is unknown, not a flat no", function()
+  h.eq(classify({ term = "xterm-256color", term_program = "Apple_Terminal" }),
+    "unknown", "status")
+end)
+
+h.test("the marker variable alone is enough outside tmux", function()
+  h.eq(classify({ term = "xterm-256color", kitty = true }), "yes", "KITTY_WINDOW_ID")
+  h.eq(classify({ term = "xterm-256color", ghostty = true }), "yes", "GHOSTTY_RESOURCES_DIR")
+end)
+
+h.test("classify always returns a detail string a human can act on", function()
+  for _, env in ipairs({
+    { term = "xterm-ghostty", ghostty = true },
+    { term = "tmux-256color", tmux = true, tmux_client_term = "xterm-256color" },
+    { term = "dumb" },
+  }) do
+    local _, detail = classify(env)
+    h.truthy(type(detail) == "string" and #detail > 0, "detail for " .. vim.inspect(env))
+  end
+end)
+
+h.test("the image plugin loads for anything but a definite no", function()
+  local deps = require("pdfview.deps")
+  h.truthy(deps.graphics_possible ~= nil, "graphics_possible exists")
+  h.eq(type(deps.graphics_possible()), "boolean", "returns a boolean")
+end)
+
 io.write("\nhealth\n")
 
 h.test("health reports on every external tool the feature needs", function()
