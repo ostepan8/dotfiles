@@ -468,6 +468,16 @@
   </div>
 
   <h3>Which local model</h3>
+  <p class="desc">Measured on this machine, both harnesses, tool use verified by
+     <em>side effect</em> (did the file appear) rather than by matching the model's words —
+     <code>codex exec</code> echoes the prompt, so grepping its transcript reports success
+     even for a run that errored.</p>
+  <div class="grid">
+    <div class="keys"><code>qwen3.6:35b-a3b</code></div><div class="desc-cell"><strong>Default.</strong> Works in both. Shell tool executed codex 3/3, claude 2/3. ~55s / ~99s</div>
+    <div class="keys"><code>qwen3.8:27b</code></div><div class="desc-cell">Works in both, but ~454s / ~798s — 9.4&times; slower on the same tool call. Use via <code>-m</code> when quality beats latency</div>
+    <div class="keys"><code>qwen2.5:7b-instruct</code></div><div class="desc-cell">Claude only (~240s). <strong>Codex rejects it</strong> — cannot think</div>
+    <div class="keys"><code>llama3.2:1b</code></div><div class="desc-cell"><strong>Not usable for agent work.</strong> Fails tool calling in both. Fine for a plain question</div>
+  </div>
   <div class="grid">
     <div class="keys"><code>qwen3.6:35b-a3b</code></div><div class="desc-cell"><strong>Default.</strong> Sparse MoE, ~3B active per token — fast enough for many-turn tool calling</div>
     <div class="keys"><code>qwen3.8:27b</code></div><div class="desc-cell">Newer and dense. Measured <strong>9.4&times; slower</strong> at the same tool call (423s vs 45s), with no better answer. Reach for it with <code>-m</code> when quality matters more than latency</div>
