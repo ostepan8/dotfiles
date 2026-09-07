@@ -10,6 +10,7 @@
       "~"
     ]
   },
+  "model": "opus[1m]",
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
@@ -19,7 +20,8 @@
     "everything-claude-code@everything-claude-code": true,
     "clangd-lsp@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
+    "vercel@claude-plugins-official": true,
+    "datadog@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "everything-claude-code": {
@@ -35,9 +37,9 @@
       }
     }
   },
-  "tui": "default",
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
+  "tui": "default",
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark",
   "agentPushNotifEnabled": true,
@@ -69,6 +71,5 @@
       "**Org-specific CLIs**: None configured",
       "routine under ostepan8/ prefix qualifiers: none corroborated — insufficient evidence to extend trust beyond the nephos repo itself"
     ]
-  },
-  "model": "sonnet"
+  }
 }
