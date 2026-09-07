@@ -25,6 +25,15 @@
 #      hold, putting us straight back into silent truncation.
 #      CLAUDE_CODE_MAX_CONTEXT_TOKENS pins it to what we actually built.
 #
+#      MAX_CONTEXT_TOKENS alone is NOT enough. Claude Code separately ENFORCES a
+#      conservative window on any model it does not recognise, and an Ollama tag
+#      is unrecognised by definition (it logs claude-code:unrecognized_model).
+#      That enforcement overrode the pin: a 3600-line, ~14k-token file failed
+#      outright with "Prompt is too long" against a 65536 window, while the same
+#      file through codex succeeded at 33k tokens. The enforcement exists for
+#      callers that cannot state the true window; this script states it one line
+#      above, so disabling it here is correct rather than merely convenient.
+#
 #   4. Config dir. ~/.claude-local carries no MCP servers, plugins or personal
 #      rules, keeping the system prompt short. A local model has slow prefill
 #      and no server-side prompt caching, so every system-prompt token is paid
@@ -190,5 +199,6 @@ exec env \
   ANTHROPIC_DEFAULT_SONNET_MODEL="$RUN_MODEL" \
   ANTHROPIC_DEFAULT_HAIKU_MODEL="$RUN_MODEL" \
   CLAUDE_CODE_MAX_CONTEXT_TOKENS="$CTX" \
+  CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT="1" \
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1" \
   claude --dangerously-skip-permissions ${claude_args[@]+"${claude_args[@]}"}
