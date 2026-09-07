@@ -463,6 +463,8 @@
     <div class="keys"><code>agents-doctor --deep</code></div><div class="desc-cell">…and makes one real call per harness (slow)</div>
     <div class="keys"><code>claude-local-setup &lt;tag&gt;</code></div><div class="desc-cell">Install a model and make it the default for <em>both</em> harnesses</div>
     <div class="keys"><code>cxl -m &lt;tag&gt;</code> / <code>ccl -m &lt;tag&gt;</code></div><div class="desc-cell">Use a different model for <em>this run only</em> — the shared default is untouched</div>
+    <div class="keys"><code>cxl -m</code> caveat</div><div class="desc-cell">Codex sets reasoning effort to max, so Ollama <strong>rejects</strong> a model that cannot think — <code>qwen2.5</code> and <code>llama3.2</code> fail with "does not support thinking". Use a qwen3.x tag. <code>ccl -m</code> has no such limit</div>
+    <div class="keys">large files</div><div class="desc-cell">A ~14k-token file is fine, but the 35B answers unreliably when asked to pull one line out of a 3600-line read. Prefer <code>grep</code>, or Codex, which handled the same file at 33k tokens</div>
   </div>
 
   <h3>Which local model</h3>
