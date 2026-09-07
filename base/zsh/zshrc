@@ -154,7 +154,11 @@ function _agent_title() {
   local _pid=$!
   "$@"
   kill $_pid 2>/dev/null
-  printf '\033]0;\007' > /dev/tty
+  # Guarded like the write inside the loop. Without 2>/dev/null this line emits
+  # "device not configured: /dev/tty" whenever there is no controlling terminal
+  # — running one of these wrappers from a script, a cron job, or any non-tty
+  # context printed a spurious error after an otherwise successful run.
+  printf '\033]0;\007' > /dev/tty 2>/dev/null
 }
 
 # Single definition of the per-profile launch, so a config dir is never
