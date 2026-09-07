@@ -72,3 +72,16 @@ alt - x : screencapture -c
 # need this: -i (interactive selection) already spans every attached display.
 alt - s : mkdir -p "$HOME/Screenshots"; f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; d=$(/opt/homebrew/bin/aerospace list-monitors --focused --format '%{monitor-id}' 2>/dev/null); { if [ -n "$d" ]; then screencapture -D "$d" "$f"; else screencapture "$f"; fi; } && printf '%s' "$f" | pbcopy
 alt + shift - s : mkdir -p "$HOME/Screenshots"; f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture -i "$f" && printf '%s' "$f" | pbcopy
+
+# ---------- Sketchybar ----------
+# Cmd+Opt+B → toggle the top bar (sketchybar) on/off. Because the bar is
+# topmost=on it covers the native macOS menu bar; hiding it reveals the native
+# menu bar (and its app menus / menu-bar apps) again.
+cmd + alt - b : if /opt/homebrew/bin/sketchybar --query bar | grep -q '"hidden": "off"'; then /opt/homebrew/bin/sketchybar --bar hidden=on; else /opt/homebrew/bin/sketchybar --bar hidden=off; fi
+
+# ---------- Aerospace ----------
+# Cmd+Opt+T → turn tiling off / back on. Windows from hidden workspaces get
+# placed back on the visible screen and macOS window management takes over.
+# This binding MUST live in skhd, not aerospace.toml: a disabled AeroSpace
+# stops intercepting key events, so it could never re-enable itself.
+cmd + alt - t : /opt/homebrew/bin/aerospace enable toggle
