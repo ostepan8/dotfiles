@@ -19,6 +19,14 @@ model_reasoning_effort = "max"
 # it enabled only invites the model to spend a turn discovering that.
 web_search = "disabled"
 
+# Startup network calls, all pointless with no signal and each one a chance to
+# hang or log an error before the first prompt. Verified accepted with
+# --strict-config rather than assumed.
+check_for_update_on_startup = false
+
+[analytics]
+enabled = false
+
 # Same as the cloud config: one instruction file per repo feeds both harnesses.
 project_doc_fallback_filenames = ["CLAUDE.md"]
 

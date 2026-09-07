@@ -49,6 +49,11 @@
 #      Ours is passed before the forwarded arguments, so an explicit
 #      --allowedTools on the command line still wins if you are online.
 #
+#   6. Startup network calls. The auto-updater, telemetry and error reporting
+#      all reach out before the first prompt. With no signal each is dead
+#      latency at best. NONESSENTIAL_TRAFFIC does not cover the updater, so
+#      they are named individually.
+#
 # Only -m/-l/-h have short forms, and the model-selection flags are otherwise
 # long-only on purpose: claude itself already uses -c, -d, -n, -p, -r, -v and
 # -w, and shadowing -c/--continue or -p/--print here would be a trap. Every
@@ -207,6 +212,9 @@ exec env \
   CLAUDE_CODE_MAX_CONTEXT_TOKENS="$CTX" \
   CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT="1" \
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1" \
+  DISABLE_AUTOUPDATER="1" \
+  DISABLE_TELEMETRY="1" \
+  DISABLE_ERROR_REPORTING="1" \
   claude --dangerously-skip-permissions \
     --disallowedTools "WebSearch,WebFetch" \
     ${claude_args[@]+"${claude_args[@]}"}
