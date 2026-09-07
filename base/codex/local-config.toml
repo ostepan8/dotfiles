@@ -14,6 +14,11 @@
 
 model_reasoning_effort = "max"
 
+# The cloud profile disables web search; the OFFLINE profile needs it off more,
+# and it was missing here. With no network the tool cannot succeed, so leaving
+# it enabled only invites the model to spend a turn discovering that.
+web_search = "disabled"
+
 # Same as the cloud config: one instruction file per repo feeds both harnesses.
 project_doc_fallback_filenames = ["CLAUDE.md"]
 

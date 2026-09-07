@@ -43,6 +43,12 @@
 #      have them offline. MCP servers are the expensive ones — the blender
 #      server alone doubled a codex round trip from ~8k to ~16k.
 #
+#   5. Network tools. WebSearch and WebFetch are exposed by default and cannot
+#      possibly work with no network, but the model does not know that: it will
+#      spend a turn calling one and interpreting the failure. Denied outright.
+#      Ours is passed before the forwarded arguments, so an explicit
+#      --allowedTools on the command line still wins if you are online.
+#
 # Only -m/-l/-h have short forms, and the model-selection flags are otherwise
 # long-only on purpose: claude itself already uses -c, -d, -n, -p, -r, -v and
 # -w, and shadowing -c/--continue or -p/--print here would be a trap. Every
@@ -201,4 +207,6 @@ exec env \
   CLAUDE_CODE_MAX_CONTEXT_TOKENS="$CTX" \
   CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT="1" \
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1" \
-  claude --dangerously-skip-permissions ${claude_args[@]+"${claude_args[@]}"}
+  claude --dangerously-skip-permissions \
+    --disallowedTools "WebSearch,WebFetch" \
+    ${claude_args[@]+"${claude_args[@]}"}
