@@ -33,6 +33,11 @@ brew "pyright"
 brew "llvm"
 brew "black"
 brew "clang-format"
+# html/cssls for nvim. Installed via brew, NOT `npm i -g`: nvm is lazy-loaded
+# through shell functions (see .zshrc), so ~/.nvm/.../bin is never on PATH and
+# nvim could not spawn an nvm-global binary.
+brew "vscode-langservers-extracted"
+brew "lua-language-server"
 
 # ---- Roblox / Luau dev ----
 # lune: standalone Luau runtime for running logic/tests outside Studio.
