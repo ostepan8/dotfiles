@@ -117,6 +117,8 @@ silently stops matching fails the run instead of reporting "clean".
 | lazygit | Git TUI |
 | git-delta | Better git diffs |
 | gh | GitHub CLI |
+| uv | Python package and tool runner (runs the Blender MCP server) |
+| blender | 3D creation suite with the Blender MCP add-on preinstalled |
 
 ## Zsh features
 

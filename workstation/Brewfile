@@ -25,6 +25,7 @@ brew "git-lfs"
 brew "tmux"
 brew "node"
 brew "python"
+brew "uv"
 brew "ripgrep"
 
 # ---- LSP servers & formatters ----
@@ -81,3 +82,4 @@ brew "displayplacer"
 cask "ghostty"
 cask "aerospace"
 cask "google-chrome"
+cask "blender"

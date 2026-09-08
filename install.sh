@@ -110,6 +110,12 @@ if [ "$OS" = "Darwin" ] && layer_active workstation; then
   echo "==> macOS defaults and services"
   bash "$DOTFILES/workstation/macos/defaults.sh"
 
+  echo "==> Blender MCP addon"
+  if ! uvx blender-mcp install-addon; then
+    echo "  ERROR: failed to install the Blender MCP addon" >&2
+    exit 1
+  fi
+
   for ext in command tool zsh bash; do
     duti -s com.mitchellh.ghostty ".$ext" all 2>/dev/null || true
   done
