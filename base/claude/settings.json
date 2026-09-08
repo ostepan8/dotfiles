@@ -2,7 +2,6 @@
   "skillListingBudgetFraction": 0.15,
   "env": {
     "NODE_USE_SYSTEM_CA": "1",
-    "NODE_EXTRA_CA_CERTS": "/Users/ostepan/system-roots.pem",
     "CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN": "1"
   },
   "permissions": {
@@ -21,7 +20,9 @@
     "clangd-lsp@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
     "vercel@claude-plugins-official": true,
-    "datadog@claude-plugins-official": true
+    "datadog@claude-plugins-official": true,
+    "taste-skill@taste-skill": true,
+    "playwright@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "everything-claude-code": {
@@ -34,6 +35,12 @@
       "source": {
         "source": "github",
         "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "taste-skill": {
+      "source": {
+        "source": "github",
+        "repo": "Leonxlnx/taste-skill"
       }
     }
   },
@@ -71,5 +78,6 @@
       "**Org-specific CLIs**: None configured",
       "routine under ostepan8/ prefix qualifiers: none corroborated — insufficient evidence to extend trust beyond the nephos repo itself"
     ]
-  }
+  },
+  "skipWorkflowUsageWarning": true
 }
