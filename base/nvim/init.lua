@@ -251,11 +251,37 @@ require("lazy").setup({
                                 end,
                         })
 
-                        local servers = { "pyright", "clangd", "ts_ls", "html", "cssls", "luau_lsp" }
+                        -- Per-server overrides, merged on top of the shared
+                        -- capabilities. lua_ls has to be told about the `vim`
+                        -- global and the nvim runtime, otherwise editing this
+                        -- very file lights up with "undefined global vim" on
+                        -- every line.
+                        local server_settings = {
+                                lua_ls = {
+                                        settings = {
+                                                Lua = {
+                                                        runtime = { version = "LuaJIT" },
+                                                        diagnostics = { globals = { "vim" } },
+                                                        workspace = {
+                                                                library = vim.api.nvim_get_runtime_file("", true),
+                                                                checkThirdParty = false,
+                                                        },
+                                                        telemetry = { enable = false },
+                                                },
+                                        },
+                                },
+                        }
+
+                        local servers = {
+                                "pyright", "clangd", "ts_ls", "html", "cssls",
+                                "luau_lsp", "lua_ls",
+                        }
                         for _, server in ipairs(servers) do
-                                vim.lsp.config(server, {
-                                        capabilities = capabilities,
-                                })
+                                vim.lsp.config(server, vim.tbl_deep_extend(
+                                        "force",
+                                        { capabilities = capabilities },
+                                        server_settings[server] or {}
+                                ))
                         end
                         vim.lsp.enable(servers)
                 end
