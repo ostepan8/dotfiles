@@ -146,12 +146,21 @@ require("lazy").setup({
                                 "python", "cpp", "lua", "luau", "vim", "vimdoc", "bash",
                                 "markdown", "markdown_inline", "json", "yaml", "javascript",
                                 "typescript", "tsx", "html", "css", "query",
+                                -- config formats + git buffers. gitcommit gives the
+                                -- subject/body split real highlighting (and marks the
+                                -- 50-col overflow) in every `git commit` buffer.
+                                "toml", "gitcommit", "gitignore", "git_rebase",
+                                "diff", "regex", "sql", "dockerfile",
                         })
 
                         -- Filetypes whose name differs from the parser (language) name.
                         vim.treesitter.language.register("tsx", "typescriptreact")
                         vim.treesitter.language.register("javascript", "javascriptreact")
                         vim.treesitter.language.register("bash", "sh")
+                        -- jsonc was dropped as its own parser upstream (nvim-treesitter
+                        -- warns "skipping unsupported language" if you ask for it);
+                        -- the json grammar handles comments fine.
+                        vim.treesitter.language.register("json", "jsonc")
 
                         vim.api.nvim_create_autocmd("FileType", {
                                 callback = function(args)
@@ -226,55 +235,97 @@ require("lazy").setup({
         {
                 "neovim/nvim-lspconfig",
                 dependencies = {
-                        "hrsh7th/cmp-nvim-lsp",
+                        -- blink supplies the client capabilities (it advertises
+                        -- snippet/resolve support the servers key off), so it has
+                        -- to be loaded before any server is configured.
+                        "saghen/blink.cmp",
+                        "folke/lazydev.nvim",
                 },
                 config = function()
-                        local capabilities = require("cmp_nvim_lsp").default_capabilities()
+                        local capabilities = require("blink.cmp").get_lsp_capabilities()
 
+                        -- Diagnostics render as a full virtual LINE under the cursor
+                        -- rather than virtual TEXT at the end of it: end-of-line text
+                        -- gets truncated at the window edge, which is exactly where
+                        -- the useful half of a clangd or pyright message lives.
+                        -- Only the current line is expanded, so the buffer doesn't
+                        -- reflow as you move around.
                         vim.diagnostic.config({
-                                virtual_text = true,
-                                signs = true,
+                                virtual_text = false,
+                                virtual_lines = { current_line = true },
                                 underline = true,
                                 update_in_insert = false,
                                 severity_sort = true,
+                                signs = {
+                                        text = {
+                                                [vim.diagnostic.severity.ERROR] = "E",
+                                                [vim.diagnostic.severity.WARN]  = "W",
+                                                [vim.diagnostic.severity.INFO]  = "I",
+                                                [vim.diagnostic.severity.HINT]  = "H",
+                                        },
+                                },
+                                float = { border = "rounded", source = true },
                         })
 
                         vim.api.nvim_create_autocmd("LspAttach", {
                                 callback = function(args)
                                         local o = { noremap = true, silent = true, buffer = args.buf }
                                         vim.keymap.set("n", "gd", vim.lsp.buf.definition, o)
+                                        vim.keymap.set("n", "gD", vim.lsp.buf.declaration, o)
+                                        vim.keymap.set("n", "gi", vim.lsp.buf.implementation, o)
+                                        vim.keymap.set("n", "gr", vim.lsp.buf.references, o)
                                         vim.keymap.set("n", "K", vim.lsp.buf.hover, o)
                                         vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, o)
                                         vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, o)
-                                        vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, o)
-                                        vim.keymap.set("n", "]d", vim.diagnostic.goto_next, o)
+                                        vim.keymap.set("n", "[d", function() vim.diagnostic.jump({ count = -1 }) end, o)
+                                        vim.keymap.set("n", "]d", function() vim.diagnostic.jump({ count = 1 }) end, o)
+
+                                        -- Inlay hints: inferred types and parameter
+                                        -- names rendered inline. On by default where
+                                        -- the server supports it; <leader>ih toggles
+                                        -- them per buffer when they get noisy.
+                                        local client = vim.lsp.get_client_by_id(args.data.client_id)
+                                        if client and client:supports_method("textDocument/inlayHint") then
+                                                vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
+                                                vim.keymap.set("n", "<leader>ih", function()
+                                                        local on = vim.lsp.inlay_hint.is_enabled({ bufnr = args.buf })
+                                                        vim.lsp.inlay_hint.enable(not on, { bufnr = args.buf })
+                                                end, vim.tbl_extend("force", o, { desc = "Toggle inlay hints" }))
+                                        end
                                 end,
                         })
 
                         -- Per-server overrides, merged on top of the shared
-                        -- capabilities. lua_ls has to be told about the `vim`
-                        -- global and the nvim runtime, otherwise editing this
-                        -- very file lights up with "undefined global vim" on
-                        -- every line.
+                        -- capabilities. lua_ls only needs to be told about the
+                        -- `vim` global here — lazydev.nvim supplies the runtime
+                        -- library lazily, which is far faster than pushing all of
+                        -- nvim_get_runtime_file() at it on every attach.
                         local server_settings = {
                                 lua_ls = {
                                         settings = {
                                                 Lua = {
                                                         runtime = { version = "LuaJIT" },
                                                         diagnostics = { globals = { "vim" } },
-                                                        workspace = {
-                                                                library = vim.api.nvim_get_runtime_file("", true),
-                                                                checkThirdParty = false,
-                                                        },
+                                                        workspace = { checkThirdParty = false },
                                                         telemetry = { enable = false },
+                                                        hint = { enable = true },
                                                 },
+                                        },
+                                },
+                                yamlls = {
+                                        settings = {
+                                                yaml = { keyOrdering = false },
                                         },
                                 },
                         }
 
                         local servers = {
-                                "pyright", "clangd", "ts_ls", "html", "cssls",
-                                "luau_lsp", "lua_ls",
+                                -- languages
+                                "pyright", "clangd", "ts_ls", "lua_ls", "luau_lsp",
+                                -- web
+                                "html", "cssls", "eslint",
+                                -- config + prose formats
+                                "jsonls", "yamlls", "taplo", "marksman", "bashls",
                         }
                         for _, server in ipairs(servers) do
                                 vim.lsp.config(server, vim.tbl_deep_extend(
@@ -287,65 +338,79 @@ require("lazy").setup({
                 end
         },
 
-        -- AUTOCOMPLETE
+        -- LUA DEV (nvim API types for lua_ls, loaded on demand)
         {
-                "hrsh7th/nvim-cmp",
-                dependencies = {
-                        "hrsh7th/cmp-nvim-lsp",
-                        "hrsh7th/cmp-buffer",
-                        "hrsh7th/cmp-path",
-                        "L3MON4D3/LuaSnip",
-                        "saadparwaiz1/cmp_luasnip",
+                "folke/lazydev.nvim",
+                ft = "lua",
+                opts = {
+                        library = {
+                                { path = "${3rd}/luv/library", words = { "vim%.uv" } },
+                        },
                 },
-                config = function()
-                        local cmp = require("cmp")
-                        local luasnip = require("luasnip")
+        },
 
-                        cmp.setup({
-                                snippet = {
-                                        expand = function(args)
-                                                luasnip.lsp_expand(args.body)
-                                        end,
+        -- AUTOCOMPLETE
+        -- blink.cmp replaces nvim-cmp + cmp-nvim-lsp/buffer/path/cmp_luasnip.
+        -- It re-ranks on every keystroke (~1ms) instead of nvim-cmp's 60ms
+        -- debounce, and the sources below are built in rather than five
+        -- separate plugins. Pinned to v1: v2 is mid-rewrite and moves
+        -- blink.lib out into a separate package.
+        {
+                "saghen/blink.cmp",
+                version = "1.*",
+                dependencies = { "L3MON4D3/LuaSnip" },
+                opts = {
+                        snippets = { preset = "luasnip" },
+
+                        -- Same bindings as the old nvim-cmp setup. Each entry
+                        -- falls through in order, so <Tab> selects the next item
+                        -- when the menu is open, otherwise jumps a snippet
+                        -- placeholder, otherwise inserts a literal tab.
+                        keymap = {
+                                preset = "none",
+                                ["<C-Space>"] = { "show", "show_documentation", "hide_documentation" },
+                                ["<C-e>"] = { "hide", "fallback" },
+                                ["<C-b>"] = { "scroll_documentation_up", "fallback" },
+                                ["<C-f>"] = { "scroll_documentation_down", "fallback" },
+                                ["<CR>"] = { "accept", "fallback" },
+                                ["<Tab>"] = { "select_next", "snippet_forward", "fallback" },
+                                ["<S-Tab>"] = { "select_prev", "snippet_backward", "fallback" },
+                        },
+
+                        completion = {
+                                -- preselect + no auto_insert reproduces nvim-cmp's
+                                -- confirm({ select = true }): <CR> takes the top item
+                                -- without it being typed into the buffer first.
+                                list = { selection = { preselect = true, auto_insert = false } },
+                                menu = { border = "rounded" },
+                                documentation = { auto_show = true, auto_show_delay_ms = 200 },
+                                ghost_text = { enabled = true },
+                        },
+                        signature = { enabled = true, window = { border = "rounded" } },
+
+                        sources = {
+                                default = { "lazydev", "lsp", "snippets", "buffer", "path" },
+                                providers = {
+                                        -- nvim API completion in lua files, ranked above
+                                        -- the LSP's own results.
+                                        lazydev = {
+                                                name = "LazyDev",
+                                                module = "lazydev.integrations.blink",
+                                                score_offset = 100,
+                                        },
                                 },
-                                mapping = cmp.mapping.preset.insert({
-                                        ["<C-b>"] = cmp.mapping.scroll_docs(-4),
-                                        ["<C-f>"] = cmp.mapping.scroll_docs(4),
-                                        ["<C-Space>"] = cmp.mapping.complete(),
-                                        ["<C-e>"] = cmp.mapping.abort(),
-                                        ["<CR>"] = cmp.mapping.confirm({ select = true }),
-                                        ["<Tab>"] = cmp.mapping(function(fallback)
-                                                if cmp.visible() then
-                                                        cmp.select_next_item()
-                                                elseif luasnip.expand_or_jumpable() then
-                                                        luasnip.expand_or_jump()
-                                                else
-                                                        fallback()
-                                                end
-                                        end, { "i", "s" }),
-                                        ["<S-Tab>"] = cmp.mapping(function(fallback)
-                                                if cmp.visible() then
-                                                        cmp.select_prev_item()
-                                                elseif luasnip.jumpable(-1) then
-                                                        luasnip.jump(-1)
-                                                else
-                                                        fallback()
-                                                end
-                                        end, { "i", "s" }),
-                                }),
-                                sources = cmp.config.sources({
-                                        { name = "nvim_lsp" },
-                                        { name = "luasnip" },
-                                        { name = "buffer" },
-                                        { name = "path" },
-                                }),
-                        })
-                end
+                        },
+                        fuzzy = { implementation = "prefer_rust_with_warning" },
+                },
+                opts_extend = { "sources.default" },
         },
 
         -- FORMATTER
         {
                 "stevearc/conform.nvim",
                 config = function()
+                        local no_autoformat = { cpp = true, sh = true, bash = true }
+
                         require("conform").setup({
                                 formatters_by_ft = {
                                         python = { "black" },
@@ -355,12 +420,34 @@ require("lazy").setup({
                                         typescript = { "prettier" },
                                         javascriptreact = { "prettier" },
                                         typescriptreact = { "prettier" },
+                                        -- shfmt with the same 8-wide tab style the rest
+                                        -- of this config uses; -ci indents switch cases.
+                                        sh = { "shfmt" },
+                                        bash = { "shfmt" },
+                                        toml = { "taplo" },
+                                        json = { "prettier" },
+                                        jsonc = { "prettier" },
+                                        yaml = { "prettier" },
+                                        markdown = { "prettier" },
+                                        html = { "prettier" },
+                                        css = { "prettier" },
                                 },
-                                -- Autoformat on save for everything EXCEPT cpp — during a
-                                -- contest you don't want clang-format reflowing your solution
-                                -- (or adding save latency). Format cpp manually with <leader>F.
+                                formatters = {
+                                        -- 2 spaces matches the dominant style already in
+                                        -- ~/dotfiles (44 scripts at 2, 22 at 4). -ci indents
+                                        -- switch cases, -bn puts && / || at line starts.
+                                        shfmt = { prepend_args = { "-i", "2", "-ci", "-bn" } },
+                                },
+                                -- Autoformat on save everywhere EXCEPT cpp and shell.
+                                --   cpp:   during a contest you don't want clang-format
+                                --          reflowing your solution (or the save latency).
+                                --   shell: ~1/3 of the scripts in ~/dotfiles are indented
+                                --          4-wide, so save-on-format would silently reflow
+                                --          them — and the dotfiles LaunchAgent auto-commits
+                                --          and pushes, turning that into a surprise diff.
+                                -- Both format on demand with <leader>F.
                                 format_on_save = function(bufnr)
-                                        if vim.bo[bufnr].filetype == "cpp" then
+                                        if no_autoformat[vim.bo[bufnr].filetype] then
                                                 return
                                         end
                                         return { timeout_ms = 500, lsp_fallback = true }
@@ -370,6 +457,52 @@ require("lazy").setup({
                                 require("conform").format({ async = true, lsp_fallback = true })
                         end, { noremap = true, silent = true, desc = "Format buffer" })
                 end
+        },
+
+        -- LINTER
+        -- Fills the gap the LSP layer leaves: shellcheck catches the bugs that
+        -- make shell scripts fail silently (unquoted expansions that word-split
+        -- on paths with spaces, `[ $x = y ]` on an empty var, ignored exit
+        -- codes). bash-language-server does not report these on its own.
+        {
+                "mfussenegger/nvim-lint",
+                event = { "BufReadPost", "BufNewFile" },
+                config = function()
+                        local lint = require("lint")
+
+                        -- zsh is deliberately absent: shellcheck cannot parse zsh
+                        -- and reports "This shell type is unknown" on every file,
+                        -- which would bury the real findings in .sh scripts.
+                        lint.linters_by_ft = {
+                                sh = { "shellcheck" },
+                                bash = { "shellcheck" },
+                        }
+
+                        vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
+                                callback = function()
+                                        lint.try_lint()
+                                end,
+                        })
+
+                        vim.keymap.set("n", "<leader>l", function()
+                                lint.try_lint()
+                        end, { noremap = true, silent = true, desc = "Lint buffer" })
+                end
+        },
+
+        -- DIAGNOSTICS PANEL
+        {
+                "folke/trouble.nvim",
+                dependencies = { "nvim-tree/nvim-web-devicons" },
+                cmd = "Trouble",
+                opts = { focus = true },
+                keys = {
+                        { "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>", desc = "Diagnostics (workspace)" },
+                        { "<leader>xX", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", desc = "Diagnostics (buffer)" },
+                        { "<leader>xs", "<cmd>Trouble symbols toggle focus=false<cr>", desc = "Symbol outline" },
+                        { "<leader>xl", "<cmd>Trouble lsp toggle win.position=right<cr>", desc = "Definitions / references" },
+                        { "<leader>xq", "<cmd>Trouble qflist toggle<cr>", desc = "Quickfix list" },
+                },
         },
 
         -- TMUX NAVIGATOR (works with your tmux config!)
