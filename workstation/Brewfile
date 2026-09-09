@@ -38,6 +38,12 @@ brew "clang-format"
 # nvim could not spawn an nvm-global binary.
 brew "vscode-langservers-extracted"
 brew "lua-language-server"
+brew "bash-language-server"
+brew "taplo"                         # TOML LSP + formatter
+brew "marksman"                      # markdown LSP
+brew "yaml-language-server"
+brew "shellcheck"                    # shell linting via nvim-lint
+brew "shfmt"                         # shell formatting via conform
 
 # ---- Roblox / Luau dev ----
 # lune: standalone Luau runtime for running logic/tests outside Studio.
