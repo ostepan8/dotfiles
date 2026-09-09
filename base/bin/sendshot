@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+#
+# sendshot — grab a screenshot on this Mac and drop it on a remote box over ssh,
+# under a space-free name, then put that remote path on the local clipboard so it
+# can be pasted straight into an ssh session (e.g. a remote Claude Code prompt).
+#
+#   sendshot mac-studio             capture a region now, send it
+#   sendshot -l mac-studio          send the most recent existing screenshot
+#   sendshot -c mac-studio          send the image currently on the clipboard
+#   sendshot -f pic.png mac-studio  send a specific file
+#   sendshot -w mac-studio          capture a whole window (click to pick)
+#   sendshot -d ~/img mac-studio    land it in a different remote directory
+#
+# Default host comes from $SENDSHOT_HOST when no host argument is given.
+
+set -euo pipefail
+
+readonly PROG="${0##*/}"
+readonly DEFAULT_REMOTE_DIR="/tmp"
+readonly CAPTURE_TIMEOUT_NOTE="press ESC to cancel"
+
+die() { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
+note() { printf '%s\n' "$1" >&2; }
+
+usage() {
+  sed -n '3,17p' "$0" | sed 's|^# \{0,1\}||'
+  exit "${1:-0}"
+}
+
+# Directories macOS may be writing screenshots into, most specific first.
+screenshot_dirs() {
+  local configured
+  configured="$(defaults read com.apple.screencapture location 2>/dev/null || true)"
+  [[ -n "$configured" ]] && printf '%s\n' "${configured/#\~/$HOME}"
+  printf '%s\n' "$HOME/Desktop/screenshots" "$HOME/Desktop" "$HOME/Downloads"
+}
+
+# Newest .png across every screenshot directory that exists.
+newest_screenshot() {
+  local dir found=""
+  while IFS= read -r dir; do
+    [[ -d "$dir" ]] || continue
+    local candidate
+    candidate="$(find "$dir" -maxdepth 1 -type f -iname '*.png' -print0 2>/dev/null \
+      | xargs -0 ls -t 2>/dev/null | head -1 || true)"
+    [[ -z "$candidate" ]] && continue
+    if [[ -z "$found" || "$candidate" -nt "$found" ]]; then
+      found="$candidate"
+    fi
+  done < <(screenshot_dirs)
+  [[ -n "$found" ]] || die "no screenshot found in: $(screenshot_dirs | tr '\n' ' ')"
+  printf '%s\n' "$found"
+}
+
+capture_interactive() {
+  local mode="$1" out="$2"
+  note "select ${mode} — ${CAPTURE_TIMEOUT_NOTE}"
+  case "$mode" in
+    region) screencapture -i -x "$out" ;;
+    window) screencapture -iW -x "$out" ;;
+    *) die "unknown capture mode: $mode" ;;
+  esac
+  [[ -s "$out" ]] || die "capture cancelled"
+  printf '%s\n' "$out"
+}
+
+capture_clipboard() {
+  local out="$1"
+  command -v pngpaste >/dev/null 2>&1 \
+    || die "clipboard mode needs pngpaste — install with: brew install pngpaste"
+  pngpaste "$out" 2>/dev/null || die "no image on the clipboard"
+  [[ -s "$out" ]] || die "no image on the clipboard"
+  printf '%s\n' "$out"
+}
+
+main() {
+  local source="region" explicit_file="" remote_dir="$DEFAULT_REMOTE_DIR"
+
+  while (( $# )); do
+    case "$1" in
+      -l|--last)  source="last"; shift ;;
+      -c|--clip)  source="clip"; shift ;;
+      -w|--window) source="window"; shift ;;
+      -f|--file)  [[ -n "${2:-}" ]] || die "--file needs a path"
+                  source="file"; explicit_file="$2"; shift 2 ;;
+      -d|--dir)   [[ -n "${2:-}" ]] || die "--dir needs a path"
+                  remote_dir="$2"; shift 2 ;;
+      -h|--help)  usage 0 ;;
+      -*)         die "unknown option: $1 (try $PROG --help)" ;;
+      *)          break ;;
+    esac
+  done
+
+  local host="${1:-${SENDSHOT_HOST:-}}"
+  [[ -n "$host" ]] || die "no host given and \$SENDSHOT_HOST is unset (try $PROG --help)"
+
+  local stamp remote_name staging local_file
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  remote_name="shot-${stamp}.png"
+  staging="$(mktemp -d "${TMPDIR:-/tmp}/sendshot.XXXXXX")"
+  trap 'rm -rf "$staging"' EXIT
+
+  case "$source" in
+    region|window) local_file="$(capture_interactive "$source" "$staging/$remote_name")" ;;
+    clip)          local_file="$(capture_clipboard "$staging/$remote_name")" ;;
+    last)          local_file="$(newest_screenshot)" ;;
+    file)          [[ -f "$explicit_file" ]] || die "no such file: $explicit_file"
+                   local_file="$explicit_file" ;;
+  esac
+
+  local remote_path="${remote_dir%/}/${remote_name}"
+  scp -q "$local_file" "${host}:${remote_path}" \
+    || die "scp to $host failed — check the host is up and in ~/.ssh/config"
+
+  printf '%s\n' "$remote_path"
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s' "$remote_path" | pbcopy
+    note "copied to clipboard — paste it into your ssh session"
+  fi
+}
+
+main "$@"
