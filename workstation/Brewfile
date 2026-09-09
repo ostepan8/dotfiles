@@ -44,6 +44,9 @@ brew "marksman"                      # markdown LSP
 brew "yaml-language-server"
 brew "shellcheck"                    # shell linting via nvim-lint
 brew "shfmt"                         # shell formatting via conform
+# ruff: lint + format + import sorting for python, replacing black. Reads each
+# project's own [tool.ruff] out of pyproject.toml.
+brew "ruff"
 
 # ---- Roblox / Luau dev ----
 # lune: standalone Luau runtime for running logic/tests outside Studio.

@@ -48,6 +48,8 @@ require("lazy").setup({
         {
                 "nvim-tree/nvim-tree.lua",
                 dependencies = { "nvim-tree/nvim-web-devicons" },
+                cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeFindFile" },
+                keys = { { "<leader>e", "<cmd>NvimTreeToggle<cr>", desc = "File tree" } },
                 config = function()
                         require("nvim-tree").setup({
                                 view = { width = 30 },
@@ -81,7 +83,20 @@ require("lazy").setup({
         -- FUZZY FINDER
         {
                 "nvim-telescope/telescope.nvim",
-                dependencies = { "nvim-lua/plenary.nvim" },
+                cmd = "Telescope",
+                dependencies = {
+                        "nvim-lua/plenary.nvim",
+                        -- Compiled C sorter. Telescope's pure-Lua fallback is the
+                        -- bottleneck once a picker holds a few thousand entries,
+                        -- which live_grep over ~/dotfiles hits immediately.
+                        { "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
+                },
+                keys = {
+                        { "<leader>f", "<cmd>Telescope find_files<cr>", desc = "Find files" },
+                        { "<leader>g", "<cmd>Telescope live_grep<cr>", desc = "Live grep" },
+                        { "<leader>p", "<cmd>Telescope oldfiles<cr>", desc = "Recent files" },
+                        { "<leader>b", "<cmd>Telescope buffers<cr>", desc = "Buffers" },
+                },
                 config = function()
                         require("telescope").setup({
                                 defaults = {
@@ -118,10 +133,7 @@ require("lazy").setup({
                                         },
                                 },
                         })
-                        vim.keymap.set("n", "<leader>f", ":Telescope find_files<CR>", { noremap = true, silent = true })
-                        vim.keymap.set("n", "<leader>g", ":Telescope live_grep<CR>", { noremap = true, silent = true })
-                        vim.keymap.set("n", "<leader>p", ":Telescope oldfiles<CR>", { noremap = true, silent = true })
-                        vim.keymap.set("n", "<leader>b", ":Telescope buffers<CR>", { noremap = true, silent = true })
+                        pcall(require("telescope").load_extension, "fzf")
                 end
         },
 
@@ -179,9 +191,10 @@ require("lazy").setup({
         },
 
         -- GIT
-        { "tpope/vim-fugitive" },
+        { "tpope/vim-fugitive", cmd = { "Git", "G", "Gdiffsplit", "Gwrite", "Gread", "Gblame" } },
         {
                 "lewis6991/gitsigns.nvim",
+                event = { "BufReadPre", "BufNewFile" },
                 config = function()
                         require("gitsigns").setup({
                                 signs = {
@@ -198,6 +211,10 @@ require("lazy").setup({
         -- COMMENTS
         {
                 "numToStr/Comment.nvim",
+                keys = {
+                        { "gc", mode = { "n", "v" } }, { "gcc", mode = "n" },
+                        { "gb", mode = { "n", "v" } }, { "gbc", mode = "n" },
+                },
                 config = function() require("Comment").setup() end
         },
 
@@ -205,6 +222,7 @@ require("lazy").setup({
         {
                 "nvim-lualine/lualine.nvim",
                 dependencies = { "nvim-tree/nvim-web-devicons" },
+                event = "VeryLazy",
                 config = function()
                         require("lualine").setup({
                                 options = {
@@ -219,6 +237,7 @@ require("lazy").setup({
         -- WHICH-KEY
         {
                 "folke/which-key.nvim",
+                event = "VeryLazy",
                 config = function()
                         require("which-key").setup({
                                 win = {
@@ -234,12 +253,15 @@ require("lazy").setup({
         -- LSP
         {
                 "neovim/nvim-lspconfig",
+                event = { "BufReadPre", "BufNewFile" },
                 dependencies = {
                         -- blink supplies the client capabilities (it advertises
                         -- snippet/resolve support the servers key off), so it has
                         -- to be loaded before any server is configured.
+                        -- lazydev is deliberately NOT listed here: naming it as a
+                        -- dependency would force it to load on every buffer and
+                        -- defeat its own ft = "lua" lazy trigger.
                         "saghen/blink.cmp",
-                        "folke/lazydev.nvim",
                 },
                 config = function()
                         local capabilities = require("blink.cmp").get_lsp_capabilities()
@@ -317,11 +339,21 @@ require("lazy").setup({
                                                 yaml = { keyOrdering = false },
                                         },
                                 },
+                                -- ruff and pyright both attach to python. ruff owns
+                                -- lint + format + import sorting; pyright owns types
+                                -- and hover docs, which ruff does not provide. Without
+                                -- this, K returns ruff's empty hover about half the
+                                -- time depending on which client answers first.
+                                ruff = {
+                                        on_attach = function(client)
+                                                client.server_capabilities.hoverProvider = false
+                                        end,
+                                },
                         }
 
                         local servers = {
                                 -- languages
-                                "pyright", "clangd", "ts_ls", "lua_ls", "luau_lsp",
+                                "pyright", "ruff", "clangd", "ts_ls", "lua_ls", "luau_lsp",
                                 -- web
                                 "html", "cssls", "eslint",
                                 -- config + prose formats
@@ -408,12 +440,22 @@ require("lazy").setup({
         -- FORMATTER
         {
                 "stevearc/conform.nvim",
+                event = "BufWritePre",
+                cmd = "ConformInfo",
+                keys = { { "<leader>F", mode = { "n", "v" }, desc = "Format buffer" } },
                 config = function()
                         local no_autoformat = { cpp = true, sh = true, bash = true }
 
                         require("conform").setup({
                                 formatters_by_ft = {
-                                        python = { "black" },
+                                        -- ruff, not black: every pyproject.toml in
+                                        -- ~/Desktop/projects already declares ruff with
+                                        -- line-length = 100, so black's default 88 was
+                                        -- reformatting these files against their own
+                                        -- project config on every save. ruff reads the
+                                        -- nearest pyproject.toml, so the editor and CI
+                                        -- finally agree.
+                                        python = { "ruff_organize_imports", "ruff_format" },
                                         cpp = { "clang-format" },
                                         lua = { "stylua" },
                                         javascript = { "prettier" },
@@ -508,12 +550,28 @@ require("lazy").setup({
         -- TMUX NAVIGATOR (works with your tmux config!)
         {
                 "christoomey/vim-tmux-navigator",
-                lazy = false,
+                keys = {
+                        { "<C-h>", "<cmd>TmuxNavigateLeft<cr>" },
+                        { "<C-j>", "<cmd>TmuxNavigateDown<cr>" },
+                        { "<C-k>", "<cmd>TmuxNavigateUp<cr>" },
+                        { "<C-l>", "<cmd>TmuxNavigateRight<cr>" },
+                },
         },
 
         -- OPENCODE
         {
                 "sudo-tee/opencode.nvim",
+                -- Roughly 45ms of the old startup budget: it pulled in its
+                -- session runtime, UI and renderer on every launch, including
+                -- launches that never opened it.
+                cmd = "Opencode",
+                keys = {
+                        { "<leader>og", desc = "Opencode toggle" },
+                        { "<leader>oi", desc = "Opencode input" },
+                        { "<leader>oI", desc = "Opencode input (new session)" },
+                        { "<leader>oo", desc = "Opencode output" },
+                        { "<leader>ot", desc = "Opencode toggle focus" },
+                },
                 -- Only load where the opencode binary exists. This config is
                 -- shared with headless Linux nodes that have no opencode, and
                 -- the plugin errors at startup there ("opencode command not
@@ -685,11 +743,11 @@ vim.opt.undofile = true
 -- Clear search highlight with ESC
 vim.keymap.set("n", "<Esc>", ":nohl<CR>", { silent = true })
 
--- Better window navigation (works with tmux!)
-vim.keymap.set("n", "<C-h>", "<C-w>h", { noremap = true, silent = true })
-vim.keymap.set("n", "<C-j>", "<C-w>j", { noremap = true, silent = true })
-vim.keymap.set("n", "<C-k>", "<C-w>k", { noremap = true, silent = true })
-vim.keymap.set("n", "<C-l>", "<C-w>l", { noremap = true, silent = true })
+-- Window navigation is owned by vim-tmux-navigator (see its `keys` spec).
+-- It previously did NOT work with tmux despite the comment saying so: these
+-- four lines ran after lazy.setup() and replaced the plugin's mappings with
+-- plain <C-w> motions, so <C-h> at the leftmost split moved nowhere instead
+-- of crossing into the tmux pane to its left.
 
 -- ============================
 -- PDF READING
