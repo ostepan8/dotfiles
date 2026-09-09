@@ -19,11 +19,18 @@ readonly PROG="${0##*/}"
 readonly DEFAULT_REMOTE_DIR="/tmp"
 readonly CAPTURE_TIMEOUT_NOTE="press ESC to cancel"
 
+# Global so the EXIT trap can still see it after main() returns — a `local` in
+# main is out of scope by the time the trap fires, which trips `set -u`.
+STAGING_DIR=""
+cleanup() { [[ -n "$STAGING_DIR" ]] && rm -rf "$STAGING_DIR"; }
+
 die() { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
 note() { printf '%s\n' "$1" >&2; }
 
+# The header comment block IS the help text: print it from the third line until
+# the first line that is not a comment, so the two can never drift apart.
 usage() {
-  sed -n '3,17p' "$0" | sed 's|^# \{0,1\}||'
+  awk 'NR<3 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
   exit "${1:-0}"
 }
 
@@ -94,15 +101,15 @@ main() {
   local host="${1:-${SENDSHOT_HOST:-}}"
   [[ -n "$host" ]] || die "no host given and \$SENDSHOT_HOST is unset (try $PROG --help)"
 
-  local stamp remote_name staging local_file
+  local stamp remote_name local_file
   stamp="$(date +%Y%m%d-%H%M%S)"
   remote_name="shot-${stamp}.png"
-  staging="$(mktemp -d "${TMPDIR:-/tmp}/sendshot.XXXXXX")"
-  trap 'rm -rf "$staging"' EXIT
+  STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sendshot.XXXXXX")"
+  trap cleanup EXIT
 
   case "$source" in
-    region|window) local_file="$(capture_interactive "$source" "$staging/$remote_name")" ;;
-    clip)          local_file="$(capture_clipboard "$staging/$remote_name")" ;;
+    region|window) local_file="$(capture_interactive "$source" "$STAGING_DIR/$remote_name")" ;;
+    clip)          local_file="$(capture_clipboard "$STAGING_DIR/$remote_name")" ;;
     last)          local_file="$(newest_screenshot)" ;;
     file)          [[ -f "$explicit_file" ]] || die "no such file: $explicit_file"
                    local_file="$explicit_file" ;;
