@@ -1,5 +1,4 @@
 import io
-import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -213,7 +212,6 @@ class CliFlowTests(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         with (
             patch("control.sys.platform", "darwin"),
-            patch("control.os.path.isfile", return_value=True),
             patch("control.getpass.getpass", return_value="prompted-secret"),
         ):
             code = main(
@@ -233,7 +231,6 @@ class CliFlowTests(unittest.TestCase):
         fake = FakeClient((self.desk,))
         with (
             patch("control.sys.platform", "darwin"),
-            patch("control.os.path.isfile", return_value=True),
             patch("control.getpass.getpass", return_value=""),
         ):
             code, stdout, stderr = self._main(["setup"], fake, {})
@@ -252,24 +249,28 @@ class CliFlowTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("official API", stderr)
 
-    def test_keychain_uses_system_binary_and_fails_cleanly_off_macos(self):
-        completed = subprocess.CompletedProcess([], 0, stdout="saved-key\n", stderr="")
+    def test_keychain_uses_native_api_and_fails_cleanly_off_macos(self):
         with (
             patch("control.sys.platform", "darwin"),
-            patch("control.os.path.isfile", return_value=True),
-            patch("control.subprocess.run", return_value=completed) as run,
+            patch("control.getpass.getuser", return_value="test-account"),
+            patch("control.load_password", return_value="saved-key") as load,
+            patch("control.save_password") as save,
         ):
             self.assertEqual("saved-key", load_keychain_key())
-        self.assertEqual("/usr/bin/security", run.call_args.args[0][0])
+            save_keychain_key("fake-secret")
+        load.assert_called_once_with("codex-govee", "test-account")
+        save.assert_called_once_with("codex-govee", "test-account", "fake-secret")
 
         with (
             patch("control.sys.platform", "linux"),
-            patch("control.subprocess.run") as run,
+            patch("control.load_password") as load,
+            patch("control.save_password") as save,
         ):
             self.assertIsNone(load_keychain_key())
             with self.assertRaisesRegex(InputError, "GOVEE_API_KEY"):
-                save_keychain_key("secret")
-        run.assert_not_called()
+                save_keychain_key("fake-secret")
+        load.assert_not_called()
+        save.assert_not_called()
 
     def test_loopback_base_never_receives_a_keychain_secret(self):
         fake = FakeClient((self.desk,))

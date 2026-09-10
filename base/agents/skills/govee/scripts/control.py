@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
-import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from typing import Any, TextIO
@@ -22,9 +21,9 @@ from govee_api import (
     parse_color,
     select_devices,
 )
+from keychain import KeychainError, load_password, save_password
 
 KEYCHAIN_SERVICE = "codex-govee"
-SECURITY_BINARY = "/usr/bin/security"
 OFFICIAL_API_BASE = "https://openapi.api.govee.com/router/api/v1"
 LIGHT_TYPE = "devices.types.light"
 
@@ -65,48 +64,27 @@ def _keychain_account() -> str:
 
 
 def load_keychain_key() -> str | None:
-    if sys.platform != "darwin" or not os.path.isfile(SECURITY_BINARY):
+    if sys.platform != "darwin":
         return None
-    result = subprocess.run(
-        [
-            SECURITY_BINARY,
-            "find-generic-password",
-            "-a",
-            _keychain_account(),
-            "-s",
-            KEYCHAIN_SERVICE,
-            "-w",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
+    try:
+        return load_password(KEYCHAIN_SERVICE, _keychain_account())
+    except KeychainError as error:
+        raise InputError(
+            "Could not read the Govee API key from macOS Keychain"
+        ) from error
 
 
 def save_keychain_key(api_key: str) -> None:
-    if sys.platform != "darwin" or not os.path.isfile(SECURITY_BINARY):
+    if sys.platform != "darwin":
         raise InputError(
             "macOS Keychain is unavailable; provide GOVEE_API_KEY through a secret manager"
         )
-    result = subprocess.run(
-        [
-            SECURITY_BINARY,
-            "add-generic-password",
-            "-U",
-            "-a",
-            _keychain_account(),
-            "-s",
-            KEYCHAIN_SERVICE,
-            "-w",
-        ],
-        input=f"{api_key}\n",
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise InputError("Could not save the Govee API key in macOS Keychain")
+    try:
+        save_password(KEYCHAIN_SERVICE, _keychain_account(), api_key)
+    except (KeychainError, ValueError) as error:
+        raise InputError(
+            "Could not save the Govee API key in macOS Keychain"
+        ) from error
 
 
 def _api_base(env: Mapping[str, str]) -> str:
@@ -245,7 +223,7 @@ def _run_control(client, selected, instance, value, stdout, stderr) -> int:
 
 
 def _setup(env, stdout, client_factory, key_saver) -> int:
-    if sys.platform != "darwin" or not os.path.isfile(SECURITY_BINARY):
+    if sys.platform != "darwin":
         raise InputError(
             "macOS Keychain is unavailable; provide GOVEE_API_KEY through a secret manager"
         )
