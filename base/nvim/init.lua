@@ -23,6 +23,18 @@ vim.opt.clipboard = "unnamedplus"
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
+-- Disable netrw (we use nvim-tree instead).
+--
+-- These MUST be set before require("lazy").setup() below: lazy sources every
+-- runtime plugin/ file itself during setup, so anything set after that call
+-- lands too late. Setting only `loaded_netrw` late is worse than not setting
+-- it at all -- netrwPlugin.vim still registers its FileExplorer autocmds,
+-- while autoload/netrw.vim bails on the same guard and never defines the
+-- functions those autocmds call, so `nvim <dir>` dies with
+-- "E117: Unknown function: netrw#LocalBrowseCheck".
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
 -- Load lazy.nvim
 vim.opt.rtp:prepend("~/.local/share/nvim/lazy/lazy.nvim")
 
@@ -48,7 +60,7 @@ require("lazy").setup({
         {
                 "nvim-tree/nvim-tree.lua",
                 dependencies = { "nvim-tree/nvim-web-devicons" },
-                cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeFindFile" },
+                cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeFindFile", "NvimTreeOpen" },
                 keys = { { "<leader>e", "<cmd>NvimTreeToggle<cr>", desc = "File tree" } },
                 config = function()
                         require("nvim-tree").setup({
@@ -689,9 +701,29 @@ require("lazy").setup({
 -- ADDITIONAL SETTINGS
 -- ============================
 
--- Disable netrw (since we use nvim-tree)
-vim.g.loaded_netrw = 1
-vim.g.loaded_netrwPlugin = 1
+-- With netrw disabled nothing renders a directory buffer, so `nvim .` would
+-- otherwise land on an empty unnamed buffer. Hand directory arguments to
+-- nvim-tree instead; :NvimTreeOpen pulls the lazy-loaded plugin in on demand.
+vim.api.nvim_create_autocmd("VimEnter", {
+        group = vim.api.nvim_create_augroup("open_tree_on_directory", { clear = true }),
+        desc = "Open nvim-tree when nvim is started on a directory",
+        callback = function(event)
+                local target = event.file
+                if target == "" or vim.fn.isdirectory(target) ~= 1 then
+                        return
+                end
+
+                local ok, err = pcall(function()
+                        vim.cmd.cd(target)
+                        vim.cmd.enew()
+                        vim.cmd.bwipeout(event.buf)
+                        vim.cmd.NvimTreeOpen()
+                end)
+                if not ok then
+                        vim.notify("Could not open nvim-tree for " .. target .. ": " .. tostring(err), vim.log.levels.WARN)
+                end
+        end,
+})
 
 -- Indentation settings
 vim.opt.tabstop = 2
