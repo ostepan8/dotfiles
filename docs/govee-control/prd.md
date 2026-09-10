@@ -10,7 +10,7 @@ control through Govee's supported cloud API without exposing an API key.
 
 Add a shared `govee` agent skill and CLI that can:
 
-- securely save a Govee API key in macOS Keychain;
+- securely save a Govee API key as `GOVEE_API_KEY` in the local encrypted vault;
 - list supported devices and their capabilities;
 - read lamp status;
 - turn one lamp or all Govee lights on and off;

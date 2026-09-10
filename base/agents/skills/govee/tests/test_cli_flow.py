@@ -1,13 +1,26 @@
 import io
+import os
+import stat
+import subprocess
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from control import load_keychain_key, main, save_keychain_key
+from control import (
+    ACCOUNT_HOME,
+    VAULT_BINARY,
+    VAULT_HOME,
+    VAULT_PATH,
+    _validated_vault_binary,
+    load_vault_key,
+    main,
+    save_vault_key,
+)
 from govee_api import ApiError, Capability, Device, InputError
 
 
@@ -150,7 +163,7 @@ class CliFlowTests(unittest.TestCase):
                     stdout=stdout,
                     stderr=stderr,
                     client_factory=lambda *_args, _fake=fake, **_kwargs: _fake,
-                    keychain_loader=lambda: None,
+                    secret_loader=lambda: None,
                 )
                 self.assertEqual(2, code)
                 self.assertEqual((), fake.controls)
@@ -211,7 +224,7 @@ class CliFlowTests(unittest.TestCase):
         saver = Saver()
         stdout, stderr = io.StringIO(), io.StringIO()
         with (
-            patch("control.sys.platform", "darwin"),
+            patch("control._validated_vault_binary", return_value="/safe/vault"),
             patch("control.getpass.getpass", return_value="prompted-secret"),
         ):
             code = main(
@@ -230,7 +243,7 @@ class CliFlowTests(unittest.TestCase):
     def test_setup_rejects_empty_key_and_untrusted_api_base(self):
         fake = FakeClient((self.desk,))
         with (
-            patch("control.sys.platform", "darwin"),
+            patch("control._validated_vault_binary", return_value="/safe/vault"),
             patch("control.getpass.getpass", return_value=""),
         ):
             code, stdout, stderr = self._main(["setup"], fake, {})
@@ -249,30 +262,130 @@ class CliFlowTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("official API", stderr)
 
-    def test_keychain_uses_native_api_and_fails_cleanly_off_macos(self):
+    def test_vault_reads_and_writes_without_putting_secret_in_argv(self):
+        completed = subprocess.CompletedProcess([], 0, stdout="saved-key\n", stderr="")
         with (
-            patch("control.sys.platform", "darwin"),
-            patch("control.getpass.getuser", return_value="test-account"),
-            patch("control.load_password", return_value="saved-key") as load,
-            patch("control.save_password") as save,
+            patch("control._validated_vault_binary", return_value="/safe/vault"),
+            patch("control.subprocess.run", return_value=completed) as run,
         ):
-            self.assertEqual("saved-key", load_keychain_key())
-            save_keychain_key("fake-secret")
-        load.assert_called_once_with("codex-govee", "test-account")
-        save.assert_called_once_with("codex-govee", "test-account", "fake-secret")
+            self.assertEqual("saved-key", load_vault_key())
+            save_vault_key("fake-secret")
+        read_args = run.call_args_list[0].args[0]
+        write_args = run.call_args_list[1].args[0]
+        self.assertEqual(["get", "GOVEE_API_KEY"], read_args[-2:])
+        self.assertEqual(["store", "GOVEE_API_KEY", "--replace"], write_args[-3:])
+        self.assertNotIn("fake-secret", write_args)
+        self.assertEqual("fake-secret\n", run.call_args_list[1].kwargs["input"])
+        for call in run.call_args_list:
+            environment = call.kwargs["env"]
+            self.assertEqual({"HOME", "VAULT_HOME", "PATH", "LANG"}, set(environment))
+            self.assertEqual(str(ACCOUNT_HOME), environment["HOME"])
+            self.assertEqual(str(VAULT_HOME), environment["VAULT_HOME"])
+            self.assertNotIn("PYTHONPATH", environment)
+            self.assertNotIn("VAULT_CALLER", environment)
+            self.assertEqual(VAULT_PATH, environment["PATH"])
+            self.assertEqual(sys.executable, call.args[0][0])
+            self.assertEqual("-I", call.args[0][1])
 
         with (
-            patch("control.sys.platform", "linux"),
-            patch("control.load_password") as load,
-            patch("control.save_password") as save,
+            patch(
+                "control._validated_vault_binary",
+                side_effect=InputError("vault unavailable"),
+            ),
+            patch("control.subprocess.run") as run,
         ):
-            self.assertIsNone(load_keychain_key())
-            with self.assertRaisesRegex(InputError, "GOVEE_API_KEY"):
-                save_keychain_key("fake-secret")
-        load.assert_not_called()
-        save.assert_not_called()
+            with self.assertRaisesRegex(InputError, "vault unavailable"):
+                load_vault_key()
+            with self.assertRaisesRegex(InputError, "vault unavailable"):
+                save_vault_key("fake-secret")
+        run.assert_not_called()
 
-    def test_loopback_base_never_receives_a_keychain_secret(self):
+    def test_vault_failures_are_sanitized(self):
+        missing = subprocess.CompletedProcess([], 1, stdout="", stderr="no such secret")
+        failed = subprocess.CompletedProcess(
+            [], 1, stdout="fake-secret", stderr="fake-secret"
+        )
+        with (
+            patch("control._validated_vault_binary", return_value="/safe/vault"),
+            patch("control.subprocess.run", return_value=missing),
+        ):
+            self.assertIsNone(load_vault_key())
+        with (
+            patch("control._validated_vault_binary", return_value="/safe/vault"),
+            patch("control.subprocess.run", return_value=failed),
+        ):
+            for operation in (load_vault_key, lambda: save_vault_key("fake-secret")):
+                with self.assertRaises(InputError) as raised:
+                    operation()
+                self.assertNotIn("fake-secret", str(raised.exception))
+
+    def test_vault_binary_requires_safe_owner_permissions(self):
+        safe_directory = SimpleNamespace(
+            st_mode=stat.S_IFDIR | 0o700, st_uid=os.getuid()
+        )
+        safe_file = SimpleNamespace(st_mode=stat.S_IFREG | 0o700, st_uid=os.getuid())
+        with patch(
+            "control.os.lstat",
+            side_effect=(
+                safe_directory,
+                safe_directory,
+                safe_directory,
+                safe_file,
+                safe_file,
+            ),
+        ):
+            self.assertEqual(VAULT_BINARY, _validated_vault_binary())
+
+        unsafe = (
+            SimpleNamespace(st_mode=stat.S_IFLNK | 0o700, st_uid=os.getuid()),
+            SimpleNamespace(st_mode=stat.S_IFREG | 0o700, st_uid=os.getuid() + 1),
+            SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_uid=os.getuid()),
+            SimpleNamespace(st_mode=stat.S_IFREG | 0o720, st_uid=os.getuid()),
+        )
+        for metadata in unsafe:
+            with (
+                patch(
+                    "control.os.lstat",
+                    side_effect=(
+                        safe_directory,
+                        safe_directory,
+                        safe_directory,
+                        metadata,
+                        safe_file,
+                    ),
+                ),
+                self.assertRaisesRegex(InputError, "unsafe ownership"),
+            ):
+                _validated_vault_binary()
+
+        with (
+            patch(
+                "control.os.lstat",
+                side_effect=(
+                    safe_directory,
+                    safe_directory,
+                    safe_directory,
+                    safe_file,
+                    unsafe[0],
+                ),
+            ),
+            self.assertRaisesRegex(InputError, "unsafe ownership"),
+        ):
+            _validated_vault_binary()
+
+        unsafe_directory = SimpleNamespace(
+            st_mode=stat.S_IFDIR | 0o720, st_uid=os.getuid()
+        )
+        for index in range(3):
+            parents = [safe_directory, safe_directory, safe_directory]
+            parents[index] = unsafe_directory
+            with (
+                patch("control.os.lstat", side_effect=parents),
+                self.assertRaisesRegex(InputError, "unsafe parent"),
+            ):
+                _validated_vault_binary()
+
+    def test_loopback_base_never_receives_a_vault_secret(self):
         fake = FakeClient((self.desk,))
         stdout, stderr = io.StringIO(), io.StringIO()
         code = main(
@@ -281,20 +394,23 @@ class CliFlowTests(unittest.TestCase):
             stdout=stdout,
             stderr=stderr,
             client_factory=lambda *_args, **_kwargs: fake,
-            keychain_loader=lambda: "real-keychain-secret",
+            secret_loader=lambda: "real-vault-secret",
         )
         self.assertEqual(2, code)
         self.assertIn("GOVEE_API_KEY", stderr.getvalue())
 
-    def test_setup_fails_before_prompt_when_keychain_is_unavailable(self):
+    def test_setup_fails_before_prompt_when_vault_is_unavailable(self):
         fake = FakeClient((self.desk,))
         with (
-            patch("control.sys.platform", "linux"),
+            patch(
+                "control._validated_vault_binary",
+                side_effect=InputError("Local secrets vault is unavailable"),
+            ),
             patch("control.getpass.getpass") as prompt,
         ):
             code, _stdout, stderr = self._main(["setup"], fake, {})
         self.assertEqual(2, code)
-        self.assertIn("GOVEE_API_KEY", stderr)
+        self.assertIn("vault is unavailable", stderr)
         prompt.assert_not_called()
 
     @staticmethod
@@ -306,7 +422,7 @@ class CliFlowTests(unittest.TestCase):
             stdout=stdout,
             stderr=stderr,
             client_factory=lambda *_args, **_kwargs: fake,
-            keychain_loader=lambda: None,
+            secret_loader=lambda: None,
         )
         return code, stdout.getvalue(), stderr.getvalue()
 

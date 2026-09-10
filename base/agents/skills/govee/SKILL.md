@@ -6,7 +6,8 @@ description: Control Govee lamps through the official cloud API. Use when the us
 # Govee Lamp Control
 
 Use the `govee` CLI for every Govee operation. It discovers capabilities from
-Govee before issuing a command and stores the API key in macOS Keychain.
+Govee before issuing a command and stores the API key as `GOVEE_API_KEY` in the
+local encrypted vault.
 
 ## First-time setup
 
@@ -18,12 +19,14 @@ govee setup
 ```
 
 The command prompts without echo, verifies the key with a read-only device
-request, and saves it under the Keychain service `codex-govee`. Do not ask the
-user to paste an API key into chat or pass one as a command argument. The key is
-available in Govee Home under Settings > Apply for API Key.
+request, and sends it to `vault store GOVEE_API_KEY --replace` over standard
+input. Do not ask the user to paste an API key into chat or pass one as a
+command argument. The key is available in Govee Home under Settings > Apply for
+API Key.
 
-On non-macOS machines, provide `GOVEE_API_KEY` through the machine's secret
-manager. The interactive Keychain setup command is macOS-only.
+If the user has already copied the key, `vault paste GOVEE_API_KEY` captures it
+directly and clears the clipboard. An explicit `GOVEE_API_KEY` environment
+variable remains available for temporary or test environments.
 
 Generating a new Govee API key invalidates every older active key for the
 account. Run setup again after rotating it.

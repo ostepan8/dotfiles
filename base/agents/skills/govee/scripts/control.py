@@ -6,8 +6,12 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+import pwd
+import stat
+import subprocess
 import sys
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any, TextIO
 from urllib.parse import urlparse
 
@@ -21,9 +25,14 @@ from govee_api import (
     parse_color,
     select_devices,
 )
-from keychain import KeychainError, load_password, save_password
 
-KEYCHAIN_SERVICE = "codex-govee"
+ACCOUNT_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)
+VAULT_HOME = ACCOUNT_HOME / ".vault"
+VAULT_BIN = VAULT_HOME / "bin"
+VAULT_SECRET = "GOVEE_API_KEY"
+VAULT_BINARY = str(VAULT_BIN / "vault")
+AGE_BINARY = str(VAULT_BIN / "age")
+VAULT_PATH = f"{VAULT_BIN}:/usr/bin:/bin:/usr/sbin:/sbin"
 OFFICIAL_API_BASE = "https://openapi.api.govee.com/router/api/v1"
 LIGHT_TYPE = "devices.types.light"
 
@@ -43,7 +52,7 @@ def _add_targets(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = ArgumentParser(prog="govee", description="Control Govee lights")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("setup", help="save and verify an API key in Keychain")
+    commands.add_parser("setup", help="save and verify an API key in the vault")
     commands.add_parser("devices", help="list devices and supported controls")
     for name in ("status", "on", "off"):
         _add_targets(commands.add_parser(name))
@@ -59,32 +68,79 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _keychain_account() -> str:
-    return getpass.getuser()
-
-
-def load_keychain_key() -> str | None:
-    if sys.platform != "darwin":
-        return None
-    try:
-        return load_password(KEYCHAIN_SERVICE, _keychain_account())
-    except KeychainError as error:
-        raise InputError(
-            "Could not read the Govee API key from macOS Keychain"
-        ) from error
-
-
-def save_keychain_key(api_key: str) -> None:
-    if sys.platform != "darwin":
-        raise InputError(
-            "macOS Keychain is unavailable; provide GOVEE_API_KEY through a secret manager"
+def _validated_vault_binary() -> str:
+    owner = os.getuid()
+    for directory in (ACCOUNT_HOME, VAULT_HOME, VAULT_BIN):
+        try:
+            metadata = os.lstat(directory)
+        except OSError as error:
+            raise InputError("Local secrets vault is unavailable") from error
+        safe_directory = (
+            stat.S_ISDIR(metadata.st_mode)
+            and metadata.st_uid in {0, owner}
+            and not bool(metadata.st_mode & 0o022)
         )
+        if not safe_directory:
+            raise InputError("Local secrets vault has unsafe parent permissions")
+    for executable in (VAULT_BINARY, AGE_BINARY):
+        try:
+            metadata = os.lstat(executable)
+        except OSError as error:
+            raise InputError("Local secrets vault is unavailable") from error
+        valid = (
+            stat.S_ISREG(metadata.st_mode)
+            and metadata.st_uid == owner
+            and bool(metadata.st_mode & stat.S_IXUSR)
+            and not bool(metadata.st_mode & 0o022)
+        )
+        if not valid:
+            raise InputError("Local secrets vault has unsafe ownership or permissions")
+    return VAULT_BINARY
+
+
+def _vault_environment() -> Mapping[str, str]:
+    return {
+        "HOME": str(ACCOUNT_HOME),
+        "VAULT_HOME": str(VAULT_HOME),
+        "PATH": VAULT_PATH,
+        "LANG": "C.UTF-8",
+    }
+
+
+def load_vault_key() -> str | None:
+    vault_binary = _validated_vault_binary()
     try:
-        save_password(KEYCHAIN_SERVICE, _keychain_account(), api_key)
-    except (KeychainError, ValueError) as error:
-        raise InputError(
-            "Could not save the Govee API key in macOS Keychain"
-        ) from error
+        result = subprocess.run(
+            [sys.executable, "-I", vault_binary, "get", VAULT_SECRET],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=_vault_environment(),
+        )
+    except OSError as error:
+        raise InputError("Could not run the local secrets vault") from error
+    if result.returncode == 0:
+        return result.stdout.strip() or None
+    if "no such secret" in result.stderr:
+        return None
+    raise InputError("Could not read GOVEE_API_KEY from the local secrets vault")
+
+
+def save_vault_key(api_key: str) -> None:
+    vault_binary = _validated_vault_binary()
+    try:
+        result = subprocess.run(
+            [sys.executable, "-I", vault_binary, "store", VAULT_SECRET, "--replace"],
+            input=f"{api_key}\n",
+            capture_output=True,
+            text=True,
+            check=False,
+            env=_vault_environment(),
+        )
+    except OSError as error:
+        raise InputError("Could not run the local secrets vault") from error
+    if result.returncode != 0:
+        raise InputError("Could not save GOVEE_API_KEY in the local secrets vault")
 
 
 def _api_base(env: Mapping[str, str]) -> str:
@@ -103,17 +159,17 @@ def _api_base(env: Mapping[str, str]) -> str:
     return base
 
 
-def _api_key(env: Mapping[str, str], keychain_loader, api_base: str) -> str:
+def _api_key(env: Mapping[str, str], secret_loader, api_base: str) -> str:
     explicit_key = env.get("GOVEE_API_KEY")
     if explicit_key:
         return explicit_key
     if api_base != OFFICIAL_API_BASE:
         raise InputError("GOVEE_API_KEY is required for a loopback test server")
-    api_key = keychain_loader()
+    api_key = secret_loader()
     if not api_key:
         raise InputError(
-            "No Govee API key found; run `govee setup` on macOS or provide "
-            "GOVEE_API_KEY through a secret manager"
+            "No Govee API key found; run `govee setup` or store GOVEE_API_KEY "
+            "in the local secrets vault"
         )
     return api_key
 
@@ -223,10 +279,7 @@ def _run_control(client, selected, instance, value, stdout, stderr) -> int:
 
 
 def _setup(env, stdout, client_factory, key_saver) -> int:
-    if sys.platform != "darwin":
-        raise InputError(
-            "macOS Keychain is unavailable; provide GOVEE_API_KEY through a secret manager"
-        )
+    _validated_vault_binary()
     api_base = _api_base(env)
     if api_base != OFFICIAL_API_BASE:
         raise InputError("Govee setup only connects to the official API")
@@ -240,12 +293,12 @@ def _setup(env, stdout, client_factory, key_saver) -> int:
     return 0
 
 
-def _run(args, env, stdout, stderr, client_factory, keychain_loader, key_saver) -> int:
+def _run(args, env, stdout, stderr, client_factory, secret_loader, key_saver) -> int:
     if args.command == "setup":
         return _setup(env, stdout, client_factory, key_saver)
     api_base = _api_base(env)
     client = client_factory(
-        _api_key(env, keychain_loader, api_base),
+        _api_key(env, secret_loader, api_base),
         base_url=api_base,
     )
     devices, warnings = client.devices()
@@ -267,12 +320,12 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
     client_factory=GoveeClient,
-    keychain_loader=None,
-    key_saver=save_keychain_key,
+    secret_loader=None,
+    key_saver=save_vault_key,
 ) -> int:
     output, errors = stdout or sys.stdout, stderr or sys.stderr
     effective_env = os.environ if env is None else env
-    loader = keychain_loader or load_keychain_key
+    loader = secret_loader or load_vault_key
     try:
         args = build_parser().parse_args(argv)
         return _run(

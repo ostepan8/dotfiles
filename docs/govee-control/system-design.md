@@ -14,9 +14,10 @@ fails.
 
 ## Security
 
-`setup` prompts without echo and writes the key to macOS Keychain. An
-environment variable may override Keychain for temporary use. The CLI never
-accepts an API key argument and never includes request headers in output.
+`setup` prompts without echo and sends the key to the local encrypted vault over
+standard input. An environment variable may override the vault for temporary
+use. The CLI validates the fixed vault executable before running it, never
+accepts an API key argument, and never includes request headers in output.
 
 ## Reliability
 
