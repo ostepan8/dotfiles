@@ -10,13 +10,17 @@
 #   sendshot -f pic.png mac-studio  send a specific file
 #   sendshot -w mac-studio          capture a whole window (click to pick)
 #   sendshot -d ~/img mac-studio    land it in a different remote directory
+#   sendshot -n mac-studio          announce the result as a notification
 #
-# Default host comes from $SENDSHOT_HOST when no host argument is given.
+# With no host argument the host comes from $SENDSHOT_HOST, then from
+# ~/.config/sendshot/host — so a skhd binding, which gets no shell env, still
+# knows where to send.
 
 set -euo pipefail
 
 readonly PROG="${0##*/}"
 readonly DEFAULT_REMOTE_DIR="/tmp"
+readonly HOST_CONFIG="$HOME/.config/sendshot/host"
 readonly CAPTURE_TIMEOUT_NOTE="press ESC to cancel"
 
 # Global so the EXIT trap can still see it after main() returns — a `local` in
@@ -24,7 +28,17 @@ readonly CAPTURE_TIMEOUT_NOTE="press ESC to cancel"
 STAGING_DIR=""
 cleanup() { [[ -n "$STAGING_DIR" ]] && rm -rf "$STAGING_DIR"; }
 
-die() { printf '%s: %s\n' "$PROG" "$1" >&2; exit "${2:-1}"; }
+# Set by --notify. A hotkey run has no terminal to print to, so every outcome
+# has to reach the user as a macOS notification instead.
+NOTIFY=0
+notify() {
+  (( NOTIFY )) || return 0
+  local message="$1" title="${2:-sendshot}"
+  osascript -e "display notification \"${message//\"/}\" with title \"${title//\"/}\"" \
+    >/dev/null 2>&1 || true
+}
+
+die() { printf '%s: %s\n' "$PROG" "$1" >&2; notify "$1" "sendshot failed"; exit "${2:-1}"; }
 note() { printf '%s\n' "$1" >&2; }
 
 # The header comment block IS the help text: print it from the third line until
@@ -39,7 +53,9 @@ screenshot_dirs() {
   local configured
   configured="$(defaults read com.apple.screencapture location 2>/dev/null || true)"
   [[ -n "$configured" ]] && printf '%s\n' "${configured/#\~/$HOME}"
-  printf '%s\n' "$HOME/Desktop/screenshots" "$HOME/Desktop" "$HOME/Downloads"
+  # ~/Screenshots first: that is where the skhd Opt+S / Opt+Shift+S bindings
+  # write, so it holds the newest shot on this machine in practice.
+  printf '%s\n' "$HOME/Screenshots" "$HOME/Desktop/screenshots" "$HOME/Desktop" "$HOME/Downloads"
 }
 
 # Newest .png across every screenshot directory that exists.
@@ -88,6 +104,7 @@ main() {
       -l|--last)  source="last"; shift ;;
       -c|--clip)  source="clip"; shift ;;
       -w|--window) source="window"; shift ;;
+      -n|--notify) NOTIFY=1; shift ;;
       -f|--file)  [[ -n "${2:-}" ]] || die "--file needs a path"
                   source="file"; explicit_file="$2"; shift 2 ;;
       -d|--dir)   [[ -n "${2:-}" ]] || die "--dir needs a path"
@@ -99,7 +116,10 @@ main() {
   done
 
   local host="${1:-${SENDSHOT_HOST:-}}"
-  [[ -n "$host" ]] || die "no host given and \$SENDSHOT_HOST is unset (try $PROG --help)"
+  if [[ -z "$host" && -r "$HOST_CONFIG" ]]; then
+    host="$(tr -d '[:space:]' < "$HOST_CONFIG")"
+  fi
+  [[ -n "$host" ]] || die "no host given, \$SENDSHOT_HOST unset, and no $HOST_CONFIG"
 
   local stamp remote_name local_file
   stamp="$(date +%Y%m%d-%H%M%S)"
@@ -123,6 +143,9 @@ main() {
   if command -v pbcopy >/dev/null 2>&1; then
     printf '%s' "$remote_path" | pbcopy
     note "copied to clipboard — paste it into your ssh session"
+    notify "$remote_path — copied to clipboard" "sent to $host"
+  else
+    notify "$remote_path" "sent to $host"
   fi
 }
 

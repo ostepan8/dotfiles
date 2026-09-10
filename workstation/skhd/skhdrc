@@ -73,6 +73,15 @@ alt - x : screencapture -c
 alt - s : mkdir -p "$HOME/Screenshots"; f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; d=$(/opt/homebrew/bin/aerospace list-monitors --focused --format '%{monitor-id}' 2>/dev/null); { if [ -n "$d" ]; then screencapture -D "$d" "$f"; else screencapture "$f"; fi; } && printf '%s' "$f" | pbcopy
 alt + shift - s : mkdir -p "$HOME/Screenshots"; f="$HOME/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"; screencapture -i "$f" && printf '%s' "$f" | pbcopy
 
+# Remote-path on clipboard — the same idea as Opt+Shift+S, but for a Claude Code
+# session running over ssh, where a local path means nothing. Captures a
+# selection, scps it to the host named in ~/.config/sendshot/host, and copies
+# the REMOTE path so Cmd+V in the ssh session attaches it as an image.
+#   Opt+Ctrl+S → selection → remote file + remote path on clipboard
+# skhd runs commands with no shell env, hence the config file rather than
+# $SENDSHOT_HOST, and --notify so a hotkey run can still report success.
+alt + ctrl - s : "$HOME/.local/bin/sendshot" --notify
+
 # ---------- Sketchybar ----------
 # Cmd+Opt+B → toggle the top bar (sketchybar) on/off. Because the bar is
 # topmost=on it covers the native macOS menu bar; hiding it reveals the native
