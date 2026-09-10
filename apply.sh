@@ -32,7 +32,10 @@ export ACTIVE_LAYERS
 
 echo "[apply] $([ "$DRY_RUN" = 1 ] && echo 'DRY RUN — ')layers: $ACTIVE_LAYERS"
 
-apply_manifest
+if ! apply_manifest; then
+  echo "[apply] failed" >&2
+  exit 1
+fi
 
 if [ "${CHANGES:-0}" -eq 0 ]; then
   echo "[apply] already up to date"

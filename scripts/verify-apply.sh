@@ -125,6 +125,30 @@ echo "$out_extra" | grep -q 'already up to date' \
 [ -f "$H/.claude-personal/skills/plugin-provided-skill/SKILL.md" ] \
   && ok "extra profile skills are preserved" || bad "apply deleted an untracked skill"
 
+# A large source-only tree produces more output than a pipe buffer. With
+# `pipefail`, feeding that output through `grep -q` can report false because the
+# upstream `diff` receives SIGPIPE as soon as grep finds the first line. New
+# skill trees must still be detected when a profile is substantially stale.
+tree_src="$SANDBOX/large-tree-src"; tree_dest="$SANDBOX/large-tree-dest"
+mkdir -p "$tree_src" "$tree_dest"
+for n in $(seq 1 1500); do : > "$tree_src/source-only-$n"; done
+if ( . "$DOTFILES/lib/engine.sh"; _tree_differs "$tree_src" "$tree_dest" ); then
+  ok "large source-only tree is detected under pipefail"
+else
+  bad "large source-only tree was mistaken for no changes"
+fi
+
+failed_src="$SANDBOX/failed-tree-src"; failed_dest="$SANDBOX/failed-tree-dest"
+mkdir -p "$failed_src" "$failed_dest"
+echo "must arrive" > "$failed_src/new-file"
+chmod 500 "$failed_dest"
+if ( . "$DOTFILES/lib/engine.sh"; DRY_RUN=0; CHANGES=0; apply_tree "$failed_src" "$failed_dest" >/dev/null 2>&1 ); then
+  bad "tree copy reported success without reaching its postcondition"
+else
+  ok "tree copy failure returns nonzero"
+fi
+chmod 700 "$failed_dest"
+
 # A row can change mode between releases (lazy-lock.json went link -> copy for
 # servers). `cp -f` follows a symlink and writes through to its target, so a
 # copy onto a previously-linked dest silently edits the REPO and leaves the link

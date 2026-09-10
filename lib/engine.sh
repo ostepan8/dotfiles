@@ -139,18 +139,36 @@ apply_seed() {
 # complain without that being a difference: several tracked skills are symlinks
 # into a plugin directory that only resolves once installed.
 _tree_differs() {
-  local src="$1" dest="$2"
+  local src="$1" dest="$2" line output status
   [ -d "$dest" ] || return 0
-  diff -rq "$src" "$dest" 2>/dev/null | grep -v "^Only in ${dest}" | grep -q .
+  output="$(diff -rq "$src" "$dest" 2>/dev/null)"
+  status=$?
+  [ "$status" -eq 0 ] && return 1
+  [ "$status" -eq 1 ] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      "Only in ${dest}"*) ;;
+      *) return 0 ;;
+    esac
+  done <<< "$output"
+  return 1
 }
 
 apply_tree() {
-  local src="$1" dest="$2"
+  local src="$1" dest="$2" tree_errors
   [ -d "$src" ] || { note "SKIP   $src (not a directory)"; return 0; }
   _tree_differs "$src" "$dest" || return 0
   [ "${DRY_RUN:-0}" = "1" ] && { action "tree   $dest"; return 0; }
   mkdir -p "$dest"
-  cp -R "$src/." "$dest/"
+  tree_errors="$(mktemp)"
+  cp -R "$src/." "$dest/" 2>"$tree_errors" || true
+  if _tree_differs "$src" "$dest"; then
+    note "FAIL   tree $dest did not converge"
+    sed 's/^/         /' "$tree_errors" >&2
+    rm -f "$tree_errors"
+    return 1
+  fi
+  rm -f "$tree_errors"
   action "tree   $dest"
 }
 
@@ -217,7 +235,7 @@ apply_manifest() {
       local f
       for f in "$DOTFILES"/$source; do
         [ -e "$f" ] || continue
-        apply_"$mode" "$f" "$dest$(basename "$f")"
+        apply_"$mode" "$f" "$dest$(basename "$f")" || return 1
       done
     else
       local abs="$DOTFILES/$source"
@@ -226,8 +244,8 @@ apply_manifest() {
         continue
       fi
       case "$mode" in
-        agent) apply_agent "$abs" "$dest" ;;
-        *)     apply_"$mode" "$abs" "$dest" ;;
+        agent) apply_agent "$abs" "$dest" || return 1 ;;
+        *)     apply_"$mode" "$abs" "$dest" || return 1 ;;
       esac
     fi
 
