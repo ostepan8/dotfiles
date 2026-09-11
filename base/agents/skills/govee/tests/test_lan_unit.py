@@ -1,6 +1,7 @@
 import copy
 import json
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -30,9 +31,9 @@ class FakeTransport:
         self.exchange_calls = ()
         self.send_calls = ()
 
-    def exchange(self, payload, destinations, timeout):
+    def exchange(self, payload, destinations, timeout, expected=None):
         self.exchange_calls = self.exchange_calls + (
-            (payload, tuple(destinations), timeout),
+            (payload, tuple(destinations), timeout, expected),
         )
         if not self._exchanges:
             return ()
@@ -261,3 +262,46 @@ class MergeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReceiveReturnsEarlyTest(unittest.TestCase):
+    """A one-device question must not wait out the whole timeout window.
+
+    state() asks a single lamp and needs a single reply. The receive loop used
+    to drain until the deadline regardless, so every call sat in select() for
+    the full DEFAULT_COMMAND_TIMEOUT after the answer had already arrived:
+    measured 2.01s per lamp, 8.6s for three, which is why the atlas Lights page
+    took nine seconds to load. With expected=1 the same call takes ~0.02s.
+    """
+
+    def test_stops_once_the_expected_replies_arrive(self):
+        listener = _FakeListener([b"first", b"second"])
+        started = time.monotonic()
+        with patch("govee_lan.select.select", listener.select):
+            got = UdpTransport._receive(listener, 5.0, expected=1)
+        self.assertEqual(len(got), 1)
+        self.assertLess(time.monotonic() - started, 1.0, "returned late despite a reply")
+        self.assertEqual(listener.reads, 1, "read more packets than it was asked for")
+
+    def test_without_an_expected_count_it_drains_until_quiet(self):
+        # Discovery cannot know how many lamps exist, so it keeps listening
+        # until the socket goes quiet or the window closes.
+        listener = _FakeListener([b"one", b"two"])
+        with patch("govee_lan.select.select", listener.select):
+            got = UdpTransport._receive(listener, 0.5, expected=None)
+        self.assertEqual(len(got), 2)
+
+
+class _FakeListener:
+    """Socket stand-in whose select() is only ready while packets remain."""
+
+    def __init__(self, packets):
+        self._packets = list(packets)
+        self.reads = 0
+
+    def select(self, rlist, _w, _x, _timeout):
+        return (list(rlist) if self._packets else [], [], [])
+
+    def recvfrom(self, _size):
+        self.reads += 1
+        return self._packets.pop(0), ("10.0.0.1", 4002)

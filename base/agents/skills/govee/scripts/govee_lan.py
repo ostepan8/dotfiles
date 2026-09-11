@@ -235,20 +235,36 @@ class UdpTransport:
             raise LanError("Could not send a Govee LAN request") from last_error
 
     def exchange(
-        self, payload: bytes, destinations: Sequence[Destination], timeout: float
+        self,
+        payload: bytes,
+        destinations: Sequence[Destination],
+        timeout: float,
+        expected: int | None = None,
     ) -> tuple[Response, ...]:
+        """Send payload and collect replies.
+
+        expected is how many replies end the wait early. Pass 1 when asking one
+        lamp a question: it answers in milliseconds, and without this the caller
+        sits in select() for the whole timeout after the data has already
+        arrived. Pass None for discovery, where the device count is unknown and
+        the full window genuinely has to elapse.
+        """
         listener = self._listener()
         try:
             self.send(payload, destinations)
-            return self._receive(listener, timeout)
+            return self._receive(listener, timeout, expected)
         finally:
             listener.close()
 
     @staticmethod
-    def _receive(listener: socket.socket, timeout: float) -> tuple[Response, ...]:
+    def _receive(
+        listener: socket.socket, timeout: float, expected: int | None = None
+    ) -> tuple[Response, ...]:
         responses: tuple[Response, ...] = ()
         deadline = time.monotonic() + timeout
         while True:
+            if expected is not None and len(responses) >= expected:
+                return responses
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return responses
@@ -299,7 +315,10 @@ class LanClient:
 
     def state(self, device: LanDevice) -> LanStatus:
         responses = self._transport.exchange(
-            build_status_message(), ((device.ip, CONTROL_PORT),), self._command_timeout
+            build_status_message(),
+            ((device.ip, CONTROL_PORT),),
+            self._command_timeout,
+            expected=1,
         )
         for raw, source_ip in responses:
             if source_ip != device.ip:
