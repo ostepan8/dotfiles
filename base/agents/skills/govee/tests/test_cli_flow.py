@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import stat
 import subprocess
@@ -70,7 +71,7 @@ class FakeClient:
         if device.device_id in self._failures:
             raise ApiError("Device offline")
 
-    def state(self, device):
+    def state(self, device) -> tuple[dict[str, object], ...]:
         self.state_calls = self.state_calls + (device.device_id,)
         return (
             {
@@ -244,6 +245,57 @@ class CliFlowTests(unittest.TestCase):
         self.assertIn("power=on", stdout)
         self.assertIn("brightness=75%", stdout)
         self.assertEqual("", stderr)
+
+    def test_status_json_includes_stable_device_identity_and_inactive_temperature(self):
+        class JSONFake(FakeClient):
+            def state(self, device) -> tuple[dict[str, object], ...]:
+                self.state_calls = self.state_calls + (device.device_id,)
+                return (
+                    {"instance": "online", "state": {"value": True}},
+                    {"instance": "powerSwitch", "state": {"value": 1}},
+                    {"instance": "brightness", "state": {"value": 75}},
+                    {"instance": "colorRgb", "state": {"value": 0x12ABEF}},
+                    {"instance": "colorTemperatureK", "state": {"value": 0}},
+                )
+
+        fake = JSONFake((self.desk,))
+        code, stdout, stderr = run_cli(["status", "--all", "--json"], fake)
+        self.assertEqual(0, code, stderr)
+        self.assertEqual(
+            [{
+                "id": "AA:01", "name": "Desk Lamp", "online": True,
+                "power": "on", "brightness": 75, "color": "#12abef",
+                "temperature": 0,
+            }],
+            json.loads(stdout),
+        )
+
+    def test_status_json_rejects_missing_or_malformed_required_state(self):
+        class InvalidStateFake(FakeClient):
+            def __init__(self, devices, state):
+                super().__init__(devices)
+                self._state = state
+
+            def state(self, device) -> tuple[dict[str, object], ...]:
+                self.state_calls = self.state_calls + (device.device_id,)
+                return self._state
+
+        invalid_states = (
+            (),
+            (
+                {"instance": "online", "state": {"value": "false"}},
+                {"instance": "powerSwitch", "state": {"value": 2}},
+            ),
+        )
+        for state in invalid_states:
+            with self.subTest(state=state):
+                code, stdout, stderr = run_cli(
+                    ["status", "--all", "--json"],
+                    InvalidStateFake((self.desk,), state),
+                )
+                self.assertEqual(1, code)
+                self.assertEqual([], json.loads(stdout))
+                self.assertIn("valid online state", stderr)
 
     def test_merged_devices_and_lan_only_lamp_route_through_lan(self):
         cloud = FakeClient((self.floor, self.desk))

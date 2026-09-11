@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import os
 import pwd
 import stat
@@ -59,7 +60,10 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("setup", help="save and verify an API key in the vault")
     commands.add_parser("devices", help="list devices and supported controls")
-    for name in ("status", "on", "off"):
+    status = commands.add_parser("status")
+    _add_targets(status)
+    status.add_argument("--json", action="store_true", dest="json_output")
+    for name in ("on", "off"):
         _add_targets(commands.add_parser(name))
     brightness = commands.add_parser("brightness")
     brightness.add_argument("value")
@@ -240,7 +244,7 @@ def _state_value(capability: Mapping[str, Any]) -> Any:
 
 
 def _state_summary(capabilities: Sequence[Mapping[str, Any]]) -> str:
-    values = {item.get("instance"): _state_value(item) for item in capabilities}
+    values = _state_values(capabilities)
     parts: tuple[str, ...] = ()
     if "online" in values:
         parts = parts + (f"online={'yes' if values['online'] else 'no'}",)
@@ -255,13 +259,45 @@ def _state_summary(capabilities: Sequence[Mapping[str, Any]]) -> str:
     return " ".join(parts) or "state unavailable"
 
 
+def _state_values(capabilities: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    return {str(item.get("instance")): _state_value(item) for item in capabilities}
+
+
+def _state_record(
+    device: Device | HybridDevice, capabilities: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    values = _state_values(capabilities)
+    online = values.get("online")
+    power = values.get("powerSwitch")
+    if type(online) is not bool:
+        raise ApiError("State did not include a valid online state")
+    if type(power) is not int or power not in (0, 1):
+        raise ApiError("State did not include a valid power state")
+    record: dict[str, Any] = {
+        "id": device.device_id,
+        "name": device.name,
+        "online": online,
+        "power": "on" if power == 1 else "off",
+    }
+    if isinstance(values.get("brightness"), (int, float)):
+        record["brightness"] = values["brightness"]
+    if isinstance(values.get("colorRgb"), int):
+        record["color"] = f"#{values['colorRgb']:06x}"
+    if isinstance(values.get("colorTemperatureK"), (int, float)):
+        record["temperature"] = values["colorTemperatureK"]
+    return record
+
+
 def _warn(warnings: Sequence[str], stderr: TextIO) -> None:
     for warning in warnings:
         print(f"Warning: {warning}", file=stderr)
 
 
-def _run_status(client, lan_client, selected, stdout: TextIO, stderr: TextIO) -> int:
+def _run_status(
+    client, lan_client, selected, stdout: TextIO, stderr: TextIO, *, json_output=False
+) -> int:
     failures = 0
+    records = []
     for device in selected:
         try:
             if device.lan is not None:
@@ -276,10 +312,15 @@ def _run_status(client, lan_client, selected, stdout: TextIO, stderr: TextIO) ->
                 capabilities = client.state(device.cloud)
             else:
                 raise ApiError("No available connection")
-            print(f"{device.name}: {_state_summary(capabilities)}", file=stdout)
+            if json_output:
+                records.append(_state_record(device, capabilities))
+            else:
+                print(f"{device.name}: {_state_summary(capabilities)}", file=stdout)
         except (ApiError, LanError) as error:
             failures += 1
             print(f"{device.name}: {error}", file=stderr)
+    if json_output:
+        print(json.dumps(records, separators=(",", ":")), file=stdout)
     return 1 if failures else 0
 
 
@@ -397,7 +438,14 @@ def _run(
         return 0
     selected = _select(args, devices)
     if args.command == "status":
-        return _run_status(client, lan_client, selected, stdout, stderr)
+        return _run_status(
+            client,
+            lan_client,
+            selected,
+            stdout,
+            stderr,
+            json_output=args.json_output,
+        )
     instance, value = _command_value(args)
     return _run_control(client, lan_client, selected, instance, value, stdout, stderr)
 
