@@ -119,7 +119,7 @@ silently stops matching fails the run instead of reporting "clean".
 | gh | GitHub CLI |
 | uv | Python package and tool runner (runs the Blender MCP server) |
 | blender | 3D creation suite with the Blender MCP add-on preinstalled |
-| govee | Secure Govee lamp control through the official cloud API |
+| govee | Secure Govee lamp control through local LAN and cloud APIs |
 
 ## Zsh features
 

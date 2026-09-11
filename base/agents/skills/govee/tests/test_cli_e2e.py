@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-import sys
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -77,10 +76,11 @@ class CliEndToEndTests(unittest.TestCase):
         env = {
             **os.environ,
             "GOVEE_API_KEY": "literal-e2e-secret",
+            "GOVEE_LAN_ENABLED": "false",
             "GOVEE_API_BASE": f"http://127.0.0.1:{self.server.server_port}/router/api/v1",
         }
         result = subprocess.run(
-            [sys.executable, str(CONTROL), "on", "--device", "Desk Lamp"],
+            [str(CONTROL), "on", "--device", "Desk Lamp"],
             text=True,
             capture_output=True,
             env=env,

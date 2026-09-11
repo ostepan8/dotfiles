@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Secure CLI for controlling Govee lights through the official cloud API."""
+#!/usr/bin/python3
+"""Secure CLI for controlling Govee lights through cloud and LAN APIs."""
 
 from __future__ import annotations
 
@@ -24,7 +24,10 @@ from govee_api import (
     pack_rgb,
     parse_color,
     select_devices,
+    validate_capability_value,
 )
+from govee_hybrid import HybridDevice, lan_state_capabilities, merge_devices
+from govee_lan import LanClient, LanError
 
 ACCOUNT_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)
 VAULT_HOME = ACCOUNT_HOME / ".vault"
@@ -35,6 +38,8 @@ AGE_BINARY = str(VAULT_BIN / "age")
 VAULT_PATH = f"{VAULT_BIN}:/usr/bin:/bin:/usr/sbin:/sbin"
 OFFICIAL_API_BASE = "https://openapi.api.govee.com/router/api/v1"
 LIGHT_TYPE = "devices.types.light"
+LAN_ENABLED_VALUES = frozenset(("1", "true", "yes", "on"))
+LAN_DISABLED_VALUES = frozenset(("0", "false", "no", "off"))
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -181,7 +186,7 @@ def _integer(raw: str, label: str) -> int:
         raise InputError(f"{label} must be a whole number") from error
 
 
-def _capability_words(device: Device) -> str:
+def _capability_words(device: Device | HybridDevice) -> str:
     names = {item.instance for item in device.capabilities}
     supported = (
         ("power", "powerSwitch"),
@@ -194,17 +199,21 @@ def _capability_words(device: Device) -> str:
     )
 
 
-def _print_devices(devices: Sequence[Device], stdout: TextIO) -> None:
+def _print_devices(devices: Sequence[Device | HybridDevice], stdout: TextIO) -> None:
     ordered = sorted(devices, key=lambda item: (item.name.casefold(), item.device_id))
     for item in ordered:
         print(f"{item.name} [{item.sku}]  {_capability_words(item)}", file=stdout)
 
 
-def _light_devices(devices: Sequence[Device]) -> tuple[Device, ...]:
+def _light_devices(
+    devices: Sequence[Device | HybridDevice],
+) -> tuple[Device | HybridDevice, ...]:
     return tuple(item for item in devices if item.device_type == LIGHT_TYPE)
 
 
-def _select(args, devices: Sequence[Device]) -> tuple[Device, ...]:
+def _select(
+    args, devices: Sequence[Device | HybridDevice]
+) -> tuple[Device | HybridDevice, ...]:
     candidates = _light_devices(devices)
     if not candidates:
         raise InputError("No Govee lights were found")
@@ -251,28 +260,61 @@ def _warn(warnings: Sequence[str], stderr: TextIO) -> None:
         print(f"Warning: {warning}", file=stderr)
 
 
-def _run_status(
-    client, selected: Sequence[Device], stdout: TextIO, stderr: TextIO
-) -> int:
+def _run_status(client, lan_client, selected, stdout: TextIO, stderr: TextIO) -> int:
     failures = 0
     for device in selected:
         try:
-            print(f"{device.name}: {_state_summary(client.state(device))}", file=stdout)
-        except ApiError as error:
+            if device.lan is not None:
+                try:
+                    capabilities = lan_state_capabilities(lan_client.state(device.lan))
+                except LanError:
+                    if device.cloud is None or client is None:
+                        raise
+                    capabilities = client.state(device.cloud)
+                    print(f"Warning: {device.name}: LAN failed; used cloud", file=stderr)
+            elif device.cloud is not None and client is not None:
+                capabilities = client.state(device.cloud)
+            else:
+                raise ApiError("No available connection")
+            print(f"{device.name}: {_state_summary(capabilities)}", file=stdout)
+        except (ApiError, LanError) as error:
             failures += 1
             print(f"{device.name}: {error}", file=stderr)
     return 1 if failures else 0
 
 
-def _run_control(client, selected, instance, value, stdout, stderr) -> int:
+def _run_control(client, lan_client, selected, instance, value, stdout, stderr) -> int:
     for device in selected:
-        build_control_payload(device, instance, value, request_id="validation")
+        capability = next(
+            (item for item in device.capabilities if item.instance == instance), None
+        )
+        if capability is None:
+            raise InputError(f"{device.name} does not support {instance}")
+        validate_capability_value(capability, value)
+        if device.cloud is not None and device.lan is None:
+            build_control_payload(
+                device.cloud, instance, value, request_id="validation"
+            )
     failures = 0
     for device in selected:
         try:
-            client.control(device, instance, value)
-            print(f"{device.name}: ok", file=stdout)
-        except ApiError as error:
+            if device.lan is not None:
+                try:
+                    lan_client.control(device.lan, instance, value)
+                    result = "sent via LAN"
+                except LanError:
+                    if device.cloud is None or client is None:
+                        raise
+                    client.control(device.cloud, instance, value)
+                    result = "ok via cloud"
+                    print(f"Warning: {device.name}: LAN failed; used cloud", file=stderr)
+            elif device.cloud is not None and client is not None:
+                client.control(device.cloud, instance, value)
+                result = "ok via cloud"
+            else:
+                raise ApiError("No available connection")
+            print(f"{device.name}: {result}", file=stdout)
+        except (ApiError, LanError) as error:
             failures += 1
             print(f"{device.name}: {error}", file=stderr)
     return 1 if failures else 0
@@ -293,24 +335,71 @@ def _setup(env, stdout, client_factory, key_saver) -> int:
     return 0
 
 
-def _run(args, env, stdout, stderr, client_factory, secret_loader, key_saver) -> int:
+def _lan_enabled(env: Mapping[str, str]) -> bool:
+    value = env.get("GOVEE_LAN_ENABLED", "true").strip().casefold()
+    if value in LAN_ENABLED_VALUES:
+        return True
+    if value in LAN_DISABLED_VALUES:
+        return False
+    raise InputError("GOVEE_LAN_ENABLED must be true or false")
+
+
+def _discover_lan(env, lan_client_factory) -> tuple[Any, tuple, tuple[str, ...]]:
+    if not _lan_enabled(env):
+        return None, (), ()
+    client = lan_client_factory()
+    try:
+        return client, client.devices(), ()
+    except LanError as error:
+        return client, (), (f"LAN discovery failed: {error}",)
+
+
+def _discover_cloud(env, secret_loader, client_factory, have_lan):
+    api_base = _api_base(env)
+    try:
+        api_key = _api_key(env, secret_loader, api_base)
+    except InputError as error:
+        if have_lan and api_base == OFFICIAL_API_BASE:
+            return None, (), (f"Cloud discovery unavailable: {error}",)
+        raise
+    client = client_factory(api_key, base_url=api_base)
+    try:
+        devices, warnings = client.devices()
+        return client, devices, warnings
+    except ApiError as error:
+        if have_lan:
+            return client, (), (f"Cloud discovery failed: {error}",)
+        raise
+
+
+def _run(
+    args,
+    env,
+    stdout,
+    stderr,
+    client_factory,
+    lan_client_factory,
+    secret_loader,
+    key_saver,
+) -> int:
     if args.command == "setup":
         return _setup(env, stdout, client_factory, key_saver)
-    api_base = _api_base(env)
-    client = client_factory(
-        _api_key(env, secret_loader, api_base),
-        base_url=api_base,
+    lan_client, lan_devices, lan_warnings = _discover_lan(env, lan_client_factory)
+    client, cloud_devices, cloud_warnings = _discover_cloud(
+        env, secret_loader, client_factory, bool(lan_devices)
     )
-    devices, warnings = client.devices()
-    _warn(warnings, stderr)
+    devices = merge_devices(cloud_devices, lan_devices)
+    _warn(lan_warnings + cloud_warnings, stderr)
+    if not devices:
+        raise InputError("No Govee lights were found through cloud or LAN")
     if args.command == "devices":
         _print_devices(devices, stdout)
         return 0
     selected = _select(args, devices)
     if args.command == "status":
-        return _run_status(client, selected, stdout, stderr)
+        return _run_status(client, lan_client, selected, stdout, stderr)
     instance, value = _command_value(args)
-    return _run_control(client, selected, instance, value, stdout, stderr)
+    return _run_control(client, lan_client, selected, instance, value, stdout, stderr)
 
 
 def main(
@@ -320,6 +409,7 @@ def main(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
     client_factory=GoveeClient,
+    lan_client_factory=LanClient,
     secret_loader=None,
     key_saver=save_vault_key,
 ) -> int:
@@ -329,7 +419,14 @@ def main(
     try:
         args = build_parser().parse_args(argv)
         return _run(
-            args, effective_env, output, errors, client_factory, loader, key_saver
+            args,
+            effective_env,
+            output,
+            errors,
+            client_factory,
+            lan_client_factory,
+            loader,
+            key_saver,
         )
     except InputError as error:
         print(f"Error: {error}", file=errors)

@@ -26,3 +26,21 @@ top-level code 200 can still contain a nested capability state with
 
 As of May 15, 2026, generating a new Govee API key invalidates older active
 keys for the same account.
+
+## LAN API
+
+LAN Control must be enabled for each lamp in Govee Home. Discovery requests use
+UDP 4001 and responses arrive on UDP 4002. Status and control requests use UDP
+4003. The implementation sends discovery through multicast, broadcast, and a
+bounded local `/24` sweep, then validates source IPs, model strings, device IDs,
+commands, and status ranges.
+
+The H8022 bedside model is discoverable and controllable over LAN but absent
+from Govee's supported cloud-model list. It receives the local alias `Bedside
+Lamp`. The two H8072 records merge with their Govee Home names and use LAN when
+the lamps are reachable locally.
+
+LAN responses do not acknowledge writes. A completed send is reported as
+`sent via LAN`; status remains the read path for confirmation. If socket setup
+or `sendto` fails before the datagram is accepted, a merged device may safely
+fall back to its cloud record.

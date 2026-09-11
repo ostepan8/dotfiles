@@ -1,13 +1,18 @@
 ---
 name: govee
-description: Control Govee lamps through the official cloud API. Use when the user asks to turn Govee lights on or off, check their status, change brightness, color, or color temperature, list Govee devices, or configure Govee API access.
+description: Control Govee lamps through the local LAN and official cloud APIs. Use when the user asks to turn Govee lights on or off, check their status, change brightness, color, or color temperature, list Govee devices, or configure Govee API access.
 ---
 
 # Govee Lamp Control
 
-Use the `govee` CLI for every Govee operation. It discovers capabilities from
-Govee before issuing a command and stores the API key as `GOVEE_API_KEY` in the
-local encrypted vault.
+Use the `govee` CLI for every Govee operation. It merges local LAN discovery
+with Govee cloud metadata, prefers LAN control for locally reachable lamps, and
+stores the API key as `GOVEE_API_KEY` in the local encrypted vault. LAN-only
+models remain available even when Govee excludes them from its cloud API.
+
+Enable **LAN Control** for every lamp in Govee Home. On macOS, invoke `govee`
+directly so its fixed system-Python interpreter retains Local Network access.
+The user's H8022 LAN-only model appears as `Bedside Lamp`.
 
 ## First-time setup
 
@@ -52,6 +57,7 @@ be omitted. With multiple lamps, name them or use explicit `--all`. Never infer
 
 Names match case-insensitively but do not fuzzy-match. If a name is missing or
 ambiguous, run `govee devices` and ask the user which Govee Home name they mean.
+Set `GOVEE_LAN_ENABLED=false` only when local discovery must be disabled.
 
 ## Natural-language defaults
 
@@ -60,7 +66,9 @@ ambiguous, run `govee devices` and ask the user which Govee Home name they mean.
 - "dim" without a percentage -> 30% brightness
 - named colors -> standard RGB values
 
-After a successful write, report the lamp name and resulting requested value.
+After a cloud-confirmed write, report the lamp name and requested value. LAN
+writes return `sent via LAN` because Govee's UDP protocol has no acknowledgement;
+report that wording without claiming the lamp confirmed the change.
 For vague relative changes such as "a little brighter," read status first and
 choose a modest 10-point change within the lamp's advertised range.
 
@@ -68,7 +76,8 @@ choose a modest 10-point change within the lamp's advertised range.
 
 Exit code 2 is a setup, selector, input, or unsupported-capability error. Exit
 code 1 means Govee or the lamp refused the request. Surface the CLI message. If
-the key was rejected, direct the user to rerun `govee setup`. Do not blindly
-retry writes or exceed Govee's reported rate limits.
+the key was rejected, direct the user to rerun `govee setup`. A LAN discovery
+warning is nonfatal when cloud devices remain available. Do not blindly retry
+writes or exceed Govee's reported rate limits.
 
 Official API documentation: <https://developer.govee.com/>

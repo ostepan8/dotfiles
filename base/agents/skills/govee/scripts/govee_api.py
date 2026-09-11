@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Protocol, TypeVar
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -25,6 +25,17 @@ class ApiError(GoveeError):
 
 
 JsonValue = Any
+
+
+class SelectableDevice(Protocol):
+    @property
+    def device_id(self) -> str: ...
+
+    @property
+    def name(self) -> str: ...
+
+
+Selectable = TypeVar("Selectable", bound=SelectableDevice)
 
 
 @dataclass(frozen=True)
@@ -154,7 +165,7 @@ def parse_devices(body: JsonValue) -> tuple[tuple[Device, ...], tuple[str, ...]]
     return devices, warnings
 
 
-def _resolve_one(devices: Sequence[Device], selector: str) -> Device:
+def _resolve_one(devices: Sequence[Selectable], selector: str) -> Selectable:
     exact_ids = tuple(item for item in devices if item.device_id == selector)
     if len(exact_ids) == 1:
         return exact_ids[0]
@@ -169,11 +180,11 @@ def _resolve_one(devices: Sequence[Device], selector: str) -> Device:
 
 
 def select_devices(
-    devices: Sequence[Device],
+    devices: Sequence[Selectable],
     selectors: Sequence[str],
     *,
     all_devices: bool = False,
-) -> tuple[Device, ...]:
+) -> tuple[Selectable, ...]:
     if all_devices and selectors:
         raise InputError("Use either --device or --all, not both")
     if all_devices:
@@ -186,7 +197,7 @@ def select_devices(
         raise InputError("Choose a lamp with --device or use --all")
     resolved = tuple(_resolve_one(devices, selector) for selector in selectors)
     seen: frozenset[str] = frozenset()
-    unique: tuple[Device, ...] = ()
+    unique: tuple[Selectable, ...] = ()
     for item in resolved:
         if item.device_id not in seen:
             unique = unique + (item,)

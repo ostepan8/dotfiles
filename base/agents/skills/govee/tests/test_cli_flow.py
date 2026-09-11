@@ -22,6 +22,7 @@ from control import (
     save_vault_key,
 )
 from govee_api import ApiError, Capability, Device, InputError
+from govee_lan import LanDevice, LanError, LanStatus
 
 
 def cap(cap_type, instance, parameters=None):
@@ -90,9 +91,41 @@ class FakeClient:
         )
 
 
+class FakeLanClient:
+    def __init__(
+        self, devices=(), *, discovery_error=None, state_error=None, control_error=None
+    ):
+        self._devices = tuple(devices)
+        self._discovery_error = discovery_error
+        self._state_error = state_error
+        self._control_error = control_error
+        self.controls = ()
+        self.state_calls = ()
+
+    def devices(self):
+        if self._discovery_error:
+            raise self._discovery_error
+        return self._devices
+
+    def control(self, device, instance, value):
+        if self._control_error:
+            raise self._control_error
+        self.controls = self.controls + ((device.device_id, instance, value),)
+
+    def state(self, device):
+        self.state_calls = self.state_calls + (device.device_id,)
+        if self._state_error:
+            raise self._state_error
+        return LanStatus(True, 60, 255, 128, 0, 2700)
+
+
 def run_cli(argv, fake, env=None):
     stdout, stderr = io.StringIO(), io.StringIO()
-    effective_env = {"GOVEE_API_KEY": "test-key", **(env or {})}
+    effective_env = {
+        "GOVEE_API_KEY": "test-key",
+        "GOVEE_LAN_ENABLED": "false",
+        **(env or {}),
+    }
     exit_code = main(
         argv,
         env=effective_env,
@@ -159,7 +192,7 @@ class CliFlowTests(unittest.TestCase):
                 stdout, stderr = io.StringIO(), io.StringIO()
                 code = main(
                     argv,
-                    env=env,
+                    env={"GOVEE_LAN_ENABLED": "false", **env},
                     stdout=stdout,
                     stderr=stderr,
                     client_factory=lambda *_args, _fake=fake, **_kwargs: _fake,
@@ -211,6 +244,130 @@ class CliFlowTests(unittest.TestCase):
         self.assertIn("power=on", stdout)
         self.assertIn("brightness=75%", stdout)
         self.assertEqual("", stderr)
+
+    def test_merged_devices_and_lan_only_lamp_route_through_lan(self):
+        cloud = FakeClient((self.floor, self.desk))
+        lan = FakeLanClient(
+            (
+                LanDevice("192.0.2.40", "AA:01", "H6000"),
+                LanDevice("192.0.2.159", "BED:01", "H8022"),
+            )
+        )
+        stdout, stderr = io.StringIO(), io.StringIO()
+        code = main(
+            ["off", "--all"],
+            env={"GOVEE_API_KEY": "test-key"},
+            stdout=stdout,
+            stderr=stderr,
+            client_factory=lambda *_args, **_kwargs: cloud,
+            lan_client_factory=lambda: lan,
+        )
+        self.assertEqual(0, code, stderr.getvalue())
+        self.assertEqual(
+            (("BED:01", "powerSwitch", 0), ("AA:01", "powerSwitch", 0)),
+            lan.controls,
+        )
+        self.assertEqual(("AA:02", "powerSwitch", 0), cloud.controls[0])
+        self.assertEqual(3, len(lan.controls) + len(cloud.controls))
+        self.assertIn("Bedside Lamp", stdout.getvalue())
+
+    def test_lan_only_status_works_without_api_key_or_cloud_client(self):
+        lan = FakeLanClient((LanDevice("192.0.2.159", "BED:01", "H8022"),))
+
+        def unexpected_cloud(*_args, **_kwargs):
+            raise AssertionError("cloud client must not be created")
+
+        stdout, stderr = io.StringIO(), io.StringIO()
+        code = main(
+            ["status", "--device", "Bedside Lamp"],
+            env={},
+            stdout=stdout,
+            stderr=stderr,
+            client_factory=unexpected_cloud,
+            lan_client_factory=lambda: lan,
+            secret_loader=lambda: None,
+        )
+        self.assertEqual(0, code, stderr.getvalue())
+        self.assertEqual(("BED:01",), lan.state_calls)
+        self.assertIn("power=on", stdout.getvalue())
+        self.assertIn("brightness=60%", stdout.getvalue())
+        self.assertIn("Cloud discovery unavailable", stderr.getvalue())
+
+    def test_lan_failure_warns_and_cloud_still_controls(self):
+        cloud = FakeClient((self.desk,))
+        lan = FakeLanClient(discovery_error=LanError("permission denied"))
+        stdout, stderr = io.StringIO(), io.StringIO()
+        code = main(
+            ["on", "--device", "Desk Lamp"],
+            env={"GOVEE_API_KEY": "test-key"},
+            stdout=stdout,
+            stderr=stderr,
+            client_factory=lambda *_args, **_kwargs: cloud,
+            lan_client_factory=lambda: lan,
+        )
+        self.assertEqual(0, code)
+        self.assertEqual((("AA:01", "powerSwitch", 1),), cloud.controls)
+        self.assertIn("LAN discovery failed", stderr.getvalue())
+
+    def test_merged_device_falls_back_to_cloud_after_definite_lan_failure(self):
+        cloud = FakeClient((self.desk,))
+        lan = FakeLanClient(
+            (LanDevice("192.0.2.40", "AA:01", "H6000"),),
+            control_error=LanError("send denied"),
+            state_error=LanError("timed out"),
+        )
+        for argv in (
+            ["on", "--device", "Desk Lamp"],
+            ["status", "--device", "Desk Lamp"],
+        ):
+            with self.subTest(argv=argv):
+                cloud.controls = ()
+                cloud.state_calls = ()
+                stdout, stderr = io.StringIO(), io.StringIO()
+                code = main(
+                    argv,
+                    env={"GOVEE_API_KEY": "test-key"},
+                    stdout=stdout,
+                    stderr=stderr,
+                    client_factory=lambda *_args, **_kwargs: cloud,
+                    lan_client_factory=lambda: lan,
+                )
+                self.assertEqual(0, code, stderr.getvalue())
+                self.assertIn("used cloud", stderr.getvalue())
+        self.assertEqual(("AA:01",), cloud.state_calls)
+
+    def test_all_deduplicates_equivalent_cloud_ids_before_lan_write(self):
+        duplicate = test_lamp("Duplicate", "aa-01")
+        cloud = FakeClient((self.desk, duplicate))
+        lan = FakeLanClient((LanDevice("192.0.2.40", "AA:01", "H6000"),))
+        stdout, stderr = io.StringIO(), io.StringIO()
+        code = main(
+            ["off", "--all"],
+            env={"GOVEE_API_KEY": "test-key"},
+            stdout=stdout,
+            stderr=stderr,
+            client_factory=lambda *_args, **_kwargs: cloud,
+            lan_client_factory=lambda: lan,
+        )
+        self.assertEqual(0, code, stderr.getvalue())
+        self.assertEqual(1, len(lan.controls))
+        self.assertEqual((), cloud.controls)
+
+    def test_invalid_lan_setting_fails_before_network_access(self):
+        cloud = FakeClient((self.desk,))
+        stdout, stderr = io.StringIO(), io.StringIO()
+        code = main(
+            ["devices"],
+            env={"GOVEE_API_KEY": "test-key", "GOVEE_LAN_ENABLED": "maybe"},
+            stdout=stdout,
+            stderr=stderr,
+            client_factory=lambda *_args, **_kwargs: cloud,
+            lan_client_factory=lambda: (_ for _ in ()).throw(
+                AssertionError("LAN client must not be created")
+            ),
+        )
+        self.assertEqual(2, code)
+        self.assertIn("true or false", stderr.getvalue())
 
     def test_setup_verifies_and_saves_prompted_key(self):
         fake = FakeClient((self.desk,))
@@ -390,7 +547,10 @@ class CliFlowTests(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         code = main(
             ["devices"],
-            env={"GOVEE_API_BASE": "http://127.0.0.1:9999/router/api/v1"},
+            env={
+                "GOVEE_API_BASE": "http://127.0.0.1:9999/router/api/v1",
+                "GOVEE_LAN_ENABLED": "false",
+            },
             stdout=stdout,
             stderr=stderr,
             client_factory=lambda *_args, **_kwargs: fake,
@@ -418,7 +578,7 @@ class CliFlowTests(unittest.TestCase):
         stdout, stderr = io.StringIO(), io.StringIO()
         code = main(
             argv,
-            env=env,
+            env={"GOVEE_LAN_ENABLED": "false", **env},
             stdout=stdout,
             stderr=stderr,
             client_factory=lambda *_args, **_kwargs: fake,

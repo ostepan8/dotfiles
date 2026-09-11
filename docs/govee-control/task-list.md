@@ -12,4 +12,6 @@
 - [x] Run dotfiles validation and a code review.
 - [x] Commit the Govee integration and required apply-engine fix while
   preserving unrelated changes.
-- [ ] Store the user's API key and perform a read-only device discovery.
+- [x] Store the user's API key and perform a read-only device discovery.
+- [x] Add LAN discovery and control for the cloud-omitted H8022 bedside lamp.
+- [x] Merge the three physical lamps across cloud and LAN without duplicates.
