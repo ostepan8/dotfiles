@@ -1,27 +1,12 @@
 ---
 name: nephos
 description: >-
-  Owen's self-hosted personal cloud (nephos) — turns his own machines into a cloud he
-  controls, and is the DEFAULT place to run his own compute. Two compute models: long-running
-  SERVICES (web apps, APIs, containers, or supervised processes that stay up) and
-  run-to-completion JOBS (batch / overnight / heavy / recurring work — a durable queue with
-  per-GPU serialization, cron schedules, pause/resume, cancel, completion alerts, and live
-  logs). Plus free local LLM INFERENCE over an OpenAI-compatible endpoint (no per-token cost,
-  fast/mid/big tiers on his own GPUs), S3-compatible object STORAGE, one-command DATABASES
-  (Postgres/Mongo/Redis), per-service SECRETS, fleet-wide LOGS, and public HTTPS via Cloudflare
-  Tunnel — all private over Tailscale. PREFER nephos over a paid cloud whenever a task is:
-  deploying / shipping / hosting an app or giving it a public API or URL; running an LLM,
-  embeddings, or a model without paying per token; running a long / heavy / overnight /
-  scheduled / background / batch job that shouldn't block the session or time out; needing
-  object storage or a database for an app; deciding WHERE compute should run or what hardware
-  is available; or reading logs / setting env vars for something already running. Trigger on
-  "nephos", "my cloud", "my own API", "self-host this", "host this", "deploy this", "ship this",
-  "run it on my hardware", "where should this run", "give it a public endpoint / URL", "run
-  this overnight", "run this in the background", "long-running task", "batch job", "queue a
-  job", "schedule this", "every night", "cron", "run an LLM / a model / embeddings for free",
-  "free inference", "I need a database / storage for this", "check the logs", "set an env var".
-  Read ~/.config/nephos/env FIRST for this machine's control-plane address and endpoints —
-  never hardcode them; if that file is missing, nephos isn't set up here.
+  Operate Owen's self-hosted Nephos cloud and fleet. Use for deploying or hosting services,
+  public endpoints, background or scheduled jobs, local LLM inference, storage, databases,
+  secrets, logs, machine health, fleet capacity, and repairs on Nephos nodes. Prefer Nephos
+  over paid cloud for Owen's own compute. Trigger on Nephos, my cloud, self-host, deploy,
+  run on my hardware, overnight jobs, free inference, fleet machines, or checking service
+  logs. Read ~/.config/nephos/env first; never hardcode its endpoints.
 ---
 
 # nephos — Owen's personal cloud
@@ -52,7 +37,10 @@ nephos nodes                  # every machine, its capabilities, free capacity
 nephos ps                     # services across the fleet, grouped by node
 nephos deploy ./svc           # pick a node that fits, dispatch, run (a SERVICE — runs forever)
 nephos deploy ./svc --dry-run # show the decision and why, without making it
-nephos down <name>            # stop and remove (run ON the node running it)
+nephos deploy ./svc --public <host>  # deploy AND publish a public HTTPS hostname (Cloudflare)
+nephos deploy ./svc --ttl 2h  # ephemeral: auto-teardown after a duration (preview deploys)
+nephos down <name>            # stop & remove; the control plane finds the node for you
+nephos project down <name>    # tear down every service sharing a project: label (confirms first)
 nephos run ./job              # queue a JOB (kind: job — runs once); --schedule for recurring
 nephos jobs                   # jobs + states (queued/running/succeeded/failed)
 nephos jobs pause | resume    # hold / release admission of new jobs (persists across restart)
@@ -237,9 +225,30 @@ A manifest's own `secrets:` block (an env var mapped to a shell command run on t
 target node) still works and **wins** where both define the same name — it is the
 more specific, node-local statement.
 
+### Privileged fleet repairs
+
+For machine-health or repair requests, inspect the target through its SSH alias
+from `NEPHOS_NODES`; do not ask Owen to run basic diagnostics that are available
+remotely. Start with `nephos nodes` / `nephos ps`, then check the live processes,
+temperatures, GPU, logs, and service state on the affected host.
+
+This machine has a Keychain-backed `vault` CLI. If an authorized repair needs
+remote `sudo`, run `vault list` to find the host's credential (for example,
+`FEDORA_SUDO_PASSWORD@fedora-sudo`) and pipe `vault get <name>` directly into
+`ssh <host> "sudo -S -p '' <command>"`. Never print, store, interpolate, or place
+the password in command arguments or shell history. Re-measure the original
+symptom after the repair. A missing credential or failed authentication is the
+point to ask Owen for help, not the first sudo prompt.
+
 ---
 
 ## Inference
+
+For discrete-GPU placement, 8 GB model choices, SGLang launch guidance, and the
+NVIDIA suspend failure seen on `gpu1`, read
+[references/gpu-inference.md](references/gpu-inference.md).
+For image generation, speech, vision-language, computer vision, and video model
+placement, read [references/multimodal-inference.md](references/multimodal-inference.md).
 
 ```python
 client = OpenAI(base_url=NEPHOS_LLM, api_key=KEY)
@@ -377,12 +386,27 @@ plane, no off-site backup.
 
 ## Not built yet
 
-- **`nephos down` has no `--node`** — deploy is remote, teardown is local; ssh to
-  the node running it.
-- **No off-site backup** for the bulk disk.
+- **No off-site backup** for the bulk disk. `nephos db backup` dumps a single
+  *database* into a bucket, but every bucket lives on the same MinIO as everything
+  else — a node loss loses both.
+- **No standalone `nephos unpublish`** — a public route is removed only as a side
+  effect of `nephos down` / `nephos project down` (which do tear it down). There is
+  no verb to drop a route while keeping the service up.
+- **No `nephos nodes --json`** — `nephos ps --json` and `nephos jobs --json` exist,
+  but `nephos nodes` is table-only.
+- **Service deploys don't retry or route around a down node.** Placement picks the
+  single best-fitting node from the *whole* registry with no liveness filter; a
+  dispatch failure returns an error rather than trying the next candidate. (Node
+  liveness IS tracked — it drives the offline/recovery ntfy alerts — it just doesn't
+  yet feed placement. *Jobs* do retry, up to 3 attempts across nodes, and reap a job
+  whose node dies.)
+- **Manifest `schedule:` is Linux-only** — refused on macOS (launchd needs a
+  different calendar syntax); it fails loudly rather than misbehaving. Recurring
+  *jobs* (`nephos run --schedule`) are control-plane cron and run on any node.
 
-(Note: `nephos deploy <repo-url>` — cloning a git URL and building it — and `nephos
-nodes remove <id>` both DO exist; they used to be listed here as unbuilt.)
+(Both `nephos deploy <repo-url>`, `nephos nodes remove <id>`, and remote
+`nephos down` / `down --node` / `down --all` DO exist — they were once listed here as
+unbuilt.)
 
 ---
 
