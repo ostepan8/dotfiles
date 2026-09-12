@@ -11,6 +11,7 @@ import pwd
 import stat
 import subprocess
 import sys
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
@@ -28,7 +29,7 @@ from govee_api import (
     validate_capability_value,
 )
 from govee_hybrid import HybridDevice, lan_state_capabilities, merge_devices
-from govee_lan import LanClient, LanError
+from govee_lan import LanClient, LanDevice, LanError
 
 ACCOUNT_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)
 VAULT_HOME = ACCOUNT_HOME / ".vault"
@@ -385,14 +386,102 @@ def _lan_enabled(env: Mapping[str, str]) -> bool:
     raise InputError("GOVEE_LAN_ENABLED must be true or false")
 
 
+LAN_CACHE_RELATIVE = Path(".cache") / "govee" / "lan-devices.json"
+LAN_CACHE_TTL_DEFAULT = 600.0
+
+
+def _lan_cache_path(env: Mapping[str, str]) -> Path | None:
+    """Where the remembered LAN addresses live, or None for no cache.
+
+    Derived strictly from the CALLER'S environment. env is already the source
+    of truth for the API key and whether LAN is enabled; reaching past it to
+    the process account for this one value was wrong, and it showed — unit
+    tests that pass env={} read the real cache and picked up the actual lamps
+    on this network instead of their fakes.
+
+    No HOME and no explicit path means the caller has given us nowhere to
+    cache, so we do not. Slower, never surprising.
+    """
+    override = env.get("GOVEE_LAN_CACHE_PATH", "").strip()
+    if override:
+        return Path(override)
+    home = env.get("HOME", "").strip()
+    if not home:
+        return None
+    return Path(home) / LAN_CACHE_RELATIVE
+
+
+def _lan_cache_ttl(env: Mapping[str, str]) -> float:
+    """Seconds a remembered LAN address list stays usable. 0 disables it."""
+    raw = env.get("GOVEE_LAN_CACHE_TTL", "").strip()
+    if not raw:
+        return LAN_CACHE_TTL_DEFAULT
+    try:
+        value = float(raw)
+    except ValueError:
+        raise InputError("GOVEE_LAN_CACHE_TTL must be a number of seconds")
+    return max(value, 0.0)
+
+
+def _read_lan_cache(path: Path | None, ttl: float) -> tuple[LanDevice, ...] | None:
+    if path is None or ttl <= 0:
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if time.time() - float(raw["at"]) > ttl:
+            return None
+        return tuple(
+            LanDevice(ip=str(d["ip"]), device_id=str(d["device_id"]), sku=str(d["sku"]))
+            for d in raw["devices"]
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _write_lan_cache(path: Path | None, devices: Sequence[LanDevice]) -> None:
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        payload = {
+            "at": time.time(),
+            "devices": [
+                {"ip": d.ip, "device_id": d.device_id, "sku": d.sku} for d in devices
+            ],
+        }
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload), encoding="utf-8")
+        temporary.chmod(0o600)
+        temporary.replace(path)
+    except OSError:
+        pass  # a cache that cannot be written is not an error, just a slow path
+
+
 def _discover_lan(env, lan_client_factory) -> tuple[Any, tuple, tuple[str, ...]]:
+    """Find the lamps on the LAN, remembering where they were last seen.
+
+    Discovery is a multicast scan that MUST wait out its whole window, because
+    nothing says how many lamps should answer — a fixed ~2s on every invocation,
+    which dominated every status read and every control. Addresses are stable
+    between DHCP leases, so they are cached and the scan is skipped. A caller
+    that then cannot reach a remembered address falls back to the cloud exactly
+    as it already did, and the next scan refreshes the file.
+    """
     if not _lan_enabled(env):
         return None, (), ()
     client = lan_client_factory()
+    ttl = _lan_cache_ttl(env)
+    cache_path = _lan_cache_path(env)
+    cached = _read_lan_cache(cache_path, ttl)
+    if cached:
+        return client, cached, ()
     try:
-        return client, client.devices(), ()
+        devices = client.devices()
     except LanError as error:
         return client, (), (f"LAN discovery failed: {error}",)
+    if devices:
+        _write_lan_cache(cache_path, devices)
+    return client, devices, ()
 
 
 def _discover_cloud(env, secret_loader, client_factory, have_lan):

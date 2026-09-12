@@ -1,4 +1,5 @@
 import io
+import tempfile
 import json
 import os
 import stat
@@ -122,9 +123,15 @@ class FakeLanClient:
 
 def run_cli(argv, fake, env=None):
     stdout, stderr = io.StringIO(), io.StringIO()
+    # HOME is part of the injected environment on purpose: the CLI remembers
+    # discovered LAN addresses under it, and without one these tests read the
+    # real cache and picked up the actual lamps on this network instead of the
+    # fakes below. A throwaway HOME keeps the suite hermetic.
+    home = tempfile.mkdtemp(prefix="govee-test-home-")
     effective_env = {
         "GOVEE_API_KEY": "test-key",
         "GOVEE_LAN_ENABLED": "false",
+        "HOME": home,
         **(env or {}),
     }
     exit_code = main(

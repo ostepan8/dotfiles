@@ -1,5 +1,6 @@
 import copy
 import json
+import tempfile
 import sys
 import time
 import unittest
@@ -10,6 +11,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from govee_api import Device
+from control import _lan_cache_path, _read_lan_cache
 from govee_hybrid import merge_devices
 from govee_lan import (
     LanClient,
@@ -305,3 +307,41 @@ class _FakeListener:
     def recvfrom(self, _size):
         self.reads += 1
         return self._packets.pop(0), ("10.0.0.1", 4002)
+
+
+class LanCachePathTest(unittest.TestCase):
+    """The cache location comes from the caller's env, never the real account.
+
+    Reaching past the injected env to the process home made unit tests read the
+    machine's real cache and assert against the actual lamps on this network.
+    """
+
+    def test_no_home_means_no_cache(self):
+        self.assertIsNone(_lan_cache_path({}))
+
+    def test_home_is_respected(self):
+        got = _lan_cache_path({"HOME": "/tmp/fake-home"})
+        self.assertIsNotNone(got)
+        self.assertTrue(str(got).startswith("/tmp/fake-home"))
+
+    def test_explicit_path_wins(self):
+        self.assertEqual(
+            "/tmp/elsewhere.json",
+            str(_lan_cache_path({"HOME": "/tmp/fake-home", "GOVEE_LAN_CACHE_PATH": "/tmp/elsewhere.json"})),
+        )
+
+    def test_a_stale_file_is_ignored(self):
+        with tempfile.TemporaryDirectory() as home:
+            path = Path(home) / "lan.json"
+            path.write_text(json.dumps({"at": 0, "devices": []}), encoding="utf-8")
+            self.assertIsNone(_read_lan_cache(path, 600.0))
+
+    def test_ttl_zero_disables_reading(self):
+        with tempfile.TemporaryDirectory() as home:
+            path = Path(home) / "lan.json"
+            path.write_text(
+                json.dumps({"at": time.time(), "devices": [{"ip": "10.0.0.1", "device_id": "A", "sku": "H1"}]}),
+                encoding="utf-8",
+            )
+            self.assertIsNone(_read_lan_cache(path, 0.0))
+            self.assertEqual(1, len(_read_lan_cache(path, 600.0)))
