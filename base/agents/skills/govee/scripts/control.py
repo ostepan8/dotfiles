@@ -18,6 +18,7 @@ from typing import Any, TextIO
 from urllib.parse import urlparse
 
 from govee_api import (
+    JsonValue,
     ApiError,
     Device,
     GoveeClient,
@@ -484,7 +485,82 @@ def _discover_lan(env, lan_client_factory) -> tuple[Any, tuple, tuple[str, ...]]
     return client, devices, ()
 
 
+CLOUD_CACHE_RELATIVE = Path(".cache") / "govee" / "cloud-devices.json"
+CLOUD_CACHE_TTL_DEFAULT = 86400.0
+
+
+def _cloud_cache_path(env: Mapping[str, str]) -> Path | None:
+    override = env.get("GOVEE_CLOUD_CACHE_PATH", "").strip()
+    if override:
+        return Path(override)
+    home = env.get("HOME", "").strip()
+    if not home:
+        return None
+    return Path(home) / CLOUD_CACHE_RELATIVE
+
+
+def _cloud_cache_ttl(env: Mapping[str, str]) -> float:
+    """Seconds the device LIST stays usable. 0 disables it."""
+    raw = env.get("GOVEE_CLOUD_CACHE_TTL", "").strip()
+    if not raw:
+        return CLOUD_CACHE_TTL_DEFAULT
+    try:
+        value = float(raw)
+    except ValueError:
+        raise InputError("GOVEE_CLOUD_CACHE_TTL must be a number of seconds")
+    return max(value, 0.0)
+
+
+def _read_cloud_cache(path: Path | None, ttl: float, api_base: str) -> JsonValue | None:
+    """The cached device list, if it is fresh AND from this same API base.
+
+    Keying on api_base is not paranoia: the end-to-end test points the CLI at a
+    local fake server while inheriting the real HOME, and without this it read
+    the cache written from the live Govee account and went looking for the real
+    lamps. A cache from one server must never answer for another.
+    """
+    if path is None or ttl <= 0:
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if raw.get("api_base") != api_base:
+            return None
+        if time.time() - float(raw["at"]) > ttl:
+            return None
+        return raw["body"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _write_cloud_cache(path: Path | None, body: JsonValue, api_base: str) -> None:
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps({"at": time.time(), "api_base": api_base, "body": body}),
+            encoding="utf-8",
+        )
+        temporary.chmod(0o600)
+        temporary.replace(path)
+    except OSError:
+        pass
+
+
 def _discover_cloud(env, secret_loader, client_factory, have_lan):
+    """Get the device list, from cache when possible.
+
+    GET /user/devices is metadata — names, SKUs, capabilities — that changes
+    only when a lamp is added or removed, but it was fetched on EVERY status
+    read and every control. Govee's documented allowance is 10,000 requests a
+    day, so anything that reads often (a phone page, a poller) burns quota on a
+    list that has not changed, and gets rate-limited exactly when it matters.
+    The raw response body is cached and re-parsed, so nothing is lost.
+
+    A lamp added or renamed appears when the cache expires, or immediately with
+    GOVEE_CLOUD_CACHE_TTL=0.
+    """
     api_base = _api_base(env)
     try:
         api_key = _api_key(env, secret_loader, api_base)
@@ -493,8 +569,27 @@ def _discover_cloud(env, secret_loader, client_factory, have_lan):
             return None, (), (f"Cloud discovery unavailable: {error}",)
         raise
     client = client_factory(api_key, base_url=api_base)
+    cache_path = _cloud_cache_path(env)
+    ttl = _cloud_cache_ttl(env)
+    # Prefer a cached body, but only when the client can parse one back. A test
+    # double or an alternative client need only implement devices(); the cache
+    # is transparent to them rather than something every caller must support.
+    parse = getattr(client, "parse_device_response", None)
+    cached = _read_cloud_cache(cache_path, ttl, api_base) if parse else None
+    if cached is not None:
+        try:
+            devices, warnings = parse(cached)
+            return client, devices, warnings
+        except ApiError:
+            pass  # a cache we cannot parse is simply not a cache
     try:
-        devices, warnings = client.devices()
+        body_of = getattr(client, "devices_body", None)
+        if body_of and parse:
+            body = body_of()
+            devices, warnings = parse(body)
+            _write_cloud_cache(cache_path, body, api_base)
+        else:
+            devices, warnings = client.devices()
         return client, devices, warnings
     except ApiError as error:
         if have_lan:

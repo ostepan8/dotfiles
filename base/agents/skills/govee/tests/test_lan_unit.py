@@ -11,7 +11,13 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from govee_api import Device
-from control import _lan_cache_path, _read_lan_cache
+from control import (
+    _cloud_cache_path,
+    _lan_cache_path,
+    _read_cloud_cache,
+    _read_lan_cache,
+    _write_cloud_cache,
+)
 from govee_hybrid import merge_devices
 from govee_lan import (
     LanClient,
@@ -345,3 +351,42 @@ class LanCachePathTest(unittest.TestCase):
             )
             self.assertIsNone(_read_lan_cache(path, 0.0))
             self.assertEqual(1, len(_read_lan_cache(path, 600.0)))
+
+
+class CloudCacheTest(unittest.TestCase):
+    """The device list is metadata; fetching it per read burns Govee quota.
+
+    GET /user/devices was called on every status and every control. Govee
+    allows ~10k requests a day, so a page that reads often — or any poller —
+    spends quota on a list that changes when a lamp is added, and gets rate
+    limited exactly when it matters.
+    """
+
+    def test_a_cache_from_another_api_base_is_not_used(self):
+        with tempfile.TemporaryDirectory() as home:
+            path = Path(home) / "cloud.json"
+            path.write_text(
+                json.dumps({"at": time.time(), "api_base": "https://real.example", "body": {"data": []}}),
+                encoding="utf-8",
+            )
+            self.assertIsNone(_read_cloud_cache(path, 3600.0, "http://127.0.0.1:9/router/api/v1"))
+            self.assertIsNotNone(_read_cloud_cache(path, 3600.0, "https://real.example"))
+
+    def test_a_stale_list_is_ignored(self):
+        with tempfile.TemporaryDirectory() as home:
+            path = Path(home) / "cloud.json"
+            path.write_text(
+                json.dumps({"at": 0, "api_base": "https://real.example", "body": {"data": []}}),
+                encoding="utf-8",
+            )
+            self.assertIsNone(_read_cloud_cache(path, 3600.0, "https://real.example"))
+
+    def test_no_home_means_no_cloud_cache(self):
+        self.assertIsNone(_cloud_cache_path({}))
+
+    def test_round_trip(self):
+        with tempfile.TemporaryDirectory() as home:
+            path = Path(home) / "cloud.json"
+            body = {"data": [{"sku": "H1", "device": "AA", "deviceName": "Lamp"}]}
+            _write_cloud_cache(path, body, "https://real.example")
+            self.assertEqual(body, _read_cloud_cache(path, 3600.0, "https://real.example"))

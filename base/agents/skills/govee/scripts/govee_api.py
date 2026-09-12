@@ -338,9 +338,12 @@ class GoveeClient:
     ) -> tuple[tuple[Device, ...], tuple[str, ...]]:
         return self._safe(lambda: parse_devices(body))
 
+    def devices_body(self) -> JsonValue:
+        """The raw /user/devices response, so a caller can cache it verbatim."""
+        return self._request("GET", "/user/devices")
+
     def devices(self) -> tuple[tuple[Device, ...], tuple[str, ...]]:
-        body = self._request("GET", "/user/devices")
-        return self.parse_device_response(body)
+        return self.parse_device_response(self.devices_body())
 
     def state(self, device: Device) -> tuple[Mapping[str, JsonValue], ...]:
         body = self._request(
