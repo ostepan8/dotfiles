@@ -312,7 +312,7 @@ class _FakeListener:
 
     def recvfrom(self, _size):
         self.reads += 1
-        return self._packets.pop(0), ("10.0.0.1", 4002)
+        return self._packets.pop(0), ("192.0.2.1", 4002)
 
 
 class LanCachePathTest(unittest.TestCase):
@@ -346,7 +346,7 @@ class LanCachePathTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             path = Path(home) / "lan.json"
             path.write_text(
-                json.dumps({"at": time.time(), "devices": [{"ip": "10.0.0.1", "device_id": "A", "sku": "H1"}]}),
+                json.dumps({"at": time.time(), "devices": [{"ip": "192.0.2.1", "device_id": "A", "sku": "H1"}]}),
                 encoding="utf-8",
             )
             self.assertIsNone(_read_lan_cache(path, 0.0))
