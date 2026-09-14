@@ -97,4 +97,6 @@ brew "displayplacer"
 cask "ghostty"
 cask "aerospace"
 cask "google-chrome"
+# URL router sitting in front of Chrome; see workstation/finicky/finicky.js.
+cask "finicky"
 cask "blender"
