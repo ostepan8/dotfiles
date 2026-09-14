@@ -21,6 +21,11 @@ PLUGIN_DIR="$HOME/.config/sketchybar/plugins"
 # sketchybar has no notch support to lean on -- there is no notch_width property
 # in v2.23 -- so the only defence is keeping the centre empty, which MINIMAL does
 # by dropping every optional item.
+# The Studio is a desktop: its battery item rendered an empty icon AND an empty
+# label -- an invisible item plus its separator, holding a slot for nothing.
+# Detected rather than keyed off HOST_TYPE so it stays right on any machine.
+if pmset -g batt 2>/dev/null | grep -q InternalBattery; then HAS_BATTERY=1; else HAS_BATTERY=0; fi
+
 HOST_TYPE="$(cat "$HOME/.dotfiles-host" 2>/dev/null || echo studio)"
 case "$HOST_TYPE" in
     macbook) BAR_HEIGHT=37; ITEM_BG_HEIGHT=26; MINIMAL=1 ;;
@@ -190,6 +195,10 @@ if [ "$MINIMAL" = 0 ]; then
             update_freq=10 \
             background.color=$BG_ITEM \
             label.color=$AQUA \
+            label.padding_left=12 \
+            label.padding_right=14 \
+            padding_left=8 \
+            padding_right=8 \
             drawing=off \
             script="$PLUGIN_DIR/media.sh"
 fi
@@ -218,15 +227,17 @@ sketchybar --add item clock right \
 sketchybar --add item sep.clock right \
     --set sep.clock background.drawing=off icon.drawing=off label.drawing=off width=8
 
-# Battery
-sketchybar --add item battery right \
-    --set battery \
-        update_freq=30 \
-        background.color=$BG_ITEM \
-        script="$PLUGIN_DIR/battery.sh"
+# Battery — only on hardware that has one.
+if [ "$HAS_BATTERY" = 1 ]; then
+    sketchybar --add item battery right \
+        --set battery \
+            update_freq=30 \
+            background.color=$BG_ITEM \
+            script="$PLUGIN_DIR/battery.sh"
 
-sketchybar --add item sep.bat right \
-    --set sep.bat background.drawing=off icon.drawing=off label.drawing=off width=8
+    sketchybar --add item sep.bat right \
+        --set sep.bat background.drawing=off icon.drawing=off label.drawing=off width=8
+fi
 
 # Wi-Fi
 sketchybar --add item wifi right \
@@ -238,6 +249,36 @@ sketchybar --add item wifi right \
 
 sketchybar --add item sep.wifi right \
     --set sep.wifi background.drawing=off icon.drawing=off label.drawing=off width=8
+
+# ---- Studio-only extras. 3440pt of bar and no camera housing to design around,
+# ---- so the room gets spent on things the native menu bar never offered.
+
+# Commits authored today across every project root. update_freq is deliberately
+# slack: the scan is ~0.19s over 20 repos, and the number does not move fast
+# enough to be worth paying for more often.
+if [ "$MINIMAL" = 0 ]; then
+    sketchybar --add item commits right \
+        --set commits \
+            update_freq=60 \
+            background.color=$BG_ITEM \
+            click_script="open -a Terminal" \
+            script="$PLUGIN_DIR/commits.sh"
+
+    sketchybar --add item sep.commits right \
+        --set sep.commits background.drawing=off icon.drawing=off label.drawing=off width=8
+
+    # nephos fleet: jobs running/queued on the self-hosted cloud. Greys out to
+    # "--" when the control plane is unreachable, which is a normal state rather
+    # than an error -- see the bounded call in the plugin.
+    sketchybar --add item nephos right \
+        --set nephos \
+            update_freq=60 \
+            background.color=$BG_ITEM \
+            script="$PLUGIN_DIR/nephos.sh"
+
+    sketchybar --add item sep.nephos right \
+        --set sep.nephos background.drawing=off icon.drawing=off label.drawing=off width=8
+fi
 
 # Dropped on the MacBook (weather does not fit in ~1728pt).
 if [ "$MINIMAL" = 0 ]; then
