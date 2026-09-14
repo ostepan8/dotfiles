@@ -49,22 +49,36 @@ if isinstance(rows, dict):
 
 states = [r.get("state") for r in rows]
 
-# Failures within the last 24h only. An all-time count would pin the bar red over
-# something that broke and was fixed weeks ago, and a bar that is permanently red
-# is a bar nobody reads.
+# Count JOB NAMES whose most recent run failed -- not every failure in the
+# window. A job that failed at 07:00 and succeeded at 09:00 is not broken, and
+# counting the old failure would keep the bar red over something already fixed.
+# Still bounded to 24h so a name that has not run since yesterday stops counting
+# rather than accusing the fleet forever.
 cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
-recent = 0
+
+
+def when(r):
+    return r.get("finishedAt") or r.get("submittedAt") or ""
+
+
+latest = {}
 for r in rows:
-    if r.get("state") != "failed":
+    if r.get("state") not in ("succeeded", "failed"):
         continue
-    ts = r.get("finishedAt") or r.get("submittedAt")
+    ts = when(r)
     if not ts:
         continue
     try:
-        if datetime.datetime.fromisoformat(ts) >= cutoff:
-            recent += 1
+        parsed = datetime.datetime.fromisoformat(ts)
     except ValueError:
         continue
+    if parsed < cutoff:
+        continue
+    name = r.get("name")
+    if name not in latest or parsed > latest[name][0]:
+        latest[name] = (parsed, r.get("state"))
+
+recent = sum(1 for _, state in latest.values() if state == "failed")
 
 print(states.count("running"), states.count("queued"), recent)
 ' "$TMP")"
