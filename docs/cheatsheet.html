@@ -328,14 +328,17 @@
   <p class="desc">When multiple apps are on one workspace, they tile automatically. Navigate with vim keys.</p>
   <h3>Focus &amp; move</h3>
   <div class="grid">
+    <!-- GENERATED from docs/keys.tsv — edit that, then `make cheatsheet` -->
     <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd>H</kbd><span class="sep">/</span><kbd>J</kbd><span class="sep">/</span><kbd>K</kbd><span class="sep">/</span><kbd>L</kbd></div>
     <div class="desc-cell"><strong>Focus</strong> window left / down / up / right</div>
 
     <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd>H</kbd><span class="sep">/</span><kbd>J</kbd><span class="sep">/</span><kbd>K</kbd><span class="sep">/</span><kbd>L</kbd></div>
     <div class="desc-cell"><strong>Swap</strong> window in that direction</div>
+    <!-- /GENERATED -->
   </div>
   <h3>Resize &amp; layout</h3>
   <div class="grid">
+    <!-- GENERATED from docs/keys.tsv — edit that, then `make cheatsheet` -->
     <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">-</kbd> / <kbd class="sym">=</kbd></div>
     <div class="desc-cell">Shrink / grow focused window</div>
 
@@ -351,11 +354,9 @@
     <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">/</kbd></div>
     <div class="desc-cell">Flip tile orientation (horizontal ↔ vertical)</div>
 
-    <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="sym">,</kbd></div>
-    <div class="desc-cell">Accordion layout (stack windows)</div>
-
     <div class="keys"><kbd class="mod">Alt</kbd><span class="sep">+</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd>C</kbd></div>
     <div class="desc-cell">Reload Aerospace config</div>
+    <!-- /GENERATED -->
   </div>
 </section>
 
@@ -365,6 +366,7 @@
   <p class="desc">Prefix is <kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd> — press it, release, then press the next key.</p>
   <h3>Panes (splits within one tmux window)</h3>
   <div class="grid">
+    <!-- GENERATED from docs/keys.tsv — edit that, then `make cheatsheet` -->
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="sym">|</kbd></div>
     <div class="desc-cell">Split horizontally</div>
 
@@ -373,9 +375,11 @@
 
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>H</kbd><span class="sep">/</span><kbd>J</kbd><span class="sep">/</span><kbd>K</kbd><span class="sep">/</span><kbd>L</kbd></div>
     <div class="desc-cell">Focus pane left/down/up/right (vim-aware — also jumps into nvim splits)</div>
+    <!-- /GENERATED -->
   </div>
   <h3>Windows (tabs inside a session)</h3>
   <div class="grid">
+    <!-- GENERATED from docs/keys.tsv — edit that, then `make cheatsheet` -->
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>C</kbd></div>
     <div class="desc-cell">New tmux window</div>
 
@@ -384,9 +388,14 @@
 
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="wide">Tab</kbd></div>
     <div class="desc-cell">Last tmux window</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>H</kbd> / <kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>L</kbd></div>
+    <div class="desc-cell">Previous / next tmux window</div>
+    <!-- /GENERATED -->
   </div>
   <h3>Sessions &amp; copy</h3>
   <div class="grid">
+    <!-- GENERATED from docs/keys.tsv — edit that, then `make cheatsheet` -->
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>D</kbd></div>
     <div class="desc-cell"><strong>Detach</strong> session (keep running, return with <code>tmux attach</code>)</div>
 
@@ -395,6 +404,36 @@
 
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>R</kbd></div>
     <div class="desc-cell">Reload tmux config</div>
+
+    <div class="keys"><kbd class="mod">Opt</kbd><span class="sep">+</span><kbd>P</kbd></div>
+    <div class="desc-cell"><strong>Session picker</strong> — every running session plus <strong>zoxide</strong> history; attaches, or creates if it is not running yet</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>K</kbd></div>
+    <div class="desc-cell">Clear screen (bare <kbd>Ctrl</kbd>+<kbd>L</kbd> belongs to vim-tmux-navigator)</div>
+    <!-- /GENERATED -->
+  </div>
+
+  <h3>Popups &amp; links</h3>
+  <div class="grid">
+    <!-- GENERATED from docs/keys.tsv — edit that, then `make cheatsheet` -->
+    <div class="keys"><kbd class="mod">Opt</kbd><span class="sep">+</span><kbd>G</kbd></div>
+    <div class="desc-cell"><strong>Scratch popup</strong> — a persistent shell, same one every time, from any session</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>G</kbd></div>
+    <div class="desc-cell"><strong>lazygit</strong> in a popup, in the current pane's repo</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>P</kbd></div>
+    <div class="desc-cell">Throwaway shell popup (fresh each time — contrast <kbd class="mod">Opt</kbd>+<kbd>G</kbd>)</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>U</kbd></div>
+    <div class="desc-cell"><strong>URL picker</strong> for the pane — newest first; <kbd class="mod">Tab</kbd> multi-selects, <kbd class="mod">Ctrl</kbd>+<kbd>Y</kbd> copies instead of opening</div>
+
+    <div class="keys"><kbd>O</kbd></div>
+    <div class="desc-cell">In copy mode: open the selection (URL, file, or directory)</div>
+
+    <div class="keys"><kbd class="mod">Cmd</kbd><span class="sep">+</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd>Click</kbd></div>
+    <div class="desc-cell">Open a link directly. Shift is required because tmux owns the mouse</div>
+    <!-- /GENERATED -->
   </div>
 </section>
 

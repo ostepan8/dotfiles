@@ -1,0 +1,34 @@
+# keys.tsv — the single source of truth for the keybinding sections of
+# docs/cheatsheet.html. Edit here, then `make cheatsheet`.
+#
+# section<TAB>key spec<TAB>description (HTML allowed)
+#
+# Spec syntax:  +  chord     then  sequential press     /  alternatives
+#               `x`  renders as <code>x</code>
+
+Focus &amp; move	Alt+H/J/K/L	<strong>Focus</strong> window left / down / up / right
+Focus &amp; move	Alt+Shift+H/J/K/L	<strong>Swap</strong> window in that direction
+Resize &amp; layout	Alt+- / =	Shrink / grow focused window
+Resize &amp; layout	Alt+Shift+=	Balance sizes
+Resize &amp; layout	Alt+F	<strong>Fullscreen</strong> focused window
+Resize &amp; layout	Alt+Shift+Space	Toggle <strong>float / tile</strong> (for apps that fight tiling)
+Resize &amp; layout	Alt+/	Flip tile orientation (horizontal ↔ vertical)
+Resize &amp; layout	Alt+Shift+C	Reload Aerospace config
+Panes (splits within one tmux window)	Ctrl+A then |	Split horizontally
+Panes (splits within one tmux window)	Ctrl+A then -	Split vertically
+Panes (splits within one tmux window)	Ctrl+H/J/K/L	Focus pane left/down/up/right (vim-aware — also jumps into nvim splits)
+Windows (tabs inside a session)	Ctrl+A then C	New tmux window
+Windows (tabs inside a session)	Ctrl+A then 1 … 9	Jump to tmux window N
+Windows (tabs inside a session)	Ctrl+A then Tab	Last tmux window
+Sessions &amp; copy	Ctrl+A then D	<strong>Detach</strong> session (keep running, return with <code>tmux attach</code>)
+Sessions &amp; copy	Ctrl+A then [	Enter <strong>copy mode</strong> — scroll + select with vi keys (<kbd>v</kbd> select, <kbd>y</kbd> yank)
+Sessions &amp; copy	Ctrl+A then R	Reload tmux config
+Windows (tabs inside a session)	Ctrl+A then Ctrl+H / Ctrl+L	Previous / next tmux window
+Sessions &amp; copy	Opt+P	<strong>Session picker</strong> — every running session plus <strong>zoxide</strong> history; attaches, or creates if it is not running yet
+Sessions &amp; copy	Ctrl+A then Ctrl+K	Clear screen (bare <kbd>Ctrl</kbd>+<kbd>L</kbd> belongs to vim-tmux-navigator)
+Popups &amp; links	Opt+G	<strong>Scratch popup</strong> — a persistent shell, same one every time, from any session
+Popups &amp; links	Ctrl+A then G	<strong>lazygit</strong> in a popup, in the current pane's repo
+Popups &amp; links	Ctrl+A then P	Throwaway shell popup (fresh each time — contrast <kbd class="mod">Opt</kbd>+<kbd>G</kbd>)
+Popups &amp; links	Ctrl+A then U	<strong>URL picker</strong> for the pane — newest first; <kbd class="mod">Tab</kbd> multi-selects, <kbd class="mod">Ctrl</kbd>+<kbd>Y</kbd> copies instead of opening
+Popups &amp; links	O	In copy mode: open the selection (URL, file, or directory)
+Popups &amp; links	Cmd+Shift+Click	Open a link directly. Shift is required because tmux owns the mouse

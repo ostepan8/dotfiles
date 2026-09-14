@@ -15,10 +15,16 @@ verify:  ## Prove the apply engine against a throwaway HOME (touches nothing)
 roles:  ## Check roles/ and the generated ACL agree
 	@bash scripts/gen-nephos-acl.sh --check >/dev/null && echo "roles coherent"
 
+doctor:  ## Assert the RUNNING system matches the config (live state, not files)
+	@bash scripts/doctor.sh
+
+cheatsheet:  ## Regenerate the keybinding sections of docs/cheatsheet.html from docs/keys.tsv
+	@bash scripts/gen-cheatsheet.sh
+
 acl:  ## Print the Tailscale ACL generated from roles/
 	@bash scripts/gen-nephos-acl.sh
 
-test: check verify roles  ## Run every check
+test: check verify roles doctor  ## Run every check
 
 dry-run:  ## Show what apply would change on THIS machine
 	@bash apply.sh --dry-run
