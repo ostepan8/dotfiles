@@ -208,6 +208,10 @@ sketchybar --add item clock right \
         background.color=$BG_ITEM \
         icon.drawing=off \
         label.color=$FG \
+        label.padding_left=10 \
+        label.padding_right=12 \
+        padding_left=8 \
+        padding_right=8 \
         click_script="open -a Calendar" \
         script="$PLUGIN_DIR/clock.sh"
 
@@ -277,21 +281,19 @@ if [ "$MINIMAL" = 0 ]; then
         --set sep.3 background.drawing=off icon.drawing=off label.drawing=off width=8
 fi
 
-# Dropped on the MacBook (cpu/ram does not fit in ~1728pt).
-if [ "$MINIMAL" = 0 ]; then
-    # CPU + RAM (not shown in the native menu bar)
-    sketchybar --add item cpu right \
-        --set cpu \
-            update_freq=5 \
-            background.color=$BG_ITEM \
-            script="$PLUGIN_DIR/cpu.sh"
+# Shown on both: stats matter more on a laptop, and they are narrow items.
+# CPU + RAM (not shown in the native menu bar)
+sketchybar --add item cpu right \
+    --set cpu \
+        update_freq=5 \
+        background.color=$BG_ITEM \
+        script="$PLUGIN_DIR/cpu.sh"
 
-    sketchybar --add item ram right \
-        --set ram \
-            update_freq=10 \
-            background.color=$BG_ITEM \
-            script="$PLUGIN_DIR/ram.sh"
-fi
+sketchybar --add item ram right \
+    --set ram \
+        update_freq=10 \
+        background.color=$BG_ITEM \
+        script="$PLUGIN_DIR/ram.sh"
 
 # ---------- Finalize ----------
 sketchybar --update
