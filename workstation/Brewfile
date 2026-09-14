@@ -63,6 +63,8 @@ brew "eza"
 brew "gh"
 brew "starship"
 brew "zoxide"
+# Session manager for tmux; merges live sessions with zoxide history (prefix+T).
+brew "sesh"
 brew "atuin"
 
 # ---- git tooling ----
