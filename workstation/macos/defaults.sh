@@ -143,6 +143,16 @@ defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
 # Show battery percentage in menu bar
 defaults write com.apple.menuextra.battery ShowPercent -string "YES"
 
+# Hide the native menu bar: sketchybar replaces it rather than sitting under it.
+# Paired with outer.top in aerospace.toml, which reserves the bar's height so
+# tiled windows stop sliding beneath it.
+#
+# On recent macOS this key is not always honoured -- the authoritative control is
+# System Settings -> Control Center -> "Automatically hide and show the menu bar"
+# -> Always. Verify with `defaults read NSGlobalDomain _HIHideMenuBar` and set it
+# by hand there if the bar is still visible after a re-login.
+defaults write NSGlobalDomain _HIHideMenuBar -bool true
+
 # =============================================================================
 # Restart affected services so changes take effect
 # =============================================================================

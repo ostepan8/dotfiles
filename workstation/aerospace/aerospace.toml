@@ -93,7 +93,13 @@ outer.right      = 8
 # notch strip: windows start at y=72 instead of y=40 and lose 32pt of height.
 # This line is rewritten by set-main-display.sh on every Ctrl+Opt+[/]/\ swap
 # to track whichever monitor is currently main, so hand-edit only the numbers.
-outer.top        = [{ monitor.'built-in' = 8 }, 8]
+# Reserve the bar's height, not just a cosmetic gap. sketchybar runs topmost, so
+# any space not reserved here is space a tiled window slides under and the bar
+# draws over -- which is what "it overlaps with the windows" was. Values are bar
+# height + the same 8 gap every other edge uses: built-in is the notched MacBook
+# (37 + 8), everything else is an external at 32 + 8. Keep in sync with
+# BAR_HEIGHT in workstation/sketchybar/sketchybarrc.
+outer.top        = [{ monitor.'built-in' = 45 }, 40]
 
 # ==========================
 # Main mode bindings

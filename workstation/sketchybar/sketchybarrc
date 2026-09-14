@@ -5,6 +5,28 @@
 
 PLUGIN_DIR="$HOME/.config/sketchybar/plugins"
 
+# ---------- Machine profile ----------
+# Reuses ~/.dotfiles-host, the marker hosts/layers.conf already keys off, rather
+# than adding a second thing to set per machine.
+#
+# The two displays this runs on are not comparable. The Studio drives a 3440x1440
+# external at 1x, so the bar has 3440pt of room. The MacBook is a 16" MBP18,2:
+# 3456x2234 native but 2x, so only ~1728pt of usable width -- half -- and it has
+# a camera housing in the middle of the top edge. One item set cannot serve both;
+# at 1728pt the full set overflows, and anything that lands centred is physically
+# behind the housing and invisible.
+#
+# Heights differ for the same reason. 32 suits the external. The MacBook needs 37
+# to span the notch band: shorter and the bar floats inside a taller dead strip.
+# sketchybar has no notch support to lean on -- there is no notch_width property
+# in v2.23 -- so the only defence is keeping the centre empty, which MINIMAL does
+# by dropping every optional item.
+HOST_TYPE="$(cat "$HOME/.dotfiles-host" 2>/dev/null || echo studio)"
+case "$HOST_TYPE" in
+    macbook) BAR_HEIGHT=37; ITEM_BG_HEIGHT=26; MINIMAL=1 ;;
+    *)       BAR_HEIGHT=32; ITEM_BG_HEIGHT=24; MINIMAL=0 ;;
+esac
+
 # ---------- Gruvbox Dark Hard palette ----------
 BG_TRANSPARENT=0x00000000
 BG_BAR=0xf01d2021           # 94% opacity bar background
@@ -27,7 +49,7 @@ BLACK=0xff1d2021
 sketchybar --bar \
     position=top \
     display=main \
-    height=32 \
+    height=$BAR_HEIGHT \
     blur_radius=40 \
     color=$BG_BAR \
     padding_left=12 \
@@ -52,7 +74,7 @@ sketchybar --default \
     label.padding_right=8 \
     background.color=$BG_TRANSPARENT \
     background.corner_radius=8 \
-    background.height=24
+    background.height=$ITEM_BG_HEIGHT
 
 # ==============================================================
 # LEFT: workspace indicators + front app
@@ -94,15 +116,18 @@ sketchybar --add item front_app left \
         script="$PLUGIN_DIR/front_app.sh" \
     --subscribe front_app front_app_switched
 
-# Next calendar event (hidden when none). Reads macOS Calendar via icalBuddy.
-sketchybar --add item calendar left \
-    --set calendar \
-        update_freq=60 \
-        background.color=$BG_ITEM \
-        drawing=off \
-        icon.color=$AQUA \
-        click_script="open -a Calendar" \
-        script="$PLUGIN_DIR/calendar.sh"
+# Dropped on the MacBook (calendar does not fit in ~1728pt).
+if [ "$MINIMAL" = 0 ]; then
+    # Next calendar event (hidden when none). Reads macOS Calendar via icalBuddy.
+    sketchybar --add item calendar left \
+        --set calendar \
+            update_freq=60 \
+            background.color=$BG_ITEM \
+            drawing=off \
+            icon.color=$AQUA \
+            click_script="open -a Calendar" \
+            script="$PLUGIN_DIR/calendar.sh"
+fi
 
 # ==============================================================
 # NOW PLAYING: transport controls + track (Spotify or Apple Music)
@@ -118,28 +143,31 @@ sketchybar --add item calendar left \
 # 42 chars) which stays clear of the housing even with a long track name.
 # On an external monitor as main this is only a cosmetic left-shift.
 # ==============================================================
-sketchybar --add item media.back left \
-    --set media.back drawing=off background.drawing=off label.drawing=off \
-        icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
-        click_script="$PLUGIN_DIR/media.sh prev"
+# Dropped on the MacBook (media does not fit in ~1728pt).
+if [ "$MINIMAL" = 0 ]; then
+    sketchybar --add item media.back left \
+        --set media.back drawing=off background.drawing=off label.drawing=off \
+            icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
+            click_script="$PLUGIN_DIR/media.sh prev"
 
-sketchybar --add item media.play left \
-    --set media.play drawing=off background.drawing=off label.drawing=off \
-        icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
-        click_script="$PLUGIN_DIR/media.sh playpause"
+    sketchybar --add item media.play left \
+        --set media.play drawing=off background.drawing=off label.drawing=off \
+            icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
+            click_script="$PLUGIN_DIR/media.sh playpause"
 
-sketchybar --add item media.next left \
-    --set media.next drawing=off background.drawing=off label.drawing=off \
-        icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
-        click_script="$PLUGIN_DIR/media.sh next"
+    sketchybar --add item media.next left \
+        --set media.next drawing=off background.drawing=off label.drawing=off \
+            icon.padding_left=6 icon.padding_right=6 padding_left=1 padding_right=1 \
+            click_script="$PLUGIN_DIR/media.sh next"
 
-sketchybar --add item media left \
-    --set media \
-        update_freq=10 \
-        background.color=$BG_ITEM \
-        label.color=$AQUA \
-        drawing=off \
-        script="$PLUGIN_DIR/media.sh"
+    sketchybar --add item media left \
+        --set media \
+            update_freq=10 \
+            background.color=$BG_ITEM \
+            label.color=$AQUA \
+            drawing=off \
+            script="$PLUGIN_DIR/media.sh"
+fi
 
 # ==============================================================
 # RIGHT (added in reverse — first added appears rightmost)
@@ -182,51 +210,63 @@ sketchybar --add item wifi right \
 sketchybar --add item sep.wifi right \
     --set sep.wifi background.drawing=off icon.drawing=off label.drawing=off width=8
 
-# Weather (wttr.in — no API key).
-sketchybar --add item weather right \
-    --set weather \
-        update_freq=900 \
-        background.color=$BG_ITEM \
-        click_script="open -a Weather" \
-        script="$PLUGIN_DIR/weather.sh"
+# Dropped on the MacBook (weather does not fit in ~1728pt).
+if [ "$MINIMAL" = 0 ]; then
+    # Weather (wttr.in — no API key).
+    sketchybar --add item weather right \
+        --set weather \
+            update_freq=900 \
+            background.color=$BG_ITEM \
+            click_script="open -a Weather" \
+            script="$PLUGIN_DIR/weather.sh"
 
-sketchybar --add item sep.w right \
-    --set sep.w background.drawing=off icon.drawing=off label.drawing=off width=8
+    sketchybar --add item sep.w right \
+        --set sep.w background.drawing=off icon.drawing=off label.drawing=off width=8
+fi
 
-# Keep-awake toggle (caffeinate). Click to flip.
-sketchybar --add item caffeine right \
-    --set caffeine \
-        update_freq=30 \
-        background.color=$BG_ITEM \
-        click_script="$PLUGIN_DIR/caffeine.sh toggle" \
-        script="$PLUGIN_DIR/caffeine.sh"
+# Dropped on the MacBook (caffeine does not fit in ~1728pt).
+if [ "$MINIMAL" = 0 ]; then
+    # Keep-awake toggle (caffeinate). Click to flip.
+    sketchybar --add item caffeine right \
+        --set caffeine \
+            update_freq=30 \
+            background.color=$BG_ITEM \
+            click_script="$PLUGIN_DIR/caffeine.sh toggle" \
+            script="$PLUGIN_DIR/caffeine.sh"
 
-sketchybar --add item sep.w2 right \
-    --set sep.w2 background.drawing=off icon.drawing=off label.drawing=off width=8
+    sketchybar --add item sep.w2 right \
+        --set sep.w2 background.drawing=off icon.drawing=off label.drawing=off width=8
+fi
 
-# Volume / mute
-sketchybar --add item volume right \
-    --set volume \
-        background.color=$BG_ITEM \
-        script="$PLUGIN_DIR/volume.sh" \
-        click_script="open -a 'System Settings' --args 'Sound'" \
-    --subscribe volume volume_change
+# Dropped on the MacBook (volume does not fit in ~1728pt).
+if [ "$MINIMAL" = 0 ]; then
+    # Volume / mute
+    sketchybar --add item volume right \
+        --set volume \
+            background.color=$BG_ITEM \
+            script="$PLUGIN_DIR/volume.sh" \
+            click_script="open -a 'System Settings' --args 'Sound'" \
+        --subscribe volume volume_change
 
-sketchybar --add item sep.3 right \
-    --set sep.3 background.drawing=off icon.drawing=off label.drawing=off width=8
+    sketchybar --add item sep.3 right \
+        --set sep.3 background.drawing=off icon.drawing=off label.drawing=off width=8
+fi
 
-# CPU + RAM (not shown in the native menu bar)
-sketchybar --add item cpu right \
-    --set cpu \
-        update_freq=5 \
-        background.color=$BG_ITEM \
-        script="$PLUGIN_DIR/cpu.sh"
+# Dropped on the MacBook (cpu/ram does not fit in ~1728pt).
+if [ "$MINIMAL" = 0 ]; then
+    # CPU + RAM (not shown in the native menu bar)
+    sketchybar --add item cpu right \
+        --set cpu \
+            update_freq=5 \
+            background.color=$BG_ITEM \
+            script="$PLUGIN_DIR/cpu.sh"
 
-sketchybar --add item ram right \
-    --set ram \
-        update_freq=10 \
-        background.color=$BG_ITEM \
-        script="$PLUGIN_DIR/ram.sh"
+    sketchybar --add item ram right \
+        --set ram \
+            update_freq=10 \
+            background.color=$BG_ITEM \
+            script="$PLUGIN_DIR/ram.sh"
+fi
 
 # ---------- Finalize ----------
 sketchybar --update
