@@ -59,12 +59,49 @@ hardcode tailnet addresses.
 
 ## Building & shipping the binary (do this after any source change)
 
-Source: `~/projects/nephos-cloud-wt` (Go module `nephos`), pushed to
+### Fleet state as of 2026-09-14 — an update is PENDING
+
+The fleet runs a **2026-09-09** binary. `main` has since gained ~250 commits
+(rollouts, durable operations, node drain/cordon, verified DB backup/restore,
+projects, usage budgets). None of it is deployed.
+
+How to confirm the gap at any time, without sshing anywhere:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$NEPHOS_CONTROL_ADDR/v1/nodes"      # 200 = control plane up
+curl -s -o /dev/null -w '%{http_code}\n' "$NEPHOS_CONTROL_ADDR/v1/rollouts"   # 404 = pre-rollout binary
+```
+
+Commands present in `main` but absent from the deployed binary: `rollout`,
+`move`, `operations`, `usage`, `nodes cordon|drain|uncordon`, `project
+up|plan|status`, `db verify|restore|replicate|retention|backup-health`.
+
+Two caveats that survive the update, per `~/projects/nephos/docs/`: `nephos nodes
+drain` still returns unavailable and does **not** move workloads (publication
+writer not enabled) — cordon/uncordon do work; and `nephos rollout *` needs the
+rollout API enabled on the control plane.
+
+Shipping this is a real change to a live fleet: do it when Owen is around, not
+unattended, and restart the control plane last.
+
+Source: **`~/projects/nephos` on `main`** (Go module `nephos`), pushed to
 `github.com:ostepan8/nephos`.
+
+There are several worktrees beside it (`nephos-cloud-wt`, `nephos-rollout-wt`,
+`nephos-audit-wt`, …), each parked on an old feature branch — `nephos-cloud-wt`
+was 284 commits behind `main` as of 2026-09-14. **Never build from a worktree
+without checking what it is on.** Confirm first:
+
+```bash
+cd ~/projects/nephos && git fetch origin -q
+git rev-parse --abbrev-ref HEAD          # expect: main
+git rev-list --count HEAD..origin/main   # expect: 0
+git status --short                       # expect: clean (untracked tooling dirs are fine)
+```
 
 ```bash
 # 1. Cross-compile for every fleet arch, SIGN each, and upload to releases/
-nephos self-update build "$NEPHOS_CONTROL_ADDR" --source-dir ~/projects/nephos-cloud-wt
+nephos self-update build "$NEPHOS_CONTROL_ADDR" --source-dir ~/projects/nephos
 #    (detects arches from the node registry: darwin/arm64 + linux/amd64 + linux/arm64)
 ```
 

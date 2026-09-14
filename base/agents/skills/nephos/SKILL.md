@@ -1,12 +1,27 @@
 ---
 name: nephos
 description: >-
-  Operate Owen's self-hosted Nephos cloud and fleet. Use for deploying or hosting services,
-  public endpoints, background or scheduled jobs, local LLM inference, storage, databases,
-  secrets, logs, machine health, fleet capacity, and repairs on Nephos nodes. Prefer Nephos
-  over paid cloud for Owen's own compute. Trigger on Nephos, my cloud, self-host, deploy,
-  run on my hardware, overnight jobs, free inference, fleet machines, or checking service
-  logs. Read ~/.config/nephos/env first; never hardcode its endpoints.
+  Owen's self-hosted personal cloud (nephos) — turns his own machines into a cloud he
+  controls, and is the DEFAULT place to run his own compute. Two compute models: long-running
+  SERVICES (web apps, APIs, containers, or supervised processes that stay up) and
+  run-to-completion JOBS (batch / overnight / heavy / recurring work — a durable queue with
+  per-GPU serialization, cron schedules, pause/resume, cancel, completion alerts, and live
+  logs). Plus free local LLM INFERENCE over an OpenAI-compatible endpoint (no per-token cost,
+  fast/mid/big tiers on his own GPUs), S3-compatible object STORAGE, one-command DATABASES
+  (Postgres/pgvector/Mongo/Redis/Qdrant), per-service SECRETS, fleet-wide LOGS, and public HTTPS via Cloudflare
+  Tunnel — all private over Tailscale. PREFER nephos over a paid cloud whenever a task is:
+  deploying / shipping / hosting an app or giving it a public API or URL; running an LLM,
+  embeddings, or a model without paying per token; running a long / heavy / overnight /
+  scheduled / background / batch job that shouldn't block the session or time out; needing
+  object storage or a database for an app; deciding WHERE compute should run or what hardware
+  is available; or reading logs / setting env vars for something already running. Trigger on
+  "nephos", "my cloud", "my own API", "self-host this", "host this", "deploy this", "ship this",
+  "run it on my hardware", "where should this run", "give it a public endpoint / URL", "run
+  this overnight", "run this in the background", "long-running task", "batch job", "queue a
+  job", "schedule this", "every night", "cron", "run an LLM / a model / embeddings for free",
+  "free inference", "I need a database / storage for this", "check the logs", "set an env var".
+  Read ~/.config/nephos/env FIRST for this machine's control-plane address and endpoints —
+  never hardcode them; if that file is missing, nephos isn't set up here.
 ---
 
 # nephos — Owen's personal cloud
@@ -34,9 +49,28 @@ inference tiers — lives in a separate **`nephos-admin`** skill that only the
 control-room machine has. If a task needs those and this machine has no
 `nephos-admin` skill, it isn't the control room; say so.
 
+**The deeper reference is the repo, not this file.** `~/projects/nephos/docs/` is
+maintained alongside the code and is honest about what is unfinished — `SPEC.md`,
+`ROLLOUTS.md`, `OPERATIONS.md`, `MAINTENANCE.md`, `BACKUPS.md`, `PROJECTS.md`,
+`ROUTING.md`, `USAGE.md`, `SCHEDULING-SPEC.md`, `KEYS.md`. When this skill and a
+doc disagree, the doc is newer. When the doc and the running fleet disagree, the
+fleet is older — see the fleet-vs-repo note below.
+
 ---
 
 ## The commands
+
+**Fleet vs. repo — read this first.** The control plane and agents run a binary
+that is distributed with `nephos self-update`, and it can lag `main` by weeks.
+Commands exist in the CLI the moment they are merged, but they only *work* once
+the fleet has been updated. Before promising a newer command, check:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$NEPHOS_CONTROL_ADDR/v1/rollouts"
+# 200 -> the fleet has the rollout-era binary.  404 -> it does not; see below.
+```
+
+### Working on the fleet today
 
 ```bash
 nephos nodes                  # every machine, its capabilities, free capacity
@@ -57,11 +91,43 @@ nephos secrets set <svc> …    # env values that follow the service
 nephos llm up|down|ls <tier>  # start/stop an inference tier
 nephos keys new <app>         # mint a scoped API key
 nephos models                 # configured inference tiers
+nephos publish <name> --config publish.yaml   # public HTTPS hostname via the shared tunnel
+nephos unpublish <hostname>   # drop a route + its DNS record, leaving the service up
+nephos db create|ls|destroy   # one-command Postgres / pgvector / Mongo / Redis / Qdrant
+nephos db backup|dump         # back up a database into a bucket, once or on a schedule
+nephos storage …              # S3-compatible buckets on the shared MinIO
+nephos attach <svc>           # interactive terminal onto a tty: true process, wherever it runs
+nephos pty <node>             # interactive terminal on a node through its agent (no SSH)
+nephos ingress                # inspect the service reverse proxy: routes + per-service metrics
 nephos guide <topic>          # task-based walkthroughs
 ```
 
 `nephos guide` is the built-in reference: `quickstart`, `nodes`, `deploy`,
 `inference`, `storage`, `publish`, `troubleshooting`.
+
+### Merged to `main`, NOT on the fleet yet
+
+These are real and tested, but the fleet still runs an older binary, so they
+fail today. Do not hand Owen one of these as if it works — either update the
+fleet first (see the `nephos-admin` skill) or use the working equivalent above.
+
+```bash
+nephos rollout start|status|list|rollback|releases|reconcile   # health-checked deploys
+nephos move <service>              # relocate a stateless service via a durable rollout
+nephos operations                  # inspect durable lifecycle operations and their states
+nephos usage ls|budget|acknowledge # inference token accounting and enforceable budgets
+nephos nodes cordon|drain|uncordon # maintenance: exclude a node, move its work off
+nephos project up|plan|status      # deploy a multi-service project in dependency order
+nephos db verify|restore|replicate|retention|backup-health     # verified backup/restore
+```
+
+Two of these stay limited even after the fleet is updated, per `docs/`:
+
+- **`nephos nodes drain` returns unavailable** and does *not* cordon or move
+  anything, because the production publication writer is not enabled yet.
+  `cordon` / `uncordon` do work. **Never power a node down assuming a refused
+  drain moved its services.**
+- **`nephos rollout *` needs the rollout API enabled** on the control plane.
 
 ---
 
@@ -231,30 +297,9 @@ A manifest's own `secrets:` block (an env var mapped to a shell command run on t
 target node) still works and **wins** where both define the same name — it is the
 more specific, node-local statement.
 
-### Privileged fleet repairs
-
-For machine-health or repair requests, inspect the target through its SSH alias
-from `NEPHOS_NODES`; do not ask Owen to run basic diagnostics that are available
-remotely. Start with `nephos nodes` / `nephos ps`, then check the live processes,
-temperatures, GPU, logs, and service state on the affected host.
-
-This machine has a Keychain-backed `vault` CLI. If an authorized repair needs
-remote `sudo`, run `vault list` to find the host's credential (for example,
-`FEDORA_SUDO_PASSWORD@fedora-sudo`) and pipe `vault get <name>` directly into
-`ssh <host> "sudo -S -p '' <command>"`. Never print, store, interpolate, or place
-the password in command arguments or shell history. Re-measure the original
-symptom after the repair. A missing credential or failed authentication is the
-point to ask Owen for help, not the first sudo prompt.
-
 ---
 
 ## Inference
-
-For discrete-GPU placement, 8 GB model choices, SGLang launch guidance, and the
-NVIDIA suspend failure seen on `gpu1`, read
-[references/gpu-inference.md](references/gpu-inference.md).
-For image generation, speech, vision-language, computer vision, and video model
-placement, read [references/multimodal-inference.md](references/multimodal-inference.md).
 
 ```python
 client = OpenAI(base_url=NEPHOS_LLM, api_key=KEY)
@@ -302,6 +347,23 @@ finishes/fails. Subscribe to that topic in the ntfy app.
 
 ---
 
+### Privileged fleet repairs
+
+For machine-health or repair requests, inspect the target through its SSH alias
+from `NEPHOS_NODES`; do not ask Owen to run basic diagnostics that are available
+remotely. Start with `nephos nodes` / `nephos ps`, then check the live processes,
+temperatures, GPU, logs, and service state on the affected host.
+
+This machine has a Keychain-backed `vault` CLI. If an authorized repair needs
+remote `sudo`, run `vault list` to find the host's credential (for example,
+`FEDORA_SUDO_PASSWORD@fedora-sudo`) and pipe `vault get <name>` directly into
+`ssh <host> "sudo -S -p '' <command>"`. Never print, store, interpolate, or place
+the password in command arguments or shell history. Re-measure the original
+symptom after the repair. A missing credential or failed authentication is the
+point to ask Owen for help, not the first sudo prompt.
+
+---
+
 ## Storage & databases
 
 Two different models: **a dedicated database per app**, and **one shared object
@@ -312,11 +374,24 @@ often use both — a DB row points at the bucket key holding the big file.
 **Databases — one dedicated DB per app:**
 
 ```bash
-nephos db create <name> --type postgres|mongo|redis   # dedicated DB + generated credential
+nephos db create <name> --type postgres|pgvector|mongo|redis|qdrant  # dedicated DB + credential
 nephos db ls                                           # every database across the fleet, with type + node
 nephos db backup <name> [--schedule "0 3 * * *"]       # dump → nephos-backups bucket, once or recurring
 nephos db destroy <name> --yes                         # remove the service, its data volume, AND its credential
 ```
+
+Merged but **not on the fleet yet** — verified backup and restore:
+
+```bash
+nephos db verify <source> --as <tmpsvc>   # restore into a throwaway service and run native checks
+nephos db restore <source> --as <svc>     # restore a committed backup into a new service, verified
+nephos db replicate <source>              # stream a verified backup OFF-SITE and verify it there
+nephos db retention                       # plan/apply deletion of old backups that passed verification
+nephos db backup-health                   # which backups are restore-verified, and which are off-site
+```
+
+`db verify` is the one that matters: it proves a backup actually restores, rather
+than assuming it does. `retention` only deletes backups that passed that check.
 
 `db create` deploys a dedicated database container with a fresh random credential
 and a **durable named volume** (`<name>-data`), so its data survives recreation (a
@@ -392,27 +467,45 @@ plane, no off-site backup.
 
 ## Not built yet
 
-- **No off-site backup** for the bulk disk. `nephos db backup` dumps a single
-  *database* into a bucket, but every bucket lives on the same MinIO as everything
-  else — a node loss loses both.
-- **No standalone `nephos unpublish`** — a public route is removed only as a side
-  effect of `nephos down` / `nephos project down` (which do tear it down). There is
-  no verb to drop a route while keeping the service up.
+Verified against `main` as of 2026-09-14. Anything here that later ships should be
+moved up into the command list rather than left to rot.
+
 - **No `nephos nodes --json`** — `nephos ps --json` and `nephos jobs --json` exist,
-  but `nephos nodes` is table-only.
+  but `nephos nodes` is still table-only.
+- **Publication is being rebuilt, and the new path is not wired in.** `nephos
+  publish` / `unpublish` work today and are what Owen's public endpoints run on.
+  What is *not* finished is the durable, ownership-tracked replacement: a
+  persistent inventory of what is published and which exact executions each
+  hostname points at. Until it lands, nothing authoritatively records that a
+  route belongs to a service, so orphaned tunnel rules and DNS records are easy
+  to leave behind, and a crash mid-publish can strand a half-written route.
 - **Service deploys don't retry or route around a down node.** Placement picks the
-  single best-fitting node from the *whole* registry with no liveness filter; a
+  single best-fitting node from the whole registry with no liveness filter; a
   dispatch failure returns an error rather than trying the next candidate. (Node
   liveness IS tracked — it drives the offline/recovery ntfy alerts — it just doesn't
   yet feed placement. *Jobs* do retry, up to 3 attempts across nodes, and reap a job
-  whose node dies.)
+  whose node dies.) The `rollout` path is the durable answer to this, once deployed.
 - **Manifest `schedule:` is Linux-only** — refused on macOS (launchd needs a
   different calendar syntax); it fails loudly rather than misbehaving. Recurring
   *jobs* (`nephos run --schedule`) are control-plane cron and run on any node.
 
-(Both `nephos deploy <repo-url>`, `nephos nodes remove <id>`, and remote
-`nephos down` / `down --node` / `down --all` DO exist — they were once listed here as
-unbuilt.)
+### Known bug: unified memory is under-charged on rollouts
+
+A managed rollout onto an Apple-silicon node records the **raw** manifest request
+in the capacity ledger instead of the unified-memory charge. On a Mac, `memory:
+1Gi` + `vram: 2Gi` really costs 3Gi of one shared pool, but the ledger stores 1Gi.
+Placement is safe; the persisted number is not, so later admissions see more free
+memory than the machine has. Stack a few and the node oversubscribes and swaps —
+the failure that took the Studio down before.
+
+Write-up and fix plan: `planning/roadmap-20260912/rollout-unified-memory-undercharge.md`.
+
+### Corrections to earlier versions of this skill
+
+These were listed as missing and are now real: standalone `nephos unpublish`,
+off-site backup (`nephos db replicate` streams a verified backup off-site and
+`nephos db backup-health` reports it), `nephos deploy <repo-url>`, `nephos nodes
+remove <id>`, and remote `nephos down` / `--node` / `--all`.
 
 ---
 
