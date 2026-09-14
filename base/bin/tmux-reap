@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# tmux-reap — retire tmux sessions that hold nothing.
+#
+# 26 of 28 sessions on this machine were bare shells; the laptop had 67. That is
+# not free: every dead project competes in the Opt+P picker with the two actually
+# being used, which is the whole reason the picker got built.
+#
+# DRY RUN BY DEFAULT. Killing a session destroys whatever was in it, and
+# tmux-resurrect restores shape, not processes -- a session killed by mistake is
+# gone, not recoverable. So this prints and exits unless --kill is passed.
+#
+# A session is reapable only when ALL of these hold:
+#   - not attached anywhere
+#   - not the session this is running from
+#   - every pane is an idle shell (no editor, no server, no agent, nothing)
+#   - no activity for --days (default 7)
+#
+# The pane check is the important one. Activity timestamps say when a session was
+# last LOOKED at, not whether something is running in it; a long-running job in a
+# window nobody has focused for a fortnight is old and busy, and killing it would
+# be exactly the mistake this guard exists to prevent.
+#
+#   tmux-reap                 show what would be reaped
+#   tmux-reap --days 14       only sessions idle 14+ days
+#   tmux-reap --kill          actually reap them
+set -uo pipefail
+
+DAYS=7
+KILL=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --kill)  KILL=1; shift ;;
+        --days)  DAYS="${2:?--days needs a number}"; shift 2 ;;
+        -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) echo "tmux-reap: unknown argument $1" >&2; exit 2 ;;
+    esac
+done
+
+command -v tmux >/dev/null 2>&1 || { echo "tmux-reap: tmux not installed" >&2; exit 1; }
+tmux info >/dev/null 2>&1 || { echo "tmux-reap: no tmux server running"; exit 0; }
+
+# The session we are called from is never a candidate, even if it looks idle.
+CURRENT="$(tmux display-message -p '#{session_name}' 2>/dev/null || echo "")"
+NOW="$(date +%s)"
+CUTOFF=$(( NOW - DAYS * 86400 ))
+
+reapable=()
+while IFS=$'\t' read -r name attached activity; do
+    [ -z "$name" ] && continue
+    [ "$name" = "$CURRENT" ] && continue
+    [ "${attached:-0}" != "0" ] && continue
+    [ "${activity:-0}" -gt "$CUTOFF" ] && continue
+
+    # Any pane running something that is not a plain shell disqualifies the
+    # whole session.
+    busy="$(tmux list-panes -s -t "$name" -F '#{pane_current_command}' 2>/dev/null \
+        | grep -vcE '^(zsh|bash|sh|fish)$')"
+    [ "${busy:-1}" -ne 0 ] && continue
+
+    reapable+=("$name")
+done < <(tmux list-sessions -F '#{session_name}	#{session_attached}	#{session_activity}' 2>/dev/null)
+
+total="$(tmux list-sessions 2>/dev/null | wc -l | tr -d ' ')"
+
+if [ "${#reapable[@]}" -eq 0 ]; then
+    echo "tmux-reap: nothing to reap ($total sessions, none idle for ${DAYS}+ days)"
+    exit 0
+fi
+
+if [ "$KILL" -eq 0 ]; then
+    printf 'tmux-reap: %d of %d sessions are empty and idle for %d+ days:\n\n' \
+        "${#reapable[@]}" "$total" "$DAYS"
+    for s in "${reapable[@]}"; do
+        last="$(tmux display-message -p -t "$s" '#{t:session_activity}' 2>/dev/null)"
+        printf '  %-34s last active %s\n' "$s" "$last"
+    done
+    printf '\nnothing was killed. re-run with --kill to reap them.\n'
+    exit 0
+fi
+
+for s in "${reapable[@]}"; do
+    tmux kill-session -t "=$s" 2>/dev/null && echo "  reaped $s"
+done
+printf 'tmux-reap: %d reaped, %d remaining\n' \
+    "${#reapable[@]}" "$(tmux list-sessions 2>/dev/null | wc -l | tr -d ' ')"

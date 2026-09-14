@@ -27,10 +27,13 @@ set -uo pipefail
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DOTFILES" || exit 1
 
-PASS=0; FAIL=0; SKIP=0
+PASS=0; FAIL=0; SKIP=0; WARN=0
 ok()   { PASS=$((PASS+1)); printf '  \033[32mok\033[0m    %s\n' "$1"; }
 bad()  { FAIL=$((FAIL+1)); printf '  \033[31mFAIL\033[0m  %s\n' "$1"; [ -n "${2:-}" ] && printf '        %s\n' "$2"; }
 skip() { SKIP=$((SKIP+1)); printf '  \033[90mskip\033[0m  %s (%s)\n' "$1" "$2"; }
+# Worth surfacing, not worth failing over. Housekeeping should never be the
+# reason `make test` goes red.
+warn() { WARN=$((WARN+1)); printf '  \033[33mwarn\033[0m  %s\n' "$1"; [ -n "${2:-}" ] && printf '        %s\n' "$2"; }
 
 printf '\n\033[1mdoctor\033[0m — checking the running system, not the config\n\n'
 
@@ -165,6 +168,55 @@ else
     else bad "no Alt key claimed by two layers" "tmux binds these but a system hotkey eats them first:$clash"; fi
 fi
 
+# ------------------------------------------------------------ tmux hoarding
+# Empty sessions are not harmful in themselves, but they crowd the Opt+P picker
+# -- every project touched once competes with the handful in actual use.
+if command -v tmux >/dev/null 2>&1 && tmux info >/dev/null 2>&1; then
+    idle=0
+    while IFS= read -r s; do
+        [ -z "$s" ] && continue
+        busy="$(tmux list-panes -s -t "$s" -F '#{pane_current_command}' 2>/dev/null \
+            | grep -vcE '^(zsh|bash|sh|fish)$')"
+        [ "${busy:-1}" -eq 0 ] && idle=$((idle+1))
+    done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null)
+    total="$(tmux list-sessions 2>/dev/null | wc -l | tr -d ' ')"
+    if [ "$idle" -lt 20 ]; then
+        ok "tmux sessions are not piling up ($idle of $total empty)"
+    else
+        warn "tmux sessions are piling up ($idle of $total are empty shells)" "run: tmux-reap        (dry run; --kill to act)"
+    fi
+fi
+
+# --------------------------------------------------------- nephos schedules
+# A cron schedule that fails every night is the quietest kind of broken: it keeps
+# firing, keeps failing, and the only record is a row in `nephos jobs` nobody
+# reads. Correlate each schedule with its most recent run and assert that run
+# succeeded.
+if ! command -v nephos >/dev/null 2>&1; then
+    skip "no nephos schedule failed its last run" "nephos not installed"
+elif ! nephos jobs --json >/tmp/.doctor_jobs 2>/dev/null; then
+    skip "no nephos schedule failed its last run" "control plane unreachable"
+else
+    broken="$(nephos schedules 2>/dev/null | awk 'NR>1 && NF {print $1}' | while read -r name; do
+        [ -z "$name" ] && continue
+        python3 - "$name" <<'PYEOF'
+import json, sys
+name = sys.argv[1]
+try:
+    rows = json.load(open("/tmp/.doctor_jobs")) or []
+except Exception:
+    raise SystemExit
+runs = [r for r in rows if r.get("name") == name and r.get("state") in ("succeeded", "failed")]
+runs.sort(key=lambda r: r.get("finishedAt") or r.get("submittedAt") or "", reverse=True)
+if runs and runs[0].get("state") == "failed":
+    print(name, end=" ")
+PYEOF
+    done)"
+    rm -f /tmp/.doctor_jobs
+    if [ -z "$broken" ]; then ok "no nephos schedule failed its last run"
+    else bad "no nephos schedule failed its last run" "last run FAILED: $broken — it will fire again on schedule"; fi
+fi
+
 # ------------------------------------------------------------- cheatsheet
 # The keybinding sections are generated from docs/keys.tsv. If the committed HTML
 # no longer matches what keys.tsv renders, the doc is lying about the keys.
@@ -174,5 +226,5 @@ else
     bad "cheatsheet matches docs/keys.tsv" "docs/cheatsheet.html is stale — run: make cheatsheet"
 fi
 
-printf '\n  %d passed, %d failed, %d skipped\n\n' "$PASS" "$FAIL" "$SKIP"
+printf '\n  %d passed, %d failed, %d warned, %d skipped\n\n' "$PASS" "$FAIL" "$WARN" "$SKIP"
 [ "$FAIL" -eq 0 ]

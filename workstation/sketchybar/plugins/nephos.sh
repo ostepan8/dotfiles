@@ -37,25 +37,50 @@ if ! command -v nephos >/dev/null 2>&1 || ! run_bounded 4 "$TMP" nephos jobs --j
     exit 0
 fi
 
-read -r RUNNING QUEUED <<<"$(python3 -c '
-import json, sys
+read -r RUNNING QUEUED FAILED <<<"$(python3 -c '
+import json, sys, datetime
+
 try:
     rows = json.load(open(sys.argv[1])) or []
 except Exception:
-    print("0 0"); raise SystemExit
+    print("0 0 0"); raise SystemExit
 if isinstance(rows, dict):
     rows = rows.get("jobs", [])
+
 states = [r.get("state") for r in rows]
-print(states.count("running"), states.count("queued"))
+
+# Failures within the last 24h only. An all-time count would pin the bar red over
+# something that broke and was fixed weeks ago, and a bar that is permanently red
+# is a bar nobody reads.
+cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
+recent = 0
+for r in rows:
+    if r.get("state") != "failed":
+        continue
+    ts = r.get("finishedAt") or r.get("submittedAt")
+    if not ts:
+        continue
+    try:
+        if datetime.datetime.fromisoformat(ts) >= cutoff:
+            recent += 1
+    except ValueError:
+        continue
+
+print(states.count("running"), states.count("queued"), recent)
 ' "$TMP")"
 
-RUNNING="${RUNNING:-0}"; QUEUED="${QUEUED:-0}"
+RUNNING="${RUNNING:-0}"; QUEUED="${QUEUED:-0}"; FAILED="${FAILED:-0}"
 
-if   [ "$RUNNING" -gt 0 ]; then COLOR=0xff98971a; LABEL="${RUNNING} run"
+# A recent failure outranks everything else. "2 running" is not the headline when
+# something died an hour ago -- and that was this item's blind spot on the day it
+# shipped: it read "idle" while the only scheduled job on the fleet had failed
+# its last run, with nothing anywhere saying so.
+if   [ "$FAILED"  -gt 0 ]; then COLOR=0xffcc241d; LABEL="${FAILED} failed"
+elif [ "$RUNNING" -gt 0 ] && [ "$QUEUED" -gt 0 ]; then COLOR=0xff98971a; LABEL="${RUNNING} run·${QUEUED} q"
+elif [ "$RUNNING" -gt 0 ]; then COLOR=0xff98971a; LABEL="${RUNNING} run"
 elif [ "$QUEUED"  -gt 0 ]; then COLOR=0xffd79921; LABEL="${QUEUED} q"
 else                            COLOR=0xff928374; LABEL="idle"
 fi
-[ "$RUNNING" -gt 0 ] && [ "$QUEUED" -gt 0 ] && LABEL="${RUNNING} run·${QUEUED} q"
 
 sketchybar --set "$NAME" \
     icon="FLEET" icon.color="$COLOR" icon.font="SF Pro:Bold:11.0" \
