@@ -1,4 +1,13 @@
 # ---------- PATH + env ----------
+# Tie $PATH to the $path array and mark it unique, BEFORE anything below appends
+# to it. Every `export PATH="...:$PATH"` in this file is unconditional, so each
+# shell that re-sources this -- and tmux gives every new pane a login shell --
+# stacked another copy: PATH had grown to 37 entries for 28 distinct
+# directories, with ~/.cargo/bin appearing four times. zsh drops duplicates on
+# insert once the parameter is tagged unique, so this one line keeps the list
+# flat no matter how many times the file is sourced.
+typeset -U path PATH
+
 export EDITOR=nvim
 export PATH="$HOME/.cargo/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
