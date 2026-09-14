@@ -168,6 +168,9 @@ The marker holds a *type*, not a unique device id — a second Mac Studio just g
 | `newproj` / `np` | New project: asks stack / GitHub repo / Claude profile / first task, then makes the dir + git + optional GitHub repo + tmux session + Claude + attached Ghostty window (`newproj <name>`; `-y` to skip the questions, `--help` for flags) |
 | `nts` / `tns` | `tmux new-session -s <name>` |
 | `ta [name]` | `tmux attach` (tab-completes live session names) |
+| `tn` | Show the active Tailscale tailnet |
+| `tn -` | Toggle to the other tailnet profile |
+| `tn ls` / `tn <name>` | List profiles / switch to the one matching `<name>` (friendly names come from `$TAILNET_ALIASES` in the untracked `~/.zshrc.local`) |
 
 ## Key bindings
 
