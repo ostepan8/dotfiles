@@ -106,15 +106,29 @@ hand-rolling `tailscale switch` + `ssh`.
 ```bash
 tn_ensure <pattern> [host]   # switch only if needed; with [host], also wait for it
 tn_await  <host>             # block until <host> resolves to a tailnet address
+tn_daemon_ok [socket]        # is a tailscaled up and Running on this socket?
 ```
 
-Both return non-zero on failure, so `||` works. A per-host wrapper is one line:
+All return non-zero on failure, so `||` works. A per-host wrapper is one line:
 
 ```zsh
 myhost() { tn_ensure 'some-tailnet-substring' myhost.example.ts.net || return 1; ssh myhost "$@"; }
 ```
 
 Put wrappers in `~/.zshrc.local`, never in the tracked dotfiles.
+
+**Not every host wants `tn_ensure`.** Check the host's `~/.ssh/config` block first.
+If it reaches its target through a `ProxyCommand` pointing at the second tailscaled
+(`--socket=/tmp/tailscaled.sock`), it rides *that* daemon's own login and is already
+reachable from either profile — wrapping it in `tn_ensure` would switch the profile
+for no gain and drop the tailnet the user is actually on. Guard the daemon instead:
+
+```zsh
+myhost() { tn_daemon_ok /tmp/tailscaled.sock || return 1; ssh myhost "$@"; }
+```
+
+The test for which kind a host is, is empirical and cheap: ssh to it from the *other*
+profile. If it connects, it needs no switch.
 
 ### Why you must wait, and why `tn_await` checks the address
 

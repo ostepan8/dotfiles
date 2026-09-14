@@ -190,6 +190,26 @@ tn_await() {
   return 1
 }
 
+# tn_daemon_ok [socket] — is a tailscaled up and Running on this socket?
+#
+# Not every host needs `tn`. One whose ssh ProxyCommand points at the SECOND
+# daemon (see the header) rides that daemon's own login, so it is reachable from
+# either profile and switching for it would be pure loss — it would drop the
+# tailnet you are actually using. What such a host does depend on is that daemon
+# being alive, and a dead socket surfaces as
+#   failed to connect to local tailscaled ... no such file or directory
+# buried in ssh's ProxyCommand failure, which names nothing you can restart.
+# Wrappers for those hosts guard with this instead of with tn_ensure.
+tn_daemon_ok() {
+  local -a sock
+  [[ -n "${1:-}" ]] && sock=(--socket "$1")
+  local state
+  state="$(tailscale "${sock[@]}" status --json 2>/dev/null | jq -r '.BackendState // empty')"
+  [[ "$state" == Running ]] && return 0
+  print -u2 "tn: tailscaled on ${1:-the default socket} is ${state:-unreachable}"
+  return 1
+}
+
 # tn_ensure <pattern> [host] — switch only if not already on that tailnet, and
 # say so when it happens. Used by wrappers (see ~/.zshrc.local) that ssh to a
 # host on a specific tailnet. Silent on the no-op path; a switch is a global
