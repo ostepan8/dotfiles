@@ -22,6 +22,12 @@ address, endpoints, and node aliases. Those values are deliberately not in this 
 — it ships in a public dotfiles repo. If that file is missing, nephos isn't set up
 here; say so rather than guessing addresses.
 
+**If EVERY node looks unreachable at once, check the active tailnet before
+anything else.** The fleet is reachable only from the tailnet it lives on, and being
+on another profile fails silently — nodes still resolve and still answer ping, while
+ssh hangs to a timeout. `zsh -ic 'tn'` shows the active tailnet; see the **tailnet**
+skill. One dead node is a node problem; all of them at once is usually the profile.
+
 **This skill is about USING the cloud.** Operating the cloud itself — rebuilding and
 shipping the nephos binary, managing the control plane, adding nodes, configuring
 inference tiers — lives in a separate **`nephos-admin`** skill that only the
