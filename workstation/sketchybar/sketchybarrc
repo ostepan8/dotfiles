@@ -81,7 +81,32 @@ sketchybar --default \
 # ==============================================================
 sketchybar --add event aerospace_workspace_change
 
-for sid in $(aerospace list-workspaces --all); do
+# aerospace's socket can stop answering while AeroSpace.app is still running, and
+# the query then blocks forever rather than failing. Unguarded, that command
+# substitution takes the whole config down with it: the loop never finishes, no
+# --add item below it ever runs, and sketchybar sits there with a styled, totally
+# empty bar. No error, because nothing crashed -- it is still waiting. That is
+# how the Studio bar spent three weeks blank, and the MacBook was in the same
+# state when this was written (verified: the query was still running after 6s).
+#
+# Bounded to ~3s, then fall back to the nine workspaces the skhd/aerospace
+# bindings actually address. A wrong-but-present workspace list beats no bar.
+aerospace_workspaces() {
+    local tmp pid i=0
+    tmp="$(mktemp)"
+    aerospace list-workspaces --all >"$tmp" 2>/dev/null &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+        i=$((i + 1))
+        if [ "$i" -ge 30 ]; then kill -9 "$pid" 2>/dev/null; break; fi
+        sleep 0.1
+    done
+    wait "$pid" 2>/dev/null
+    if [ -s "$tmp" ]; then cat "$tmp"; else printf '%s\n' 1 2 3 4 5 6 7 8 9; fi
+    rm -f "$tmp"
+}
+
+for sid in $(aerospace_workspaces); do
     sketchybar --add item space.$sid left \
         --subscribe space.$sid aerospace_workspace_change \
         --set space.$sid \
