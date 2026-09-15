@@ -103,11 +103,29 @@ require("lazy").setup({
                         -- which live_grep over ~/dotfiles hits immediately.
                         { "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
                 },
+                -- The four originals stay on their bare single-letter keys --
+                -- deliberately NOT moved under <leader>s, which would put a
+                -- timeoutlen pause in front of the most-used mapping in the
+                -- config. Everything added since lives under <leader>s.
                 keys = {
                         { "<leader>f", "<cmd>Telescope find_files<cr>", desc = "Find files" },
                         { "<leader>g", "<cmd>Telescope live_grep<cr>", desc = "Live grep" },
                         { "<leader>p", "<cmd>Telescope oldfiles<cr>", desc = "Recent files" },
                         { "<leader>b", "<cmd>Telescope buffers<cr>", desc = "Buffers" },
+                        -- resume reopens the previous picker with its query AND
+                        -- its result list intact -- the one to reach for after
+                        -- following a grep hit into a file and wanting the rest
+                        -- of the matches back.
+                        { "<leader>sr", "<cmd>Telescope resume<cr>", desc = "Resume last picker" },
+                        { "<leader>sk", "<cmd>Telescope keymaps<cr>", desc = "Keymaps" },
+                        { "<leader>sh", "<cmd>Telescope help_tags<cr>", desc = "Help tags" },
+                        { "<leader>sd", "<cmd>Telescope diagnostics<cr>", desc = "Diagnostics" },
+                        { "<leader>sg", "<cmd>Telescope git_status<cr>", desc = "Git status" },
+                        { "<leader>sc", "<cmd>Telescope git_commits<cr>", desc = "Git commits" },
+                        { "<leader>ss", "<cmd>Telescope lsp_document_symbols<cr>", desc = "Document symbols" },
+                        { "<leader>sS", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", desc = "Workspace symbols" },
+                        -- Fuzzy search within the current buffer.
+                        { "<leader>s/", "<cmd>Telescope current_buffer_fuzzy_find<cr>", desc = "Search in buffer" },
                 },
                 config = function()
                         require("telescope").setup({
@@ -216,19 +234,92 @@ require("lazy").setup({
                                         topdelete = { text = "‾" },
                                         changedelete = { text = "~" },
                                 },
+                                -- Inline blame for the current line only, after a
+                                -- pause. Off by default in gitsigns; the delay is
+                                -- what makes it tolerable -- at 0 it flickers on
+                                -- every cursor move.
+                                current_line_blame = true,
+                                current_line_blame_opts = {
+                                        virt_text_pos = "eol",
+                                        delay = 400,
+                                        ignore_whitespace = true,
+                                },
+                                -- This plugin was installed for two years with no
+                                -- on_attach at all, which meant it drew signs in the
+                                -- gutter and did nothing else: no hunk navigation, no
+                                -- staging, no preview, no blame. Everything below is
+                                -- what it was always capable of.
+                                on_attach = function(bufnr)
+                                        local gs = require("gitsigns")
+                                        local function map(mode, lhs, rhs, desc, extra)
+                                                vim.keymap.set(mode, lhs, rhs, vim.tbl_extend("force", {
+                                                        buffer = bufnr, noremap = true,
+                                                        silent = true, desc = desc,
+                                                }, extra or {}))
+                                        end
+
+                                        -- Hunk navigation. In a diff buffer ]c / [c are
+                                        -- vim's own change motions and already do the
+                                        -- right thing, so fall through there rather
+                                        -- than shadowing them. expr = true is load-
+                                        -- bearing: without it the returned "]c" string
+                                        -- is treated as the mapping's result rather
+                                        -- than as keys to feed back, and diff-mode
+                                        -- navigation silently stops working.
+                                        map("n", "]c", function()
+                                                if vim.wo.diff then return "]c" end
+                                                vim.schedule(function() gs.nav_hunk("next") end)
+                                                return "<Ignore>"
+                                        end, "Next hunk", { expr = true })
+                                        map("n", "[c", function()
+                                                if vim.wo.diff then return "[c" end
+                                                vim.schedule(function() gs.nav_hunk("prev") end)
+                                                return "<Ignore>"
+                                        end, "Prev hunk", { expr = true })
+
+                                        -- stage_hunk is a TOGGLE in current gitsigns:
+                                        -- run it on an already-staged hunk and it
+                                        -- unstages. undo_stage_hunk still exists but is
+                                        -- marked @deprecated in actions.lua, so there
+                                        -- is deliberately no <leader>hu here.
+                                        map("n", "<leader>hs", gs.stage_hunk, "Stage / unstage hunk")
+                                        map("n", "<leader>hr", gs.reset_hunk, "Reset hunk")
+                                        -- Visual-mode staging takes the selected line
+                                        -- range, so you can stage part of a hunk.
+                                        map("v", "<leader>hs", function()
+                                                gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") })
+                                        end, "Stage selection")
+                                        map("v", "<leader>hr", function()
+                                                gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") })
+                                        end, "Reset selection")
+                                        map("n", "<leader>hS", gs.stage_buffer, "Stage buffer")
+                                        map("n", "<leader>hR", gs.reset_buffer, "Reset buffer")
+                                        map("n", "<leader>hp", gs.preview_hunk, "Preview hunk")
+                                        map("n", "<leader>hb", function()
+                                                gs.blame_line({ full = true })
+                                        end, "Blame line (full)")
+                                        map("n", "<leader>hB", gs.toggle_current_line_blame, "Toggle inline blame")
+                                        map("n", "<leader>hd", gs.diffthis, "Diff against index")
+                                        map("n", "<leader>hD", function()
+                                                gs.diffthis("~")
+                                        end, "Diff against last commit")
+                                        map("n", "<leader>hq", function()
+                                                gs.setqflist("all")
+                                        end, "All hunks to quickfix")
+
+                                        -- ih = "in hunk": dih discards a hunk, vih
+                                        -- selects one, without moving to its edges
+                                        -- first.
+                                        map({ "o", "x" }, "ih", gs.select_hunk, "Select hunk")
+                                end,
                         })
                 end
         },
 
-        -- COMMENTS
-        {
-                "numToStr/Comment.nvim",
-                keys = {
-                        { "gc", mode = { "n", "v" } }, { "gcc", mode = "n" },
-                        { "gb", mode = { "n", "v" } }, { "gbc", mode = "n" },
-                },
-                config = function() require("Comment").setup() end
-        },
+        -- COMMENTS: none. gc / gcc / gb / gbc are BUILT IN as of nvim 0.10
+        -- (runtime/lua/vim/_core/defaults.lua). Comment.nvim used to live here
+        -- binding those exact four keys on top of the natives -- same behaviour,
+        -- one more plugin to load and keep current. Removed, not replaced.
 
         -- STATUSLINE
         {
@@ -251,13 +342,31 @@ require("lazy").setup({
                 "folke/which-key.nvim",
                 event = "VeryLazy",
                 config = function()
-                        require("which-key").setup({
+                        local wk = require("which-key")
+                        wk.setup({
                                 win = {
                                         border = "rounded",
                                         position = "bottom",
                                         margin = { 1, 0, 1, 0 },
                                         padding = { 1, 2, 1, 2 },
                                 },
+                        })
+
+                        -- Without these every multi-key leader tree rendered as a
+                        -- column of bare prefixes -- the popup told you <leader>x
+                        -- existed but not that it was Trouble. Labels only; the
+                        -- mappings themselves stay with the plugins that own them.
+                        wk.add({
+                                { "<leader>h", group = "git hunks" },
+                                { "<leader>o", group = "opencode" },
+                                { "<leader>q", group = "session" },
+                                { "<leader>s", group = "search (telescope)" },
+                                { "<leader>t", group = "testcases (CP)" },
+                                { "<leader>x", group = "trouble / diagnostics" },
+                                { "<leader>c", group = "code" },
+                                { "<leader>r", group = "refactor" },
+                                { "[", group = "prev" },
+                                { "]", group = "next" },
                         })
                 end
         },
@@ -559,6 +668,158 @@ require("lazy").setup({
                 },
         },
 
+        -- SURROUND
+        -- ysiw) / cs"' / ds( -- add, change, delete surrounding pairs.
+        -- mini.surround rather than nvim-surround: same operations, but it does
+        -- not claim the `s` prefix in visual mode (nvim-surround's visual `S`),
+        -- and it ships as part of a library already proven against 0.12.
+        -- Keys mirror nvim-surround's so muscle memory from any tutorial works:
+        --   ysiw)   surround inner word with ()
+        --   cs"'    change surrounding " to '
+        --   ds(     delete surrounding ()
+        {
+                "echasnovski/mini.surround",
+                keys = { "ys", "ds", "cs", { "S", mode = "x" } },
+                opts = {
+                        mappings = {
+                                add = "ys",
+                                delete = "ds",
+                                replace = "cs",
+                                find = "",
+                                find_left = "",
+                                highlight = "",
+                                update_n_lines = "",
+                        },
+                        -- Jump to the next pair if there isn't one under the
+                        -- cursor, instead of failing.
+                        search_method = "cover_or_next",
+                },
+                config = function(_, opts)
+                        require("mini.surround").setup(opts)
+                        -- Visual-mode S, the one key that differs from the
+                        -- defaults above (mini uses the same `ys` in visual,
+                        -- which conflicts with nothing but reads oddly).
+                        vim.keymap.set("x", "S", function()
+                                require("mini.surround").add("visual")
+                        end, { desc = "Surround selection" })
+                end,
+        },
+
+        -- TREESITTER TEXTOBJECTS
+        -- Syntax-aware motions: daf deletes a whole function, vif selects its
+        -- body, ]f jumps to the next one. Worth the most in the C++ files below,
+        -- where a function body is the unit you actually operate on.
+        --
+        -- `main` branch to match nvim-treesitter above -- the two branches have
+        -- incompatible APIs, and pairing main treesitter with master textobjects
+        -- fails at load. On main you call select_textobject() yourself rather
+        -- than declaring a keymap table.
+        --
+        -- vim.g.no_plugin_maps is deliberately NOT set (the README suggests it):
+        -- it disables EVERY built-in ftplugin mapping globally, which is a much
+        -- wider blast radius than the handful of [[ / ]] motions it is meant to
+        -- protect. The keys below avoid the ftplugin motions instead.
+        {
+                "nvim-treesitter/nvim-treesitter-textobjects",
+                branch = "main",
+                dependencies = { "nvim-treesitter/nvim-treesitter" },
+                event = { "BufReadPost", "BufNewFile" },
+                config = function()
+                        require("nvim-treesitter-textobjects").setup({
+                                select = {
+                                        -- targets.vim behaviour: if there is no
+                                        -- function under the cursor, jump forward to
+                                        -- the next one rather than doing nothing.
+                                        lookahead = true,
+                                },
+                                move = { set_jumps = true },
+                        })
+
+                        local sel = require("nvim-treesitter-textobjects.select")
+                        local move = require("nvim-treesitter-textobjects.move")
+                        local swap = require("nvim-treesitter-textobjects.swap")
+
+                        -- af/if function, ac/ic class, aa/ia parameter,
+                        -- al/il loop, ak/ik conditional ("k" for kond -- ic and
+                        -- ii were already taken by class and nothing sensible
+                        -- was left), a=/i= assignment, ar/ir return.
+                        local objects = {
+                                ["af"] = "@function.outer", ["if"] = "@function.inner",
+                                ["ac"] = "@class.outer",    ["ic"] = "@class.inner",
+                                ["aa"] = "@parameter.outer",["ia"] = "@parameter.inner",
+                                ["al"] = "@loop.outer",     ["il"] = "@loop.inner",
+                                ["ak"] = "@conditional.outer", ["ik"] = "@conditional.inner",
+                                ["a="] = "@assignment.outer",  ["i="] = "@assignment.inner",
+                                ["ar"] = "@return.outer",   ["ir"] = "@return.inner",
+                        }
+                        for lhs, query in pairs(objects) do
+                                vim.keymap.set({ "x", "o" }, lhs, function()
+                                        sel.select_textobject(query, "textobjects")
+                                end, { desc = "textobject " .. query })
+                        end
+
+                        -- ]f / [f next & previous function start, ]F / [F its end.
+                        -- ]m would be the vim-idiomatic choice but collides with
+                        -- the built-in ftplugin method motions; ]c belongs to
+                        -- gitsigns hunks above.
+                        local moves = {
+                                { "]f", move.goto_next_start, "@function.outer", "Next function" },
+                                { "]F", move.goto_next_end,   "@function.outer", "Next function end" },
+                                { "[f", move.goto_previous_start, "@function.outer", "Prev function" },
+                                { "[F", move.goto_previous_end,   "@function.outer", "Prev function end" },
+                                { "]a", move.goto_next_start, "@parameter.inner", "Next parameter" },
+                                { "[a", move.goto_previous_start, "@parameter.inner", "Prev parameter" },
+                        }
+                        for _, m in ipairs(moves) do
+                                local lhs, fn, query, desc = m[1], m[2], m[3], m[4]
+                                vim.keymap.set({ "n", "x", "o" }, lhs, function()
+                                        fn(query, "textobjects")
+                                end, { desc = desc })
+                        end
+
+                        -- Reorder function arguments without touching the commas.
+                        -- <leader>a / <leader>A, not <leader>s*: the <leader>s
+                        -- prefix belongs to the Telescope search pickers, and
+                        -- mixing "swap" and "search" under one key reads badly
+                        -- in which-key.
+                        vim.keymap.set("n", "<leader>a", function()
+                                swap.swap_next("@parameter.inner")
+                        end, { desc = "Swap parameter next" })
+                        vim.keymap.set("n", "<leader>A", function()
+                                swap.swap_previous("@parameter.inner")
+                        end, { desc = "Swap parameter prev" })
+                end,
+        },
+
+        -- SESSIONS
+        -- Restores the buffers, window layout, folds and cwd of whatever you
+        -- last had open in this directory. Added to close a gap that had been
+        -- open silently: .tmux.conf set @resurrect-strategy-nvim 'session',
+        -- which reopens nvim as `nvim -S Session.vim` -- but nothing in this
+        -- config ever ran :mksession, so no Session.vim existed anywhere on
+        -- disk and the strategy restored exactly nothing, every time. That
+        -- line is gone now; this plugin is the replacement.
+        --
+        -- Deliberately NOT auto-loading on startup: `nvim file.py` should open
+        -- file.py, not silently reinstate nine other buffers. tmux-resurrect
+        -- brings the nvim process back (nvim is on its default whitelist) and
+        -- <leader>qs brings the session back into it.
+        --
+        -- Sessions live in stdpath("state")/sessions keyed by cwd, so nothing
+        -- is written into the repo itself -- which is also why this is safe
+        -- with the dotfiles LaunchAgent that auto-commits and pushes.
+        {
+                "folke/persistence.nvim",
+                event = "BufReadPre",
+                opts = {},
+                keys = {
+                        { "<leader>qs", function() require("persistence").load() end, desc = "Session: restore for cwd" },
+                        { "<leader>ql", function() require("persistence").load({ last = true }) end, desc = "Session: restore last" },
+                        { "<leader>qS", function() require("persistence").select() end, desc = "Session: pick" },
+                        { "<leader>qd", function() require("persistence").stop() end, desc = "Session: stop saving" },
+                },
+        },
+
         -- TMUX NAVIGATOR (works with your tmux config!)
         {
                 "christoomey/vim-tmux-navigator",
@@ -731,6 +992,31 @@ vim.opt.shiftwidth = 2
 vim.opt.expandtab = true
 vim.opt.softtabstop = 2
 
+-- Live preview of :s///, :g and friends in a scratch split as you type the
+-- pattern, showing the off-screen matches too. Default is "nosplit", which
+-- highlights in place but shows nothing you cannot already see.
+vim.opt.inccommand = "split"
+
+-- Keep the text where it is when a split opens or closes above it. Default
+-- ("cursor") keeps the cursor line fixed and lets everything else jump.
+vim.opt.splitkeep = "screen"
+
+-- One default border for every floating window nvim opens itself -- LSP hover,
+-- signature help, diagnostic floats. Added in 0.11; before it, each of those
+-- had to be passed border = "rounded" separately, which is why the LSP block
+-- above sets it on its diagnostic float and blink.cmp sets it twice more.
+vim.o.winborder = "rounded"
+
+-- Briefly highlight the yanked region. The only feedback that a yank took the
+-- range you meant -- without it an off-by-one motion is invisible until paste.
+vim.api.nvim_create_autocmd("TextYankPost", {
+        group = vim.api.nvim_create_augroup("highlight_on_yank", { clear = true }),
+        desc = "Highlight yanked text",
+        callback = function()
+                vim.hl.on_yank({ timeout = 150 })
+        end,
+})
+
 -- Better UI settings
 vim.opt.cmdheight = 1
 vim.opt.pumheight = 10
@@ -774,6 +1060,20 @@ vim.opt.undofile = true
 
 -- Clear search highlight with ESC
 vim.keymap.set("n", "<Esc>", ":nohl<CR>", { silent = true })
+
+-- The cost of clipboard = "unnamedplus" at the top of this file: EVERY delete
+-- and change goes to the system clipboard too, so yanking a line, deleting
+-- another, then pasting gives you the deleted one. These route the common
+-- throwaway edits to the black-hole register instead, leaving the clipboard
+-- holding whatever you actually yanked.
+--   <leader>d / <leader>D   delete without clobbering the clipboard
+--   <leader>p (visual)      paste over a selection without capturing it
+-- x is remapped outright: single-character deletes are never worth a clipboard
+-- slot, and no muscle memory depends on x populating one.
+vim.keymap.set({ "n", "v" }, "<leader>d", '"_d', { desc = "Delete (no clipboard)" })
+vim.keymap.set({ "n", "v" }, "<leader>D", '"_D', { desc = "Delete to EOL (no clipboard)" })
+vim.keymap.set("x", "<leader>p", '"_dP', { desc = "Paste over (keep clipboard)" })
+vim.keymap.set("n", "x", '"_x', { desc = "Delete char (no clipboard)" })
 
 -- Window navigation is owned by vim-tmux-navigator (see its `keys` spec).
 -- It previously did NOT work with tmux despite the comment saying so: these
