@@ -220,15 +220,10 @@ require("lazy").setup({
                 end
         },
 
-        -- COMMENTS
-        {
-                "numToStr/Comment.nvim",
-                keys = {
-                        { "gc", mode = { "n", "v" } }, { "gcc", mode = "n" },
-                        { "gb", mode = { "n", "v" } }, { "gbc", mode = "n" },
-                },
-                config = function() require("Comment").setup() end
-        },
+        -- COMMENTS: none. gc / gcc / gb / gbc are BUILT IN as of nvim 0.10
+        -- (runtime/lua/vim/_core/defaults.lua). Comment.nvim used to live here
+        -- binding those exact four keys on top of the natives -- same behaviour,
+        -- one more plugin to load and keep current. Removed, not replaced.
 
         -- STATUSLINE
         {
@@ -556,6 +551,35 @@ require("lazy").setup({
                         { "<leader>xs", "<cmd>Trouble symbols toggle focus=false<cr>", desc = "Symbol outline" },
                         { "<leader>xl", "<cmd>Trouble lsp toggle win.position=right<cr>", desc = "Definitions / references" },
                         { "<leader>xq", "<cmd>Trouble qflist toggle<cr>", desc = "Quickfix list" },
+                },
+        },
+
+        -- SESSIONS
+        -- Restores the buffers, window layout, folds and cwd of whatever you
+        -- last had open in this directory. Added to close a gap that had been
+        -- open silently: .tmux.conf set @resurrect-strategy-nvim 'session',
+        -- which reopens nvim as `nvim -S Session.vim` -- but nothing in this
+        -- config ever ran :mksession, so no Session.vim existed anywhere on
+        -- disk and the strategy restored exactly nothing, every time. That
+        -- line is gone now; this plugin is the replacement.
+        --
+        -- Deliberately NOT auto-loading on startup: `nvim file.py` should open
+        -- file.py, not silently reinstate nine other buffers. tmux-resurrect
+        -- brings the nvim process back (nvim is on its default whitelist) and
+        -- <leader>qs brings the session back into it.
+        --
+        -- Sessions live in stdpath("state")/sessions keyed by cwd, so nothing
+        -- is written into the repo itself -- which is also why this is safe
+        -- with the dotfiles LaunchAgent that auto-commits and pushes.
+        {
+                "folke/persistence.nvim",
+                event = "BufReadPre",
+                opts = {},
+                keys = {
+                        { "<leader>qs", function() require("persistence").load() end, desc = "Session: restore for cwd" },
+                        { "<leader>ql", function() require("persistence").load({ last = true }) end, desc = "Session: restore last" },
+                        { "<leader>qS", function() require("persistence").select() end, desc = "Session: pick" },
+                        { "<leader>qd", function() require("persistence").stop() end, desc = "Session: stop saving" },
                 },
         },
 
