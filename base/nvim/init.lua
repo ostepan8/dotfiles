@@ -696,12 +696,25 @@ require("lazy").setup({
                 },
                 config = function(_, opts)
                         require("mini.surround").setup(opts)
-                        -- Visual-mode S, the one key that differs from the
-                        -- defaults above (mini uses the same `ys` in visual,
-                        -- which conflicts with nothing but reads oddly).
-                        vim.keymap.set("x", "S", function()
-                                require("mini.surround").add("visual")
-                        end, { desc = "Surround selection" })
+
+                        -- Visual-mode S. This MUST be the string form, not a
+                        -- Lua function calling MiniSurround.add("visual"): the
+                        -- function form runs after the selection has already
+                        -- been left, so mini reads an empty region and inserts
+                        -- a bare pair at the cursor ("hello -> ""hello) instead
+                        -- of wrapping anything. The :<C-u> dance is what keeps
+                        -- '< and '> intact, and is the form mini's own docs
+                        -- give (lua/mini/surround.lua, the `S` recipe).
+                        vim.keymap.set("x", "S", [[:<C-u>lua MiniSurround.add("visual")<CR>]],
+                                { silent = true, desc = "Surround selection" })
+
+                        -- yss<char> surrounds the whole line, matching
+                        -- nvim-surround/vim-surround. mini ships no such
+                        -- mapping -- `ys` there always wants a motion -- so
+                        -- this feeds it the linewise `_` motion. remap = true
+                        -- is required: the right-hand side has to go back
+                        -- through mini's own expr-mapped `ys`.
+                        vim.keymap.set("n", "yss", "ys_", { remap = true, desc = "Surround line" })
                 end,
         },
 
