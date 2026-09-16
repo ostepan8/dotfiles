@@ -344,6 +344,11 @@ require("lazy").setup({
                 config = function()
                         local wk = require("which-key")
                         wk.setup({
+                                -- Independent of timeoutlen (see the note by
+                                -- vim.opt.timeoutlen below). Stated explicitly
+                                -- so the next person to speed up the popup
+                                -- changes THIS and not the timeout.
+                                delay = 200,
                                 win = {
                                         border = "rounded",
                                         position = "bottom",
@@ -1057,7 +1062,44 @@ vim.opt.completeopt = "menuone,noselect"
 
 -- Faster update time
 vim.opt.updatetime = 250
-vim.opt.timeoutlen = 300
+
+-- timeoutlen: how long vim waits for the REST of a multi-key mapping.
+--
+-- This was 300ms, which silently broke every two-key mapping whose first key
+-- is also a complete command on its own -- ys, ds, cs, and every <leader>
+-- sequence. `y` is both the yank operator and the start of mini.surround's
+-- `ys`, so vim waits timeoutlen to disambiguate; pause longer than that
+-- between y and s and it commits to plain `y`, the surround never fires, and
+-- nothing at all appears to happen. 300ms is well inside a normal thinking
+-- pause, so this read as "ysiw is broken" rather than as a timing problem.
+--
+-- Measured through real keystrokes (tmux send-keys into a live nvim, not
+-- nvim_feedkeys -- its 'x' flag force-executes each chunk and aborts any
+-- incomplete command, which makes every multi-key mapping look broken
+-- regardless of this setting):
+--     timeoutlen=300,  0.6s pause -> no surround   (3/3 runs)
+--     timeoutlen=1000, 0.6s pause -> surrounds        (3/3 runs)
+--     timeoutlen=1000, 1.5s pause -> no surround      (3/3 runs)
+-- Identical results with the plugin preloaded, so lazy-loading is not a
+-- factor.
+--
+-- Note the third line: this widens the window from 0.3s to 1s, it does not
+-- remove it. Pausing longer than timeoutlen mid-sequence will always fall
+-- back to plain `y`. That is inherent to mapping a two-key sequence whose
+-- first key is a valid operator, and is the same deal vim-surround users
+-- have always had at the default 1000. The fix for a long pause is to type
+-- the sequence as one motion, not to raise this further -- much above 1000
+-- and genuinely ambiguous keys start feeling laggy.
+--
+-- 300 was presumably chosen to make which-key pop up quickly. It never did
+-- anything of the sort: which-key's delay is its own option and is explicitly
+-- independent of timeoutlen (README: "Delay: delay is independent of
+-- `timeoutlen`"), defaulting to 200ms. So the short timeout was pure downside.
+--
+-- 1000 is vim's own default. It costs nothing here: after `y`, any key that
+-- cannot continue `ys` resolves instantly, so yy / yiw / yap are unaffected.
+-- The wait only happens when what you typed really is still ambiguous.
+vim.opt.timeoutlen = 1000
 
 -- Auto-reload files changed externally (e.g. by opencode)
 vim.opt.autoread = true
