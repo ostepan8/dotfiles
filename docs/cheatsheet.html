@@ -375,6 +375,12 @@
 
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>H</kbd><span class="sep">/</span><kbd>J</kbd><span class="sep">/</span><kbd>K</kbd><span class="sep">/</span><kbd>L</kbd></div>
     <div class="desc-cell">Focus pane left/down/up/right (vim-aware — also jumps into nvim splits)</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>B</kbd></div>
+    <div class="desc-cell"><strong>Break</strong> this pane out into its own window (stays put — the new window is created detached)</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>J</kbd></div>
+    <div class="desc-cell"><strong>Join</strong> another pane into this window — pick the source from a tree</div>
     <!-- /GENERATED -->
   </div>
   <h3>Windows (tabs inside a session)</h3>
@@ -391,6 +397,9 @@
 
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>H</kbd> / <kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>L</kbd></div>
     <div class="desc-cell">Previous / next tmux window</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd>Left</kbd> / <kbd class="mod">Shift</kbd><span class="sep">+</span><kbd>Right</kbd></div>
+    <div class="desc-cell"><strong>Move</strong> the current window left / right in the status bar (bare <kbd class="mod">Shift</kbd>+arrow moves <em>between</em> windows)</div>
     <!-- /GENERATED -->
   </div>
   <h3>Sessions &amp; copy</h3>
@@ -410,6 +419,9 @@
 
     <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>K</kbd></div>
     <div class="desc-cell">Clear screen (bare <kbd>Ctrl</kbd>+<kbd>L</kbd> belongs to vim-tmux-navigator)</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd>E</kbd></div>
+    <div class="desc-cell"><strong>Edit</strong> <code>~/.tmux.conf</code> in a popup; reloads on close</div>
     <!-- /GENERATED -->
   </div>
 
@@ -433,6 +445,12 @@
 
     <div class="keys"><kbd class="mod">Cmd</kbd><span class="sep">+</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd>Click</kbd></div>
     <div class="desc-cell">Open a link directly. Shift is required because tmux owns the mouse</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>A</kbd><span class="then">then</span><kbd class="mod">Shift</kbd><span class="sep">+</span><kbd>F</kbd></div>
+    <div class="desc-cell"><strong>Hint mode</strong> — paints a letter on every SHA, path, IP and hex string on screen; type it to copy. Complements <kbd class="mod">Ctrl</kbd>+<kbd>A</kbd> <kbd>U</kbd>, which only ever matches URLs</div>
+
+    <div class="keys"><kbd class="mod">Ctrl</kbd><span class="sep">+</span><kbd>O</kbd></div>
+    <div class="desc-cell">In copy mode: open the selection in <code>$EDITOR</code> instead of the browser</div>
     <!-- /GENERATED -->
   </div>
 </section>
