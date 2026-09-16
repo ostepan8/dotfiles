@@ -1143,9 +1143,20 @@ vim.opt.updatetime = 250
 -- remove it. Pausing longer than timeoutlen mid-sequence will always fall
 -- back to plain `y`. That is inherent to mapping a two-key sequence whose
 -- first key is a valid operator, and is the same deal vim-surround users
--- have always had at the default 1000. The fix for a long pause is to type
--- the sequence as one motion, not to raise this further -- much above 1000
--- and genuinely ambiguous keys start feeling laggy.
+-- have always had at the default 1000.
+--
+-- Raised again to 3000 after using it: 1s is still a race when you are reading
+-- the which-key popup to decide what comes next, and the "much above 1000 gets
+-- laggy" worry that used to sit here does not survive contact with this
+-- particular keymap. Every key that STARTS a sequence in this config -- y, d,
+-- c, g, [, ] and <leader> itself -- is an incomplete command on its own: `d`
+-- does nothing until it gets a motion, and <Space> has no solo mapping at all.
+-- So the timeout never delays a command that could already have run; it only
+-- decides how long you are allowed to take. A long timeout only bites on
+-- complete-command prefixes, and this config maps none of those
+-- (mini.surround takes ys/ds/cs, never bare s).
+--
+-- Terminal <Esc> latency is ttimeoutlen, not this, and stays at 50ms.
 --
 -- 300 was presumably chosen to make which-key pop up quickly. It never did
 -- anything of the sort: which-key's delay is its own option and is explicitly
@@ -1155,7 +1166,7 @@ vim.opt.updatetime = 250
 -- 1000 is vim's own default. It costs nothing here: after `y`, any key that
 -- cannot continue `ys` resolves instantly, so yy / yiw / yap are unaffected.
 -- The wait only happens when what you typed really is still ambiguous.
-vim.opt.timeoutlen = 1000
+vim.opt.timeoutlen = 3000
 
 -- Auto-reload files changed externally (e.g. by opencode)
 vim.opt.autoread = true
