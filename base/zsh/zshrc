@@ -485,6 +485,57 @@ for __antidote in \
 done
 unset __antidote
 
+# ---------- completion matching ----------
+# This file previously set no zstyle at all, which meant fzf-tab was installed
+# and doing nothing useful: zsh only ever handed it candidates that matched as
+# a strict PREFIX, so `nvim name.py<TAB>` could not find file_name.py and the
+# picker came up empty. The plugin was fine; it was being fed a prefix match.
+#
+# matcher-list is tried in order, stopping at the first that produces
+# candidates, so exact matches still win and nothing below makes the common
+# case looser than it was:
+#   ''                      exact, as before
+#   m:{a-zA-Z}={A-Za-z}     case-insensitive, so `readme` finds README
+#   l:|=* r:|=*             allow the match to start anywhere, so `name`
+#                           finds file_name.py
+#   r:|[._-]=* r:|=*        treat . _ - as word boundaries, so `f_n` finds
+#                           file_name.py and `cl-l` finds claude-local
+zstyle ':completion:*' matcher-list \
+    '' \
+    'm:{a-zA-Z}={A-Za-z}' \
+    'l:|=* r:|=*' \
+    'r:|[._-]=* r:|=*'
+
+# Group results under their tag headers (files / directories / options) and
+# colour them like ls, which is what makes a long fzf-tab list scannable.
+zstyle ':completion:*' menu no
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*:descriptions' format '[%d]'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+
+# ---------- fzf-tab ----------
+# Aloxaf/fzf-tab is loaded from zsh_plugins.txt but had no configuration.
+# Note fzf-tab does its own fuzzy filtering INSIDE the popup, so once the
+# matcher above hands it a reasonable candidate set you can keep typing to
+# narrow further -- two independent layers, and both were needed.
+zstyle ':fzf-tab:*' fzf-flags --height=45% --layout=reverse --border --cycle
+# Accept the current selection with a single keypress.
+zstyle ':fzf-tab:*' continuous-trigger '/'
+zstyle ':fzf-tab:*' switch-group '<' '>'
+
+# Preview whatever is highlighted: directory listings via eza, file contents
+# via bat. Both are guarded -- this config is shared with headless Linux nodes
+# where neither is installed, and a preview command that is not found makes
+# every completion print an error into the popup.
+if command -v eza >/dev/null 2>&1; then
+    zstyle ':fzf-tab:complete:*:*' fzf-preview \
+        '[[ -d $realpath ]] && eza -1 --color=always --icons $realpath'
+fi
+if command -v bat >/dev/null 2>&1; then
+    zstyle ':fzf-tab:complete:*:*' fzf-preview \
+        '[[ -d $realpath ]] && eza -1 --color=always --icons $realpath || bat -n --color=always --line-range :80 $realpath 2>/dev/null'
+fi
+
 bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down
 
