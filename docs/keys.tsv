@@ -32,3 +32,9 @@ Popups &amp; links	Ctrl+A then P	Throwaway shell popup (fresh each time — cont
 Popups &amp; links	Ctrl+A then U	<strong>URL picker</strong> for the pane — newest first; <kbd class="mod">Tab</kbd> multi-selects, <kbd class="mod">Ctrl</kbd>+<kbd>Y</kbd> copies instead of opening
 Popups &amp; links	O	In copy mode: open the selection (URL, file, or directory)
 Popups &amp; links	Cmd+Shift+Click	Open a link directly. Shift is required because tmux owns the mouse
+Panes (splits within one tmux window)	Ctrl+A then B	<strong>Break</strong> this pane out into its own window (stays put — the new window is created detached)
+Panes (splits within one tmux window)	Ctrl+A then J	<strong>Join</strong> another pane into this window — pick the source from a tree
+Windows (tabs inside a session)	Ctrl+A then Shift+Left / Shift+Right	<strong>Move</strong> the current window left / right in the status bar (bare <kbd class="mod">Shift</kbd>+arrow moves <em>between</em> windows)
+Sessions &amp; copy	Ctrl+A then E	<strong>Edit</strong> <code>~/.tmux.conf</code> in a popup; reloads on close
+Popups &amp; links	Ctrl+A then Shift+F	<strong>Hint mode</strong> — paints a letter on every SHA, path, IP and hex string on screen; type it to copy. Complements <kbd class="mod">Ctrl</kbd>+<kbd>A</kbd> <kbd>U</kbd>, which only ever matches URLs
+Popups &amp; links	Ctrl+O	In copy mode: open the selection in <code>$EDITOR</code> instead of the browser
