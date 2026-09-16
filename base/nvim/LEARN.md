@@ -81,6 +81,30 @@ inner spaces.
 - Line 3: put the cursor on `quotes` and press `ds"` — it finds the *inner*
   pair, not the outer one.
 
+### If it seems not to work
+
+**Type `ysiw"` as one flowing motion, not as four separate decisions.**
+
+`y` is both the yank operator and the first key of `ys`, so vim waits
+`timeoutlen` to work out which you meant. Pause longer than that and it
+commits to plain `y`, the surround never fires, and **nothing visible
+happens at all** — no error, no message. It looks like the mapping is broken
+when it is really a stopwatch.
+
+That window used to be 0.3s, which is inside a normal thinking pause. It is
+now 1s, vim's default. Measured, 3 runs each:
+
+| timeoutlen | pause between `y` and `s` | result |
+|---|---|---|
+| 300 | 0.6s | nothing happens |
+| 1000 | 0.6s | surrounds correctly |
+| 1000 | 1.5s | nothing happens |
+
+So: decide what you want *first*, then type the whole thing. If you need to
+think mid-command, press `<Esc>` and start over rather than pausing.
+
+The same applies to `ds`, `cs`, and every `<leader>` sequence.
+
 ### When this pays off
 
 Renaming a string, wrapping an expression in a function call, converting
