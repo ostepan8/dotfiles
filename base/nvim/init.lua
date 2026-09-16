@@ -204,19 +204,67 @@ require("lazy").setup({
                         -- the json grammar handles comments fine.
                         vim.treesitter.language.register("json", "jsonc")
 
-                        vim.api.nvim_create_autocmd("FileType", {
-                                callback = function(args)
-                                        local buf = args.buf
-                                        local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
-                                                or vim.bo[buf].filetype
-                                        -- start() loads the parser; pcall so filetypes without one
-                                        -- (help without vimdoc, plain text, terminals) are skipped.
-                                        if pcall(vim.treesitter.start, buf, lang) then
-                                                vim.bo[buf].indentexpr =
-                                                        "v:lua.require'nvim-treesitter'.indentexpr()"
-                                        end
-                                end,
+                        -- Start highlighting for one buffer, if it is not already
+                        -- running. Returns ok, err so the :TSRestart command below can
+                        -- report a failure that the autocmd deliberately swallows.
+                        local function ensure_highlight(buf)
+                                if not vim.api.nvim_buf_is_valid(buf) then return false end
+                                -- Already active: bail. The guard is what lets this be
+                                -- attached to several events without restarting the
+                                -- highlighter every time a buffer is re-entered.
+                                if vim.treesitter.highlighter.active[buf] then return true end
+                                local ft = vim.bo[buf].filetype
+                                -- BufReadPost can arrive before filetype detection has
+                                -- run. FileType will follow, so skip rather than guess.
+                                if ft == "" then return false end
+                                local lang = vim.treesitter.language.get_lang(ft) or ft
+                                -- start() loads the parser; pcall so filetypes without one
+                                -- (help without vimdoc, plain text, terminals) are skipped.
+                                local ok, err = pcall(vim.treesitter.start, buf, lang)
+                                if ok then
+                                        vim.bo[buf].indentexpr =
+                                                "v:lua.require'nvim-treesitter'.indentexpr()"
+                                end
+                                return ok, err
+                        end
+
+                        -- Three events, not just FileType. A buffer that loses its
+                        -- highlighter -- after a reload, or because FileType never
+                        -- reached it -- previously stayed unstyled for the rest of the
+                        -- session with no error and no way to tell why: the pcall above
+                        -- swallows the reason by design, since most of what it catches
+                        -- is the unremarkable "this filetype has no parser". That is a
+                        -- bad failure mode for something purely cosmetic, and it has
+                        -- happened at least once on this machine (a markdown buffer
+                        -- came back from :e! with highlighter.active empty). These
+                        -- extra events make it self-healing: a reload, or simply
+                        -- switching back to the buffer, starts it again.
+                        --
+                        -- BufEnter and not BufWinEnter: the latter fires when a buffer
+                        -- is first DISPLAYED in a window, which a plain `wincmd w` back
+                        -- onto an already-visible buffer does not do -- measured, it
+                        -- left a stopped highlighter stopped. BufEnter fires on every
+                        -- buffer entry, and the active[] guard above makes the common
+                        -- case a single table lookup.
+                        vim.api.nvim_create_autocmd({ "FileType", "BufReadPost", "BufEnter" }, {
+                                group = vim.api.nvim_create_augroup("treesitter_start", { clear = true }),
+                                callback = function(args) ensure_highlight(args.buf) end,
                         })
+
+                        -- Manual escape hatch, and the only place the pcall's error is
+                        -- surfaced. Run it when a buffer looks unstyled.
+                        vim.api.nvim_create_user_command("TSRestart", function()
+                                local buf = vim.api.nvim_get_current_buf()
+                                vim.treesitter.stop(buf)
+                                local ok, err = ensure_highlight(buf)
+                                if ok then
+                                        vim.notify("treesitter: highlighting " .. vim.bo[buf].filetype)
+                                else
+                                        vim.notify("treesitter: could not start for '"
+                                                .. vim.bo[buf].filetype .. "' -- " .. tostring(err),
+                                                vim.log.levels.WARN)
+                                end
+                        end, { desc = "Restart treesitter highlighting for this buffer" })
                 end
         },
 
