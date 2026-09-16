@@ -1,0 +1,1 @@
+ wincmd w | wincmd w | wincmd w"); vim.wait(800)
