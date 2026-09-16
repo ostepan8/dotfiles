@@ -132,10 +132,30 @@ understand code structure, so you stop counting lines.
 
 Combine with any verb: `daf` `cif` `vac` `yia`.
 
+### First: open the practice file
+
+**These drills do not work in this file.** Open the real one:
+
+    :e %:h/practice.cpp
+
+Why: treesitter textobjects resolve against the **buffer's** parser. This
+file is markdown, and the markdown grammar has no concept of a function, so
+`af` and `]f` find nothing. The C++ below is an *injected* language inside a
+fenced block, and the motions do not follow injections — they see markdown
+and stop.
+
+This is worth knowing beyond the drill: **textobjects will not work on code
+inside a markdown fence**, in these notes or anywhere else. The code block
+below is here to read. `practice.cpp` is here to edit.
+
 ### Drill 2a — functions
 
-Put the cursor **anywhere inside** `helper` and press `vaf`. The whole
-function highlights, including its signature. Now `vif` — only the body.
+In `practice.cpp`, put the cursor **anywhere inside** `helper` and press
+`vaf`. The whole function highlights, including its signature. Now `vif` —
+only the body.
+
+For reference, `practice.cpp` contains roughly this (textobjects will not
+work on this copy — it is a markdown fence):
 
 ```cpp
 int helper(int a, int b, int c) {
@@ -143,15 +163,14 @@ int helper(int a, int b, int c) {
     return sum + c;
 }
 
+long long fib(int n) {
+    if (n <= 1) { return n; }
+    ...
+}
+
 int main() {
     int x = helper(1, 2, 3);
-    if (x > 5) {
-        return 1;
-    }
-    for (int i = 0; i < 10; i++) {
-        x += i;
-    }
-    return 0;
+    ...
 }
 ```
 
@@ -167,7 +186,7 @@ Now try, undoing between each:
 
 ### Drill 2b — parameters
 
-Cursor on `b` in `helper`'s signature:
+In `practice.cpp`, cursor on `b` in `helper`'s signature:
 
 - `cia` — change just that parameter.
 - `daa` — delete it **and its comma**. This is the one that saves real time;
@@ -175,8 +194,8 @@ Cursor on `b` in `helper`'s signature:
 
 ### Drill 2c — lookahead
 
-Put the cursor on the **blank line** between the two functions, then press
-`vaf`. It still works — if there is no function under the cursor, it jumps
+Put the cursor on a **blank line** between two functions in
+`practice.cpp`, then press `vaf`. It still works — if there is no function under the cursor, it jumps
 forward to the next one instead of failing. You rarely need to position
 precisely first.
 
@@ -186,8 +205,13 @@ precisely first.
     ]F   end of the next function       [F   end of the previous
     ]a   next parameter                 [a   previous parameter
 
-In the C++ block above, hold `]f` and watch the cursor hop function to
-function. This replaces scrolling to find things.
+In `practice.cpp` there are four functions — `helper`, `fib`, `evens` and
+`main`. Hold `]f` and watch the cursor hop between them; `[f` walks back.
+This replaces scrolling to find things.
+
+If `]f` and `[f` appear to do nothing, check the bottom-right of your
+statusline: you are almost certainly in a markdown or text buffer, where
+there are no functions to jump to.
 
 ### Drill 2e — reordering parameters
 
