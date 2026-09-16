@@ -287,7 +287,7 @@ Everything added lives under `<leader>s`:
 
     <leader>sr   RESUME the last picker, results intact
     <leader>s/   fuzzy-find inside the current buffer
-    <leader>ss   symbols in this file
+    <leader>ss   symbols in this file (functions, vars — no LSP needed)
     <leader>sS   symbols across the project
     <leader>sd   all diagnostics
     <leader>sg   git status        <leader>sc   git commits
@@ -465,7 +465,8 @@ After that, skim Part 6. Most of what is there you are already paying for.
 |---|---|
 | `<leader>sr` | resume last picker |
 | `<leader>s/` | fuzzy-find in this buffer |
-| `<leader>ss` `<leader>sS` | document / workspace symbols |
+| `<leader>ss` | symbols in this file (treesitter) |
+| `<leader>sS` | workspace symbols (needs a working LSP) |
 | `<leader>sd` `<leader>sg` `<leader>sc` | diagnostics / git status / commits |
 | `<leader>sk` `<leader>sh` | keymaps / help tags |
 | `<leader>qs` `<leader>ql` `<leader>qS` `<leader>qd` | session: cwd / last / pick / stop |

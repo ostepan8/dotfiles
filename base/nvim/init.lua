@@ -122,7 +122,15 @@ require("lazy").setup({
                         { "<leader>sd", "<cmd>Telescope diagnostics<cr>", desc = "Diagnostics" },
                         { "<leader>sg", "<cmd>Telescope git_status<cr>", desc = "Git status" },
                         { "<leader>sc", "<cmd>Telescope git_commits<cr>", desc = "Git commits" },
-                        { "<leader>ss", "<cmd>Telescope lsp_document_symbols<cr>", desc = "Document symbols" },
+                        -- treesitter, not lsp_document_symbols: the LSP version
+                        -- returned an empty picker on a standalone .cpp with no
+                        -- compile_commands.json, even with clangd attached and
+                        -- answering textDocument/documentSymbol directly -- no
+                        -- error, no notification, just no results. The treesitter
+                        -- picker needs no server, is instant, and works in every
+                        -- buffer that has a parser. Workspace symbols below still
+                        -- needs the LSP; there is no treesitter equivalent.
+                        { "<leader>ss", "<cmd>Telescope treesitter<cr>", desc = "Symbols in file" },
                         { "<leader>sS", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", desc = "Workspace symbols" },
                         -- Fuzzy search within the current buffer.
                         { "<leader>s/", "<cmd>Telescope current_buffer_fuzzy_find<cr>", desc = "Search in buffer" },
