@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# tmuxctl — an agent-shaped interface to tmux.
+#
+# tmux's own CLI is a superb API for a human who already knows the model and a
+# poor one for anything else: the verbs are many and overlapping, the target
+# syntax is positional and quietly fuzzy, output is formatted for eyes, and
+# nothing distinguishes "this pane is a shell waiting for a command" from "this
+# pane is an editor that will treat your command as keystrokes". That last one
+# is not a cosmetic problem -- on this machine a mis-sent line lands inside a
+# running Claude Code session.
+#
+# So: a small set of verbs, one target grammar everywhere, --json on all of
+# them, exit codes that mean something, and refusals rather than surprises.
+#
+#   tmuxctl help       the surface, for a human
+#   tmuxctl schema     the same thing as JSON, for an agent
+#
+# Layout: this file resolves the command; lib/tmuxctl/*.sh implements it.
+set -uo pipefail
+
+TCTL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Follow the symlink when installed as ~/.local/bin/tmuxctl.
+if [ -L "${BASH_SOURCE[0]}" ]; then
+    TCTL_LINK="$(readlink "${BASH_SOURCE[0]}")"
+    case "$TCTL_LINK" in
+        /*) TCTL_ROOT="$(cd "$(dirname "$TCTL_LINK")" && pwd)" ;;
+        *)  TCTL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/$(dirname "$TCTL_LINK")" && pwd)" ;;
+    esac
+fi
+TCTL_LIB="$TCTL_ROOT/lib/tmuxctl"
+
+for module in core inspect exec lifecycle help; do
+    # shellcheck source=/dev/null
+    . "$TCTL_LIB/$module.sh" || { printf 'tmuxctl: cannot load %s/%s.sh\n' "$TCTL_LIB" "$module" >&2; exit 1; }
+done
+
+command -v tmux >/dev/null 2>&1 || { printf 'tmuxctl: tmux is not installed\n' >&2; exit 1; }
+
+# --json is a global, so it is stripped here rather than in every parser; this
+# is what lets it appear before, between or after a command's own arguments.
+TCTL_JSON=0
+TCTL_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --json) TCTL_JSON=1 ;;
+        *) TCTL_ARGS[${#TCTL_ARGS[@]}]="$arg" ;;
+    esac
+done
+export TCTL_JSON
+set -- ${TCTL_ARGS[@]+"${TCTL_ARGS[@]}"}
+
+[ $# -ge 1 ] || { cmd_help >&2; printf '\ntmuxctl: no command given\n' >&2; exit 2; }
+
+verb="$1"; shift
+case "$verb" in
+    ls|list)        cmd_ls "$@" ;;
+    tree|panes)     cmd_tree "$@" ;;
+    status|info)    cmd_status "$@" ;;
+    find|resolve)   cmd_find "$@" ;;
+    read|capture)   cmd_read "$@" ;;
+    grep|search)    cmd_grep "$@" ;;
+    agents)         cmd_agents "$@" ;;
+    run|exec)       cmd_run "$@" ;;
+    send|keys)      cmd_send "$@" ;;
+    wait)           cmd_wait "$@" ;;
+    new|session)    cmd_new "$@" ;;
+    window|win)     cmd_window "$@" ;;
+    split|pane)     cmd_split "$@" ;;
+    rename|mv)      cmd_rename "$@" ;;
+    kill|rm)        cmd_kill "$@" ;;
+    help|-h|--help) cmd_help ;;
+    schema|--schema) cmd_schema ;;
+    *)
+        printf 'tmuxctl: unknown command "%s". Try: tmuxctl help\n' "$verb" >&2
+        exit 2 ;;
+esac
