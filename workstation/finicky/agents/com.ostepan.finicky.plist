@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ostepan.finicky</string>
+
+    <!-- Keep the URL router resident from login.
+         macOS would launch Finicky on demand anyway, the first time a link is
+         opened, but a cold start costs seconds and the fn/Globe override in
+         ~/.finicky.js samples the modifier keys AFTER the click: hold fn
+         through a cold start and the key is long released by the time the
+         handler asks. Resident makes the override deterministic.
+
+         `open -a` rather than exec'ing the binary directly: launching a .app
+         through LaunchServices is what registers it as a proper GUI app, which
+         is also what lets it read NSEvent modifier flags at all. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/open</string>
+        <string>-a</string>
+        <string>Finicky</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- One shot at login. Finicky's own `keepRunning` option keeps it alive
+         from there, so a KeepAlive here would fight it and respawn-loop `open`. -->
+    <key>StandardOutPath</key>
+    <string>/tmp/finicky-launch.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/finicky-launch.err</string>
+</dict>
+</plist>
