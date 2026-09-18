@@ -444,6 +444,13 @@ require("lazy").setup({
                         -- dependency would force it to load on every buffer and
                         -- defeat its own ft = "lua" lazy trigger.
                         "saghen/blink.cmp",
+                        -- Every JSON/YAML schema on SchemaStore, as a lua table.
+                        -- jsonls and yamlls ship with none of their own, so
+                        -- without this they only check that a file is valid
+                        -- JSON -- app.json, eas.json, tsconfig.json and
+                        -- package.json get no key completion and no validation
+                        -- of the keys they do have.
+                        "b0o/schemastore.nvim",
                 },
                 config = function()
                         local capabilities = require("blink.cmp").get_lsp_capabilities()
@@ -496,6 +503,36 @@ require("lazy").setup({
                                                         vim.lsp.inlay_hint.enable(not on, { bufnr = args.buf })
                                                 end, vim.tbl_extend("force", o, { desc = "Toggle inlay hints" }))
                                         end
+
+                                        -- ts_ls exposes import maintenance as
+                                        -- whole-file `source.*` code actions.
+                                        -- They are reachable through <leader>ca,
+                                        -- but that lists every action at the
+                                        -- cursor and makes you read a menu to
+                                        -- find them -- and in React Native you
+                                        -- add a component to the `react-native`
+                                        -- import on most edits. `apply = true`
+                                        -- runs the action directly when the
+                                        -- filter leaves exactly one match.
+                                        if client and client.name == "ts_ls" then
+                                                local function source_action(kind)
+                                                        return function()
+                                                                vim.lsp.buf.code_action({
+                                                                        apply = true,
+                                                                        context = { only = { kind }, diagnostics = {} },
+                                                                })
+                                                        end
+                                                end
+                                                vim.keymap.set("n", "<leader>ci",
+                                                        source_action("source.addMissingImports.ts"),
+                                                        vim.tbl_extend("force", o, { desc = "Add missing imports" }))
+                                                vim.keymap.set("n", "<leader>co",
+                                                        source_action("source.organizeImports"),
+                                                        vim.tbl_extend("force", o, { desc = "Organize imports" }))
+                                                vim.keymap.set("n", "<leader>cu",
+                                                        source_action("source.removeUnused.ts"),
+                                                        vim.tbl_extend("force", o, { desc = "Remove unused" }))
+                                        end
                                 end,
                         })
 
@@ -516,9 +553,28 @@ require("lazy").setup({
                                                 },
                                         },
                                 },
+                                -- validate = false: jsonls' own bundled
+                                -- validator duplicates every SchemaStore
+                                -- diagnostic, so each error is reported twice.
+                                jsonls = {
+                                        settings = {
+                                                json = {
+                                                        schemas = require("schemastore").json.schemas(),
+                                                        validate = { enable = true },
+                                                },
+                                        },
+                                },
                                 yamlls = {
                                         settings = {
-                                                yaml = { keyOrdering = false },
+                                                yaml = {
+                                                        keyOrdering = false,
+                                                        -- yamlls needs its own
+                                                        -- bundled schema store
+                                                        -- switched off or it
+                                                        -- races SchemaStore's.
+                                                        schemaStore = { enable = false, url = "" },
+                                                        schemas = require("schemastore").yaml.schemas(),
+                                                },
                                         },
                                 },
                                 -- ruff and pyright both attach to python. ruff owns
@@ -726,6 +782,52 @@ require("lazy").setup({
                         { "<leader>xs", "<cmd>Trouble symbols toggle focus=false<cr>", desc = "Symbol outline" },
                         { "<leader>xl", "<cmd>Trouble lsp toggle win.position=right<cr>", desc = "Definitions / references" },
                         { "<leader>xq", "<cmd>Trouble qflist toggle<cr>", desc = "Quickfix list" },
+                },
+        },
+
+        -- JSX TAG PAIRS
+        -- Typing `<View>` writes the `</View>`, and renaming either half
+        -- renames the other. React Native has no bare HTML to fall back on --
+        -- every line of layout is a paired component tag -- so this is the
+        -- difference between writing JSX and typing each tag twice.
+        --
+        -- Driven by treesitter queries against the tsx/html parsers installed
+        -- above, and configured through `opts` (the post-0.9 API). The older
+        -- `require("nvim-treesitter.configs").setup({ autotag = ... })` form
+        -- would silently no-op here, since the `main` branch of
+        -- nvim-treesitter this config runs has no `configs` module at all.
+        {
+                "windwp/nvim-ts-autotag",
+                ft = {
+                        "typescriptreact", "javascriptreact",
+                        "typescript", "javascript",
+                        "html", "xml", "markdown",
+                },
+                opts = {
+                        opts = {
+                                enable_close = true,
+                                enable_rename = true,
+                        },
+                },
+        },
+
+        -- BRACKET / QUOTE PAIRS
+        -- mini.pairs, to match mini.surround above.
+        --
+        -- mini.pairs maps <CR> globally (to MiniPairs.cr(), which expands
+        -- `{|}` into a three-line block) and so does blink.cmp, to `accept`.
+        -- They do not fight: blink applies its <CR> as a BUFFER-LOCAL mapping
+        -- from its own InsertEnter autocmd -- deliberately, to outrank exactly
+        -- this class of plugin -- so blink wins while its menu is open and
+        -- falls back to MiniPairs.cr() when it is not. Load order is
+        -- irrelevant; `event = "InsertEnter"` here is safe.
+        {
+                "echasnovski/mini.pairs",
+                event = "InsertEnter",
+                opts = {
+                        -- Pairing only in insert mode. In command mode it
+                        -- fights `:s/(/` style patterns more than it helps.
+                        modes = { insert = true, command = false, terminal = false },
                 },
         },
 
