@@ -48,6 +48,7 @@
   "effortLevel": "high",
   "tui": "default",
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "theme": "dark",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
@@ -56,8 +57,8 @@
       "### Org-wide",
       "**Organization**: None configured",
       "**Cloud provider(s)**: None configured",
-      "**Repository visibility**: private — ostepan8/nephos (this repo's remote)",
-      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Repository visibility**: private \u2014 ostepan8/nephos (this repo's remote)",
+      "**Internal sharing / snippet hosting**: None configured \u2014 treat public paste/gist services as outside the trust boundary",
       "**Secrets management**: None configured",
       "**Default / protected branches**: default branch unknown (origin/HEAD unset); protected branches not queryable here; no rulesets listed",
       "**CI/CD deploy targets**: None configured",
@@ -70,14 +71,27 @@
       "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar; note cmd/secrets.go and internal/auth/credential.go as filename-scan hits in this repo warranting caution",
       "**Data retention / declassification**: None configured",
       "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment",
-      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected deployment namespaces / environments**: None configured \u2014 fall back to the Sensitive remote targets heuristic",
       "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
       "### User-specific",
       "**Primary use of Claude Code**: software development",
-      "**Trusted repo**: ostepan8/nephos (private) — this working directory (~/projects/nephos-cloud-wt) and its origin remote; confidential material OK to commit here, but secrets/credentials are never cleared by visibility alone",
+      "**Trusted repo**: ostepan8/nephos (private) \u2014 this working directory (~/projects/nephos-cloud-wt) and its origin remote; confidential material OK to commit here, but secrets/credentials are never cleared by visibility alone",
       "**Org-specific CLIs**: None configured",
-      "routine under ostepan8/ prefix qualifiers: none corroborated — insufficient evidence to extend trust beyond the nephos repo itself"
+      "routine under ostepan8/ prefix qualifiers: none corroborated \u2014 insufficient evidence to extend trust beyond the nephos repo itself"
     ]
   },
-  "skipWorkflowUsageWarning": true
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude-personal/hooks/ci-gate.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
 }
