@@ -99,3 +99,13 @@ cmd + alt - b : if /opt/homebrew/bin/sketchybar --query bar | grep -q '"hidden":
 # This binding MUST live in skhd, not aerospace.toml: a disabled AeroSpace
 # stops intercepting key events, so it could never re-enable itself.
 cmd + alt - t : /opt/homebrew/bin/aerospace enable toggle
+
+# ---------- Jarvis ----------
+# Opt+/ → talk to Jarvis. The ear binds a loopback endpoint and this just pokes
+# it, so nothing has to hook the keyboard and the key stays defined here with
+# everything else. Press, speak, stop — sox ends the recording itself after the
+# configured silence; you do not hold the key down. A press while it is already
+# recording answers 409 rather than queueing another one.
+#
+# 0x2C is slash. skhd takes a keycode where a literal would be ambiguous.
+alt - 0x2C : /usr/bin/curl -s -X POST http://127.0.0.1:7947/press
