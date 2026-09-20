@@ -154,9 +154,59 @@ _tree_differs() {
   return 1
 }
 
+# _tree_prune removes top-level entries of a tree destination that the source
+# no longer has. Deleting a skill or a rule set from the repo otherwise leaves
+# it live on every machine forever, which is how a roku skill whose every path
+# was dead survived months after the tool it pointed at was gone.
+#
+# Top level ONLY, and that is the whole design. Destinations legitimately hold
+# files the source does not: state written at runtime (govee's keychain.py,
+# __pycache__), a file placed by another manifest row (the yeelight bulbs.txt
+# seed lands inside this tree), and macOS droppings. A full-depth prune would
+# delete all of them. An entry at the top level, though, is one whole unit —
+# one skill, one rule language — and its absence from the source is a real
+# deletion. Entries beginning with a dot are left alone as well.
+_tree_prune() {
+  local src="$1" dest="$2" entry name protected
+  [ -d "$dest" ] || return 0
+  for entry in "$dest"/*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    name="$(basename "$entry")"
+    case "$name" in .*) continue ;; esac
+    [ -e "$src/$name" ] || [ -L "$src/$name" ] && continue
+    # Never remove something another manifest row puts here on purpose.
+    protected=0
+    for p in "${MANIFEST_DESTS[@]:-}"; do
+      case "$p" in "$entry"|"$entry"/*) protected=1; break ;; esac
+    done
+    [ "$protected" = 1 ] && { note "KEEP   $entry (another manifest row owns it)"; continue; }
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+      action "prune  $entry (gone from $src)"
+      continue
+    fi
+    # A real prune is the only destructive thing apply.sh does, and the list
+    # is not always obvious: ~/.claude-personal/skills also holds entries the
+    # plugin manager owns, which dotfiles has never heard of and which would
+    # look exactly like a deleted skill. So it is confirmed, every time, and
+    # refuses outright when nothing can answer — a cron or a hook must never
+    # be able to delete by running apply.sh with the wrong flag.
+    if [ "${PRUNE_YES:-0}" != "1" ]; then
+      if [ ! -t 0 ]; then
+        note "SKIP   prune $entry (not a terminal; re-run with PRUNE_YES=1 if you mean it)"
+        continue
+      fi
+      printf '  delete %s ? [y/N] ' "$entry" >&2
+      read -r _answer </dev/tty || _answer=""
+      case "$_answer" in y|Y|yes|YES) ;; *) note "KEEP   $entry (declined)"; continue ;; esac
+    fi
+    rm -rf "$entry" && action "prune  $entry (gone from $src)"
+  done
+}
+
 apply_tree() {
   local src="$1" dest="$2" tree_errors
   [ -d "$src" ] || { note "SKIP   $src (not a directory)"; return 0; }
+  [ "${PRUNE:-0}" = "1" ] && _tree_prune "$src" "$dest"
   _tree_differs "$src" "$dest" || return 0
   [ "${DRY_RUN:-0}" = "1" ] && { action "tree   $dest"; return 0; }
   mkdir -p "$dest"
@@ -223,6 +273,14 @@ apply_manifest() {
   CHANGES=0
   local -a reload_tags=()
   local layer mode source dest reload
+
+  # Every destination in the manifest, so a prune never removes a path that
+  # another row deliberately writes inside a tree (e.g. the yeelight seed).
+  MANIFEST_DESTS=()
+  while read -r _l _m _s _d _r; do
+    case "$_l" in ''|\#*) continue ;; esac
+    [ -n "${_d:-}" ] && MANIFEST_DESTS+=("$(expand_home "$_d")")
+  done < "$manifest"
 
   while read -r layer mode source dest reload; do
     case "$layer" in ''|\#*) continue ;; esac

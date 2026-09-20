@@ -7,6 +7,8 @@
 #
 #   ./apply.sh              apply
 #   ./apply.sh --dry-run    report what would change, touch nothing
+#   ./apply.sh --prune      also delete tree entries the repo no longer has
+#                           (combine with --dry-run first — always)
 #   ./apply.sh --layers     show which layers this machine resolves to
 #
 # Which files go where is data, not code: see manifest.conf.
@@ -19,13 +21,21 @@ export DOTFILES
 . "$DOTFILES/lib/engine.sh"
 
 DRY_RUN=0
-case "${1:-}" in
-  --dry-run|-n) DRY_RUN=1 ;;
-  --layers)     resolve_layers; exit 0 ;;
-  "")           ;;
-  *)            echo "usage: apply.sh [--dry-run|--layers]" >&2; exit 2 ;;
-esac
-export DRY_RUN
+PRUNE=0
+# A loop, not a single case on $1: --prune is only safe to try if it can be
+# combined with --dry-run, and the one-argument form silently ignored the
+# second flag — so `--prune --dry-run` deleted for real.
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run|-n) DRY_RUN=1 ;;
+    --prune)      PRUNE=1 ;;
+    --layers)     resolve_layers; exit 0 ;;
+    "")           ;;
+    *)            echo "usage: apply.sh [--dry-run|-n] [--prune] [--layers]" >&2; exit 2 ;;
+  esac
+  shift
+done
+export DRY_RUN PRUNE
 
 ACTIVE_LAYERS="$(resolve_layers)"
 export ACTIVE_LAYERS

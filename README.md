@@ -72,6 +72,41 @@ make apply     # apply
 make test      # secret scan + engine verification
 ```
 
+### Deleting something
+
+`apply.sh` copies; it does not remove. Deleting a skill or a rule set from the
+repo therefore leaves it live on every machine forever — which is how a `roku`
+skill whose every path was dead survived months after the tool it pointed at
+was gone, still being loaded and still being believed.
+
+`--prune` removes tree entries the source no longer has. Always look first:
+
+```bash
+./apply.sh --prune --dry-run    # list what would go
+./apply.sh --prune              # asks per entry
+PRUNE_YES=1 ./apply.sh --prune  # no prompts, for a list you have already read
+```
+
+It is deliberately hard to fire by accident, because the list is not always
+what you expect:
+
+- **Top level only.** Destinations legitimately hold files the source does not
+  — state written at runtime (`govee/scripts/keychain.py`, `__pycache__`), the
+  `bulbs.txt` a `seed` row places *inside* a tree, macOS droppings. A
+  full-depth prune deletes all of it. A top-level entry is one whole unit —
+  one skill, one rule language — and its absence from the source is a real
+  deletion.
+- **Entries another manifest row owns are kept**, and say so.
+- **Dotfiles are skipped.**
+- **It confirms every deletion, and refuses entirely when stdin is not a
+  terminal** unless `PRUNE_YES=1`. `sync.sh` runs `apply.sh` with no flags from
+  launchd every 30 minutes, so the scheduled path can never delete — but a
+  hook or a script invoking apply.sh wrongly must not be able to either.
+- **`~/.claude-personal/skills` also holds entries the plugin manager owns**,
+  which dotfiles has never heard of and which look exactly like a deleted
+  skill. They are plugin-managed and recreate themselves, but read the list
+  before answering `y`.
+
 ## Neovim plugins
 
 `base/nvim/lazy-lock.json` is committed — the lockfile, never the plugin
