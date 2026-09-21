@@ -47,8 +47,17 @@ fi
 # was flashing/closing the top bar on every no-op `auto` run.
 STATUS_FILE="$(mktemp -t setmaindisplay)"
 
+# Bar height must match sketchybarrc's per-host BAR_HEIGHT, because the top gap
+# has to reserve the bar's real height (see 5a). Keyed off the same
+# ~/.dotfiles-host marker sketchybarrc uses, so the two can't drift.
+case "$(cat "$HOME/.dotfiles-host" 2>/dev/null || echo studio)" in
+    macbook) BAR_HEIGHT=37 ;;
+    *)       BAR_HEIGHT=32 ;;
+esac
+
 DP="$DP" \
 AERO="$AERO" \
+BAR_HEIGHT="$BAR_HEIGHT" \
 TARGET_ARG="$ARG" \
 AEROSPACE_TOML="$AEROSPACE_TOML" \
 STATUS_FILE="$STATUS_FILE" \
@@ -200,27 +209,25 @@ with open(aerospace_toml) as f:
     original = f.read()
 content = original
 
-# 5a. outer.top — reserve sketchybar's height on every monitor.
+# 5a. outer.top — reserve sketchybar's height on whichever display holds the bar.
 #
-# Sketchybar is 32pt tall and draws in the top strip of whichever display is
-# macOS-main. How much of that strip AeroSpace already skips depends on which
-# display that is:
-#   built-in (notched): macOS keeps the 32pt notch strip out of the usable area
-#       (NSScreen.visibleFrame stays 32pt short even with the menu bar set to
-#       always-hide) and that strip is exactly where sketchybar sits, so the bar
-#       is already accounted for — add only the 8pt margin.
-#   external (no notch): nothing is reserved up there, so the gap has to cover
-#       the bar itself: 32pt bar + 8pt margin = 40.
-# Getting this backwards costs every window 32pt of height and leaves a black
-# band between the bar and the top row of windows.
-# Reserve the bar's height on EVERY display, not just the macOS-main one:
-# sketchybar draws topmost on each screen, so any space not reserved here is
-# space a tiled window slides under and the bar paints over. Values are bar
-# height + the same 8pt margin every other edge uses. The built-in is the
-# notched MacBook (37 + 8 = 45); every external is 32 + 8 = 40. Keep in sync
-# with BAR_HEIGHT in workstation/sketchybar/sketchybarrc.
+# sketchybarrc pins the bar to the first EXTERNAL monitor (the one that owns
+# workspaces 1-10), falling back to the built-in when nothing is plugged in.
+# The gap has to follow that, because sketchybar runs topmost: any space not
+# reserved here is space a tiled window slides under and the bar paints over.
+#
+# The reservation is bar height + the same 8pt margin every other edge uses.
+# BAR_HEIGHT comes from the host marker so it tracks sketchybarrc exactly
+# (macbook 37, studio 32) instead of hardcoding a value that silently drifts.
+# The display WITHOUT the bar gets a plain 8pt margin.
+bar_gap = int(os.environ["BAR_HEIGHT"]) + 8
 builtin_gap_pattern = aero_escape(aero_builtin_name) if aero_builtin_name else "built-in"
-new_outer_top = f"outer.top        = [{{ monitor.'{builtin_gap_pattern}' = 45 }}, 40]"
+if aero_externals:
+    # Bar is on an external -> externals reserve the bar, the laptop doesn't.
+    new_outer_top = f"outer.top        = [{{ monitor.'{builtin_gap_pattern}' = 8 }}, {bar_gap}]"
+else:
+    # Undocked -> the bar falls back to the built-in, so it reserves instead.
+    new_outer_top = f"outer.top        = [{{ monitor.'{builtin_gap_pattern}' = {bar_gap} }}, 8]"
 content = re.sub(
     r"^outer\.top\s*=.*$",
     new_outer_top.replace("\\", "\\\\"),  # protect backrefs in re.sub replacement

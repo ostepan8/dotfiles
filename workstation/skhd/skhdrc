@@ -25,15 +25,20 @@
 # focused node), move it back to the original workspace with focus following.
 alt - space : ws=$(/opt/homebrew/bin/aerospace list-workspaces --focused); osascript -e 'tell application "Ghostty" to activate' -e 'tell application "System Events" to tell process "Ghostty" to click menu item "New Window" of menu "File" of menu bar 1'; /opt/homebrew/bin/aerospace move-node-to-workspace --focus-follows-window "$ws"
 
-# ---------- Chrome profiles (new window, stays on current workspace) ----------
-# Opt+B → personal Chrome (Owen, ohstep23@gmail.com)
-# Profile directory is resolved by ACCOUNT, not hardcoded: Chrome names profile
-# dirs in creation order, so "Default" is the personal account on the Studio but
-# an empty "Person 1" on the MacBook. Resolving by email is correct on both.
-alt - b : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --profile-directory="$(~/.config/skhd/chrome-profile.sh ohstep23@gmail.com Default)" --new-window
+# ---------- Arc Spaces ----------
+# Opt+B → Arc, Personal Space      (sidebar index 1)
+# Opt+W → Arc, subconscious.dev    (sidebar index 3, the work Space)
+# These replaced the Chrome-profile bindings when the browser moved to Arc.
+# Arc keeps personal/work as Spaces inside one browser instead of separate
+# profile directories, so there is no --profile-directory to resolve and
+# chrome-profile.sh plays no part here. arc-space.sh drives Arc's AppleScript
+# `space ... focus`, the only supported way to target a Space.
+# Unlike the old Chrome bindings these do NOT force a new window — Arc is
+# built around switching Spaces within one window, and spawning a window per
+# press just piles up duplicates. It creates a window only if none exists.
+alt - b : ~/.config/skhd/arc-space.sh 1
 
-# Opt+W → work Chrome (owen@subconscious.dev)
-alt - w : open -a "Google Chrome" --new --args --profile-directory="$(~/.config/skhd/chrome-profile.sh owen@subconscious.dev 'Profile 13')" --new-window
+alt - w : ~/.config/skhd/arc-space.sh 3
 
 # ---------- Other apps ----------
 # Opt+E → new Finder window
@@ -42,7 +47,7 @@ alt - e : osascript -e 'tell application "Finder" to make new Finder window' -e 
 # Slack and Spotify are single-window apps; activate is the right behavior.
 alt - m : open -a Spotify
 
-# Opt+T → Bluetooth pane in System Settings (blueTooth; Opt+B is taken by Chrome)
+# Opt+T → Bluetooth pane in System Settings (blueTooth; Opt+B is taken by Arc)
 alt - t : open "x-apple.systempreferences:com.apple.BluetoothSettings"
 
 # ---------- Screenshots ----------

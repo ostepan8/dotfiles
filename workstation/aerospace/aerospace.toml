@@ -105,7 +105,7 @@ outer.right      = 8
 # height + the same 8 gap every other edge uses: built-in is the notched MacBook
 # (37 + 8), everything else is an external at 32 + 8. Keep in sync with
 # BAR_HEIGHT in workstation/sketchybar/sketchybarrc.
-outer.top        = [{ monitor.'Built-in Retina Display' = 45 }, 40]
+outer.top        = [{ monitor.'Built-in Retina Display' = 8 }, 45]
 
 # ==========================
 # Main mode bindings

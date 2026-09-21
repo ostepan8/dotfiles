@@ -47,13 +47,33 @@ PURPLE=0xffb16286
 AQUA=0xff689d6a
 BLACK=0xff1d2021
 
+# ---------- Which display ----------
+# The numbered workspaces 1-10 are pinned to the external monitor (see
+# [workspace-to-monitor-force-assignment] in aerospace.toml), so the bar belongs
+# there too. display=main left it on the laptop rendering workspace indicators
+# for workspaces that live on the *other* screen.
+#
+# sketchybar's display= index is the NSScreen arrangement index, which is
+# exactly what aerospace reports as monitor-appkit-nsscreen-screens-id -- so ask
+# aerospace rather than guessing, since the index shifts when displays are
+# rearranged. Full path: launchd starts sketchybar with a minimal PATH.
+#
+# Falls back to "main" when no external is attached, so an undocked laptop still
+# gets a bar instead of none at all.
+AERO=/opt/homebrew/bin/aerospace
+BAR_DISPLAY="$(
+    "$AERO" list-monitors --format '%{monitor-appkit-nsscreen-screens-id}|%{monitor-name}' 2>/dev/null \
+        | grep -iv 'built-in\|built in' \
+        | head -1 \
+        | cut -d'|' -f1 \
+        | tr -d ' '
+)"
+BAR_DISPLAY="${BAR_DISPLAY:-main}"
+
 # ---------- Bar ----------
-# display=main pins it to the macOS "main display" only (set via System Settings
-# → Displays → drag the white bar to the desired monitor). Avoids per-monitor
-# glitches in multi-monitor setups. Use display=all if you want one per screen.
 sketchybar --bar \
     position=top \
-    display=main \
+    display=$BAR_DISPLAY \
     height=$BAR_HEIGHT \
     blur_radius=40 \
     color=$BG_BAR \
