@@ -57,7 +57,15 @@ app_up() {
 
   local cenv=(ATLAS_DSN="$(dsn "atlas_$k")" ATLAS_EMBED_URL=http://127.0.0.1:1 ATLAS_EMBED_MODEL=none
     ATLAS_GATEWAY_KEY=local ATLAS_EMBED_DIMS=768 ATLAS_RP_ID=localhost
-    ATLAS_ORIGIN="http://localhost:$cport" ATLAS_LISTEN="127.0.0.1:$cport" "${workq_env[@]+"${workq_env[@]}"}")
+    ATLAS_ORIGIN="http://localhost:$cport" ATLAS_LISTEN="127.0.0.1:$cport" ATLAS_ROKU_ENABLED=false "${workq_env[@]+"${workq_env[@]}"}")
+  # APPLOGIN_ATLAS_ENV names a KEY=VALUE file of extra ATLAS_* settings, e.g. a local
+  # studio-agent for chat (ATLAS_CHAT_AGENT_URL, ATLAS_CHAT_AGENT_TOKEN).
+  if [ -n "${APPLOGIN_ATLAS_ENV:-}" ]; then
+    [ -f "$APPLOGIN_ATLAS_ENV" ] || die "APPLOGIN_ATLAS_ENV: no such file $APPLOGIN_ATLAS_ENV"
+    while IFS= read -r line; do
+      case "$line" in ATLAS_[A-Z0-9_]*=*) cenv+=("$line") ;; esac
+    done < "$APPLOGIN_ATLAS_ENV"
+  fi
   start_bg atlas "${ENVI[@]}" "${cenv[@]}" "$INST/bin/atlas-server" serve
   wait_http "http://127.0.0.1:$cport/" atlas
 

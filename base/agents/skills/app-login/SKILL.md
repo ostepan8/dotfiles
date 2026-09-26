@@ -72,6 +72,8 @@ a phone app, and fake data.
 
 - `up` builds `apps/pwa` (embedded into the server), the server, and workqd when the tree has it.
   It fills in the Work screen's project list from `~/projects`, the same way the Studio runner does.
+- `APPLOGIN_ATLAS_ENV=<file>` adds `ATLAS_*=value` lines from that file to the local server's
+  environment, e.g. `ATLAS_CHAT_AGENT_URL`/`ATLAS_CHAT_AGENT_TOKEN` for a local studio-agent.
 - Routes are the hash routes: `home`, `work`, `work/new`, `money`, `school`, `fleet`,
   `lights`, `roku`, `settings`, and custom screens by slug.
 - The sign-in gate is the "Sign in with passkey" button. If it still shows after pressing it,
