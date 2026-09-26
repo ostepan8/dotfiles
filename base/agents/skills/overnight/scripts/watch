@@ -5,7 +5,7 @@ while true; do
   [[ -f $DIR/REPORT.md ]] && { echo "DONE: REPORT.md exists"; exit 0; }
   tmux has-session -t $RUN 2>/dev/null || { echo "DEAD: tmux session gone"; exit 0; }
   pane=$(tmux capture-pane -pt $RUN)
-  if print -r -- "$pane" | grep -q "esc to interrupt"; then idle=0; else idle=$((idle+1)); fi
+  if print -r -- "$pane" | grep -qE "esc to interrupt|Waiting for [0-9]+ background|Backgrounded agent|[0-9]+m? ?[0-9]*s · ↓ [0-9.]+k tokens"; then idle=0; else idle=$((idle+1)); fi
   (( idle >= 3 )) && { echo "IDLE: not working for 3 min"; print -r -- "$pane" | tail -25; exit 0; }
   age=$(( $(date +%s) - $(stat -f %m $DIR/PROGRESS.md) ))
   (( age > 3600 )) && { echo "NO-CHECKPOINT: PROGRESS.md untouched for $((age/60)) min"; print -r -- "$pane" | tail -25; exit 0; }
