@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# app-login — sign an agent into one of Owen's web apps and look at it.
+#
+#   app-login <app> up [--src DIR]        build DIR's code, start a local copy, sign in
+#   app-login <app> shot <route> [out.png] [--wide] [--full] [--light]
+#   app-login <app> eval <route> '<js>'   [--wide]
+#   app-login <app> run <script.mjs>      [--wide]   script: export default async ({page, shot, goto}) => …
+#   app-login <app> down                  stop the local copy, drop its databases
+#   app-login <app> status
+#   app-login <app> --prod shot|eval|run …   read-only look at production (credential from the vault)
+#   app-login --list
+#
+# Local copies are keyed by source directory, so parallel worktrees each get their own.
+# See SKILL.md next to this file.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+CACHE="${APPLOGIN_CACHE:-$HOME/.cache/app-login}"
+VAULT="${APPLOGIN_VAULT:-$HOME/.vault/bin/vault}"
+
+die() { echo "app-login: $*" >&2; exit 1; }
+say() { echo "# $*" >&2; }
+
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+
+[ "${1:-}" = "--list" ] && { ls "$HERE/apps" | sed 's/\.sh$//'; exit 0; }
+[ $# -ge 2 ] || usage
+APP="$1"; shift
+[ -f "$HERE/apps/$APP.sh" ] || die "no recipe for '$APP' (have: $(ls "$HERE/apps" | sed 's/\.sh$//' | tr '\n' ' '))"
+
+PROD=0
+[ "$1" = "--prod" ] && { PROD=1; shift; }
+CMD="${1:-}"; shift || true
+
+# Anywhere in the rest: --wide (1440x900 desktop), --full (whole page), --light (light theme).
+ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --wide)  export APPLOGIN_WIDTH=1440 APPLOGIN_HEIGHT=900 ;;
+    --full)  export APPLOGIN_FULL=1 ;;
+    --light) export APPLOGIN_THEME=light ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+free_port() {
+  python3 -c 'import socket; s=socket.socket(); s.bind(("0.0.0.0",0)); print(s.getsockname()[1]); s.close()'
+}
+
+runtime() {
+  for r in docker podman; do command -v "$r" >/dev/null 2>&1 && { echo "$r"; return; }; done
+  die "need docker or podman on PATH"
+}
+
+# One shared Postgres (with pgvector) for every local copy; each copy gets its own databases.
+PG_NAME=app-login-pg
+PG_PASS=applogin
+pg_up() {
+  local rt; rt=$(runtime)
+  mkdir -p "$CACHE"
+  if ! $rt ps --format '{{.Names}}' | grep -qx "$PG_NAME"; then
+    $rt rm -f "$PG_NAME" >/dev/null 2>&1 || true
+    local port; port=$(free_port)
+    say "starting $PG_NAME on port $port"
+    $rt run -d --name "$PG_NAME" -e POSTGRES_PASSWORD="$PG_PASS" -p "$port:5432" \
+      pgvector/pgvector:pg16 >/dev/null
+    echo "$port" > "$CACHE/pg.port"
+  fi
+  for _ in $(seq 1 60); do
+    $rt exec "$PG_NAME" pg_isready -U postgres >/dev/null 2>&1 && break
+    sleep 1
+  done
+  $rt exec "$PG_NAME" pg_isready -U postgres >/dev/null 2>&1 || die "$PG_NAME did not become ready ($rt logs $PG_NAME)"
+  PG_PORT=$($rt port "$PG_NAME" 5432/tcp | head -1 | sed 's/.*://')
+}
+psql_admin() { $(runtime) exec "$PG_NAME" psql -U postgres -v ON_ERROR_STOP=1 -q "$@"; }
+fresh_db() {
+  psql_admin -c "DROP DATABASE IF EXISTS \"$1\" WITH (FORCE);" -c "CREATE DATABASE \"$1\";"
+  psql_admin -d "$1" -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+}
+dsn() { echo "postgres://postgres:$PG_PASS@127.0.0.1:$PG_PORT/$1?sslmode=disable"; }
+
+# Background a process whose pid and log live in the instance directory.
+start_bg() { # name, then the command
+  local name="$1"; shift
+  nohup "$@" > "$INST/$name.log" 2>&1 &
+  echo $! > "$INST/$name.pid"
+}
+stop_bg() {
+  local f
+  for f in "$INST"/*.pid; do
+    [ -f "$f" ] || continue
+    kill "$(cat "$f")" 2>/dev/null || true
+    rm -f "$f"
+  done
+}
+wait_http() { # url, name
+  for _ in $(seq 1 60); do
+    curl -fs -o /dev/null -m 2 "$1" && return 0
+    sleep 1
+  done
+  die "$2 never answered at $1; see $INST/$2.log"
+}
+
+# The source tree: --src, else the git repo we are standing in.
+resolve_src() {
+  local src=""
+  if [ "${1:-}" = "--src" ]; then src="${2:?--src needs a directory}"; fi
+  [ -n "$src" ] || src=$(git rev-parse --show-toplevel 2>/dev/null) || die "not in a git repo; pass --src DIR"
+  (cd "$src" && pwd)
+}
+inst_for() { # src → instance dir
+  local key; key="$(basename "$1")-$(printf '%s' "$1" | shasum | cut -c1-8)"
+  echo "$CACHE/$APP/$key"
+}
+# The instance for the current directory, or the only one there is.
+current_inst() {
+  local src; src=$(git rev-parse --show-toplevel 2>/dev/null || true)
+  if [ -n "$src" ] && [ -f "$(inst_for "$src")/env" ]; then inst_for "$src"; return; fi
+  local all; all=$(ls -d "$CACHE/$APP"/*/ 2>/dev/null | grep -v '/prod/$' || true)
+  [ "$(printf '%s\n' "$all" | grep -c .)" = 1 ] && { echo "${all%/}"; return; }
+  die "no local $APP for this directory — run: app-login $APP up [--src DIR]"
+}
+
+# shellcheck source=/dev/null
+. "$HERE/apps/$APP.sh"
+
+browser() { node "$HERE/browser.mjs" "$@"; }
+
+# Production: the credential comes out of the vault into a private temp file for one run,
+# and goes back with its new sign count, success or not.
+with_prod() {
+  local secret; secret=$(app_prod_secret)
+  local dir="$CACHE/$APP/prod"; mkdir -p "$dir"; chmod 700 "$dir"
+  local cred; cred=$(mktemp "$dir/cred.XXXXXX"); chmod 600 "$cred"
+  trap 'rm -f "$cred"' RETURN
+  "$VAULT" get "$secret" > "$cred" 2>/dev/null || die "no $secret in the vault — see SKILL.md: Enrolling"
+  local rc=0
+  APPLOGIN_ORIGIN=$(app_prod_origin) APPLOGIN_CRED="$cred" APPLOGIN_STATE="$dir/state.json" "$@" || rc=$?
+  if [ -s "$cred" ]; then "$VAULT" store --replace "$secret" < "$cred" >/dev/null || say "could not save the sign count back to the vault"; fi
+  return $rc
+}
+
+with_local() {
+  INST=$(current_inst)
+  # shellcheck source=/dev/null
+  . "$INST/env"
+  APPLOGIN_ORIGIN="$ORIGIN" APPLOGIN_CRED="$INST/cred.json" APPLOGIN_STATE="$INST/state.json" "$@"
+}
+
+shot_out() { echo "${1:-${TMPDIR:-/tmp}/$APP-$(printf '%s' "${2:-home}" | tr -c 'A-Za-z0-9' '-')-$(date +%H%M%S).png}"; }
+
+case "$CMD" in
+  shot|eval|run)
+    [ "$CMD" = run ] && [ -z "${1:-}" ] && die "run needs a script"
+    case "$CMD" in
+      shot) set -- shot "${1:-}" "$(shot_out "${2:-}" "${1:-}")" ;;
+      eval) [ -n "${2:-}" ] || die "eval needs a route and an expression"; set -- eval "$1" "$2" ;;
+      run)  set -- run "$1" ;;
+    esac
+    if [ $PROD = 1 ]; then with_prod browser "$@"; else with_local browser "$@"; fi
+    ;;
+  up)
+    [ $PROD = 0 ] || die "production is never started or changed by app-login"
+    SRC=$(resolve_src "$@")
+    INST=$(inst_for "$SRC")
+    if [ -d "$INST" ]; then stop_bg; fi
+    rm -rf "$INST"; mkdir -p "$INST"; chmod 700 "$INST"
+    pg_up
+    app_up "$SRC"                      # writes $INST/env with ORIGIN=…, prints the enrol link on fd 3
+    # shellcheck source=/dev/null
+    . "$INST/env"
+    say "signing in to $ORIGIN"
+    APPLOGIN_ORIGIN="$ORIGIN" APPLOGIN_CRED="$INST/cred.json" APPLOGIN_STATE="$INST/state.json" \
+      browser enroll "$(cat "$INST/enroll.url")" >/dev/null
+    rm -f "$INST/enroll.url"
+    echo "$SRC" > "$INST/src"
+    echo "ready: $ORIGIN  (local $APP from $SRC, signed in as claude)"
+    ;;
+  down)
+    INST=$(current_inst)
+    stop_bg
+    pg_up
+    app_down
+    rm -rf "$INST"
+    echo "stopped"
+    ;;
+  status)
+    for d in "$CACHE/$APP"/*/; do
+      [ -f "$d/env" ] || continue
+      # shellcheck source=/dev/null
+      ( . "$d/env"; up=down; curl -fsS -o /dev/null -m 2 "$ORIGIN" && up=up; echo "$up  $ORIGIN  $(cat "$d/src" 2>/dev/null)" )
+    done
+    ;;
+  *) usage ;;
+esac

@@ -61,6 +61,12 @@ it, because the transcript now holds it in plain text. If a key sits in a file (
 `~/Desktop/openrouterkey.txt`), use `vault import-file NAME path -p proj` on the Studio,
 then delete the file.
 
+## Logging into Owen's web apps
+
+Passkey-only apps (atlas) are not a password lookup. Use the `app-login` skill. It keeps
+Claude's production passkey here as `ATLAS_CLAUDE_PASSKEY` and handles it, sign count
+included. Never read or print that value yourself.
+
 ## When it really isn't there
 
 Say which name you looked for, then run `vault-add NAME` so they can fill it in. Don't ask
