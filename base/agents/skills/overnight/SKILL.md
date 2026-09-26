@@ -28,7 +28,7 @@ cat > $DIR/GOAL.md <<'MD'
 ## Rules: checkpoint to PROGRESS.md after every step; commit work as you go; never stop to ask — record the question in PROGRESS.md and pick the safe default.
 MD
 tmux new-session -d -s "$RUN" -c <repo> \
-  "claude --dangerously-skip-permissions '/goal $(cat $DIR/GOAL.md | tr '\n' ' ') Log each step to $DIR/PROGRESS.md.'; \
+  "claude --dangerously-skip-permissions '/goal Complete everything in $DIR/GOAL.md (read it first). Log each step to $DIR/PROGRESS.md. Done only when $DIR/REPORT.md proves every Done-means item.'; \
    ~/.agents/skills/overnight/scripts/notify \"$RUN: claude exited — see $DIR\" 4; exec zsh"
 ```
 
@@ -40,9 +40,23 @@ tmux new-session -d -s "$RUN" -c <repo> \
 
 ## 3. Heartbeat
 
-Schedule a check (CronCreate, or a nephos schedule) every 60–90 min that reads the tail of
-`PROGRESS.md` and confirms the tmux pane is still producing output. When progress has
-stalled (no new checkpoint in 2 intervals), send `notify "<run> stalled at: <last step>" 4`.
+Schedule a check (CronCreate, or a nephos schedule) every 60–90 min. **Try to unstick the
+run yourself before paging Owen** — he wants to be woken only when self-repair failed.
+
+1. Read the terminal (`tmux capture-pane -pt $RUN -S -200`) and the tail and mtime of
+   `PROGRESS.md`. If it is still working, do nothing.
+2. If it is stuck (idle prompt, `/goal` no longer active, a blocking dialog, an error loop, a
+   rate limit that has since cleared, or no new checkpoint since the last check), unstick
+   it: answer or dismiss the prompt, or `tmux send-keys -t $RUN "Continue toward the goal in
+   $DIR/GOAL.md. Last checkpoint: <x>. <hint>" Enter`. If the session is dead, restart it
+   with a `/goal` that points at GOAL.md. Log the intervention in `PROGRESS.md`.
+3. Re-read the pane about 3 minutes later. Only if it still isn't moving, send
+   `notify "<run> stuck: <what's wrong + what you tried>" 4`.
+4. Delete the check once `REPORT.md` exists.
+
+`/goal` rejects a condition longer than 4000 characters, so keep the long spec in GOAL.md
+and send `/goal` a short condition that points at that file. A new folder also shows a
+"trust this folder?" prompt, and the session sits blocked until someone answers it.
 
 ## 4. The morning report
 
