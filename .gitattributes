@@ -1,0 +1,6 @@
+# Structural three-way merge for JSON configs that several sessions edit at
+# once. The driver is registered in .git/config by `dfw` (or `make hooks`);
+# a clone without it silently falls back to git's normal text merge.
+base/claude/settings.json     merge=dfjson
+base/codex/hooks.json         merge=dfjson
+base/nvim/lazy-lock.json      merge=dfjson

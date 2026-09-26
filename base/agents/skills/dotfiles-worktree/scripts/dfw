@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# dfw — one dotfiles change per worktree, landed straight onto origin/main.
+#
+#   dfw start <slug>            new worktree off origin/main; prints its path
+#   dfw land  <slug> [-m msg]   rebase, push to main, update ~/dotfiles, apply,
+#                               remove the worktree. Re-run after resolving a
+#                               conflict to continue where it stopped.
+#   dfw ls                      open worktrees and their state
+#   dfw path  <slug>            print a worktree's path
+#   dfw abort <slug>            throw a worktree and its branch away
+#   dfw gc                      remove worktrees whose work is already on main
+#
+# Why worktrees: the live configs are symlinks INTO ~/dotfiles, so every
+# session that edits the main checkout edits the same files — and sync.sh
+# autostashes over them every 30 min. A worktree per change keeps parallel
+# sessions apart until each one lands.
+#
+# Exit codes: 0 landed/ok · 2 usage · 3 conflict to resolve · 4 push refused
+set -uo pipefail
+
+REPO="${DFW_REPO:-$HOME/dotfiles}"
+ROOT="${DFW_ROOT:-$HOME/.cache/dotfiles-worktrees}"
+LOCK="${DFW_LOCK:-$HOME/Library/Caches/dotfiles-sync.lock}"   # shared with sync.sh
+APPLY="${DFW_APPLY:-bash $REPO/apply.sh}"
+BRANCH_PREFIX="df/"
+MAIN="main"
+PUSH_ATTEMPTS=5
+LOCK_WAIT_SECS=120
+STALE_LOCK_MINS=30
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+
+die()  { echo "dfw: $*" >&2; exit "${2:-1}"; }
+note() { echo "dfw: $*" >&2; }
+git_repo() { git -C "$REPO" "$@"; }
+
+# Same non-interactive auth route sync.sh uses, so a push never hangs on a prompt.
+GIT_CRED=()
+if command -v gh >/dev/null 2>&1; then
+  GIT_CRED=(-c "credential.https://github.com.helper=" -c "credential.https://github.com.helper=!gh auth git-credential")
+fi
+
+valid_slug() { [[ "$1" =~ ^[a-z0-9][a-z0-9._-]*$ ]]; }
+wt_path()    { echo "$ROOT/$1"; }
+branch_of()  { echo "$BRANCH_PREFIX$1"; }
+
+require_slug() {
+  [ -n "${1:-}" ] || die "missing <slug>" 2
+  valid_slug "$1" || die "slug must be lowercase letters, digits, . _ - (got '$1')" 2
+}
+
+require_wt() {
+  [ -d "$(wt_path "$1")" ] || die "no worktree '$1' (dfw ls to see open ones)" 2
+}
+
+# The JSON driver lives in the repo; git config is shared by every worktree,
+# so registering it once here covers them all. Idempotent.
+ensure_merge_driver() {
+  local driver="python3 '$SCRIPT_DIR/json-merge.py' %O %A %B %P"
+  git_repo config merge.dfjson.name "three-way JSON merge (dotfiles-worktree)"
+  git_repo config merge.dfjson.driver "$driver"
+  git_repo config rerere.enabled true
+}
+
+rebase_in_progress() {
+  local gitdir
+  gitdir="$(git -C "$1" rev-parse --git-dir)"
+  [ -d "$gitdir/rebase-merge" ] || [ -d "$gitdir/rebase-apply" ]
+}
+
+conflicted_files() { git -C "$1" diff --name-only --diff-filter=U; }
+
+report_conflict() {
+  local wt="$1"
+  note "conflict while rebasing onto origin/$MAIN in $wt:"
+  conflicted_files "$wt" | sed 's/^/    /' >&2
+  note "resolve each file keeping BOTH sides' intent, 'git -C $wt add <file>', then re-run: dfw land $(basename "$wt")"
+  exit 3
+}
+
+cmd_start() {
+  require_slug "${1:-}"
+  local slug="$1" wt branch
+  wt="$(wt_path "$slug")"; branch="$(branch_of "$slug")"
+  if [ -d "$wt" ]; then echo "$wt"; return 0; fi
+  ensure_merge_driver
+  git_repo fetch -q origin "$MAIN" || die "fetch failed"
+  mkdir -p "$ROOT"
+  if git_repo show-ref -q --verify "refs/heads/$branch"; then
+    git_repo worktree add -q "$wt" "$branch" || die "worktree add failed"
+  else
+    git_repo worktree add -q -b "$branch" "$wt" "origin/$MAIN" || die "worktree add failed"
+  fi
+  echo "$wt"
+}
+
+commit_pending() {
+  local wt="$1" msg="$2"
+  [ -z "$(git -C "$wt" status --porcelain)" ] && return 0
+  [ -n "$msg" ] || die "$wt has uncommitted changes — commit them, or pass -m '<message>'" 2
+  git -C "$wt" add -A && git -C "$wt" commit -q -m "$msg" || die "commit failed"
+}
+
+# Continue an interrupted rebase, or start a fresh one onto origin/main.
+rebase_onto_main() {
+  local wt="$1"
+  if rebase_in_progress "$wt"; then
+    [ -z "$(conflicted_files "$wt")" ] || report_conflict "$wt"
+    GIT_EDITOR=true git -C "$wt" rebase --continue >/dev/null 2>&1 || report_conflict "$wt"
+    return 0
+  fi
+  git -C "$wt" rebase -q "origin/$MAIN" >/dev/null 2>&1 || report_conflict "$wt"
+}
+
+# Push HEAD to main; a rejection only means someone landed first, so rebase
+# and try again. Anything else (the pre-push `make check`, auth) is final.
+push_to_main() {
+  local wt="$1" attempt out
+  for attempt in $(seq 1 "$PUSH_ATTEMPTS"); do
+    git -C "$wt" fetch -q origin "$MAIN" || die "fetch failed"
+    rebase_onto_main "$wt"
+    if git -C "$wt" merge-base --is-ancestor HEAD "origin/$MAIN"; then return 0; fi
+    if out="$(git ${GIT_CRED[@]+"${GIT_CRED[@]}"} -C "$wt" push -q origin "HEAD:$MAIN" 2>&1)"; then
+      git -C "$wt" fetch -q origin "$MAIN"
+      return 0
+    fi
+    if ! grep -qE 'fetch first|non-fast-forward|rejected' <<<"$out"; then
+      echo "$out" >&2
+      die "push refused (not a race — fix the cause above, commit, re-run dfw land)" 4
+    fi
+    note "main moved under us (attempt $attempt/$PUSH_ATTEMPTS); rebasing again"
+  done
+  die "gave up after $PUSH_ATTEMPTS push attempts — main is very busy; re-run dfw land" 4
+}
+
+acquire_lock() {
+  local waited=0
+  until mkdir "$LOCK" 2>/dev/null; do
+    if [ -n "$(find "$LOCK" -prune -mmin +"$STALE_LOCK_MINS" 2>/dev/null)" ]; then
+      note "stealing stale lock $LOCK"; rm -rf "$LOCK"; continue
+    fi
+    [ "$waited" -ge "$LOCK_WAIT_SECS" ] && return 1
+    sleep 2; waited=$((waited + 2))
+  done
+  trap 'rm -rf "$LOCK"' EXIT
+}
+
+release_lock() { rm -rf "$LOCK"; trap - EXIT; }
+
+# Bring ~/dotfiles (what the live symlinks point at) up to main, then apply.
+# Never autostash: a failed pop is exactly how conflict debris got into live
+# configs before. If the checkout can't fast-forward, say why and leave it.
+update_main_checkout() {
+  if ! acquire_lock; then
+    note "landed, but ~/dotfiles is locked by another sync — it will catch up on the next sync.sh tick"
+    return 0
+  fi
+  local current
+  current="$(git_repo symbolic-ref -q --short HEAD || echo detached)"
+  if rebase_in_progress "$REPO"; then
+    note "landed, but $REPO is mid-rebase — not touching it; finish that rebase, then run: $APPLY"
+  elif [ "$current" != "$MAIN" ]; then
+    note "landed, but $REPO is on '$current', not $MAIN — not touching it"
+  elif ! git_repo merge -q --ff-only "origin/$MAIN" 2>/dev/null; then
+    note "landed, but $REPO could not fast-forward (local commits, or uncommitted edits to files this change touched):"
+    git_repo status --short | sed 's/^/    /' >&2
+    note "move those edits into their own worktree (dfw start), then: git -C $REPO merge --ff-only origin/$MAIN"
+  elif ! $APPLY >/dev/null 2>&1; then
+    note "landed and fast-forwarded, but apply failed — run it by hand to see why: $APPLY"
+  fi
+  release_lock
+}
+
+remove_worktree() {
+  local slug="$1" wt branch
+  wt="$(wt_path "$slug")"; branch="$(branch_of "$slug")"
+  git_repo worktree remove --force "$wt" && git_repo branch -q -D "$branch" 2>/dev/null
+  git_repo worktree prune
+}
+
+cmd_land() {
+  require_slug "${1:-}"
+  local slug="$1" msg="" wt
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -m) msg="${2:-}"; shift 2 ;;
+      *)  die "unknown argument '$1'" 2 ;;
+    esac
+  done
+  require_wt "$slug"
+  wt="$(wt_path "$slug")"
+  ensure_merge_driver
+  rebase_in_progress "$wt" || commit_pending "$wt" "$msg"
+  push_to_main "$wt"
+  git -C "$wt" merge-base --is-ancestor HEAD "origin/$MAIN" || die "HEAD is not on origin/$MAIN after push — not removing $wt"
+  update_main_checkout
+  remove_worktree "$slug"
+  echo "landed $slug on origin/$MAIN at $(git_repo rev-parse --short "origin/$MAIN")"
+}
+
+cmd_ls() {
+  [ -d "$ROOT" ] || return 0
+  local wt slug state ahead
+  for wt in "$ROOT"/*/; do
+    [ -d "$wt" ] || continue
+    slug="$(basename "$wt")"
+    ahead="$(git -C "$wt" rev-list --count "origin/$MAIN..HEAD" 2>/dev/null || echo '?')"
+    state="clean"
+    [ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ] && state="dirty"
+    rebase_in_progress "$wt" 2>/dev/null && state="CONFLICT"
+    printf '%-28s %-9s %s commit(s) ahead  %s\n' "$slug" "$state" "$ahead" "$wt"
+  done
+}
+
+cmd_path() { require_slug "${1:-}"; require_wt "$1"; wt_path "$1"; }
+
+cmd_abort() {
+  require_slug "${1:-}"; require_wt "$1"
+  local wt; wt="$(wt_path "$1")"
+  rebase_in_progress "$wt" && git -C "$wt" rebase --abort
+  remove_worktree "$1"
+  echo "aborted $1"
+}
+
+cmd_gc() {
+  [ -d "$ROOT" ] || return 0
+  git_repo fetch -q origin "$MAIN" || die "fetch failed"
+  local wt slug
+  for wt in "$ROOT"/*/; do
+    [ -d "$wt" ] || continue
+    slug="$(basename "$wt")"
+    if [ -z "$(git -C "$wt" status --porcelain)" ] && ! rebase_in_progress "$wt" \
+       && git -C "$wt" merge-base --is-ancestor HEAD "origin/$MAIN"; then
+      remove_worktree "$slug" && echo "removed $slug (already on $MAIN)"
+    fi
+  done
+}
+
+usage() { sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+
+main() {
+  [ -d "$REPO/.git" ] || [ -f "$REPO/.git" ] || die "no git repo at $REPO"
+  local cmd="${1:-}"; shift || true
+  case "$cmd" in
+    start) cmd_start "$@" ;;
+    land)  cmd_land "$@" ;;
+    ls)    cmd_ls ;;
+    path)  cmd_path "$@" ;;
+    abort) cmd_abort "$@" ;;
+    gc)    cmd_gc ;;
+    -h|--help|help|"") usage ;;
+    *) usage >&2; exit 2 ;;
+  esac
+}
+
+main "$@"

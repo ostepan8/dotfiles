@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check verify roles acl test apply dry-run fleet fleet-dry setup vault-backup hooks
+.PHONY: help check verify dfw-test roles acl test apply dry-run fleet fleet-dry setup vault-backup hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -11,6 +11,10 @@ check:  ## Scan tracked files for secrets, fleet identifiers, private addresses
 
 verify:  ## Prove the apply engine against a throwaway HOME (touches nothing)
 	@bash scripts/verify-apply.sh
+
+dfw-test:  ## Test the dfw worktree tool and its JSON merge driver (throwaway repos)
+	@python3 base/agents/skills/dotfiles-worktree/tests/test_json_merge.py 2>&1 | tail -1
+	@bash base/agents/skills/dotfiles-worktree/tests/test_dfw.sh | tail -1
 
 roles:  ## Check roles/ and the generated ACL agree
 	@bash scripts/gen-nephos-acl.sh --check >/dev/null && echo "roles coherent"
@@ -24,7 +28,7 @@ cheatsheet:  ## Regenerate the keybinding sections of docs/cheatsheet.html from 
 acl:  ## Print the Tailscale ACL generated from roles/
 	@bash scripts/gen-nephos-acl.sh
 
-test: check verify roles doctor  ## Run every check
+test: check verify dfw-test roles doctor  ## Run every check
 
 dry-run:  ## Show what apply would change on THIS machine
 	@bash apply.sh --dry-run
@@ -49,3 +53,6 @@ hooks:  ## Install the pre-push hook that runs `make check`
 	@printf '#!/usr/bin/env sh\nexec make check\n' > .git/hooks/pre-push
 	@chmod +x .git/hooks/pre-push
 	@echo "installed .git/hooks/pre-push -> make check"
+	@git config merge.dfjson.name "three-way JSON merge (dotfiles-worktree)"
+	@git config merge.dfjson.driver "python3 '$(CURDIR)/base/agents/skills/dotfiles-worktree/scripts/json-merge.py' %O %A %B %P"
+	@echo "registered the dfjson merge driver"

@@ -86,30 +86,20 @@ Before deploying anything after a remote pull:
 
 ## The flow (every time)
 
-1. **Make the live change** under `~/.config/…`, `~/Library/LaunchAgents/…`, etc.
-2. **Verify it actually works** before mirroring.
-3. **Diff live vs repo** to see what really changed:
-   ```bash
-   diff ~/.config/<tool>/<file> ~/dotfiles/<tool>/<file>
-   ```
-4. **Copy the changed files into `~/dotfiles/`**:
-   ```bash
-   cp ~/.config/<tool>/<file> ~/dotfiles/<tool>/<file>
-   ```
-5. **If it's a new install/launchd job/macOS default**, also wire it into the relevant installer:
-   - New brew package → add `brew install …` line to `mac/setup.sh`
-   - New LaunchAgent → already auto-loaded by the `mac/LaunchAgents/*.plist` loop in `mac/setup.sh` (just drop the plist in `mac/LaunchAgents/`)
-   - New `defaults write` → add to `mac/defaults.sh`
-   - New `duti` / `dockutil` → add to `mac/setup.sh`
-   - User-visible feature → update the README tools table or key-binding section
-6. **Commit in `~/dotfiles/`** using the conventional-commits format already in the log:
-   ```
-   feat(<scope>): <subject>
-   fix(<scope>): <subject>
-   chore(<scope>): <subject>
-   ```
-   Scope = the top-level dir touched (`aerospace`, `skhd`, `zsh`, `mac`, `nvim`, `tmux`, `ghostty`, `sketchybar`). Multi-line body explains the *why* (the bug, the workflow, the constraint) — not the *what*.
-7. **Do NOT push** unless the user asks. Local commits are the contract; pushing is theirs to trigger.
+Make every change through the **dotfiles-worktree** skill (`dfw start <slug>` → edit →
+`dfw land <slug> -m "<msg>"`). Most live configs are symlinks into `~/dotfiles`, so
+editing them in place edits the shared checkout that other sessions and `sync.sh` are
+also writing to. `dfw` isolates the change, lands it on `origin/main`, applies it and
+cleans up.
+
+This skill still decides *what* goes where:
+- **New brew package:** add a `brew install …` line to `mac/setup.sh`.
+- **New LaunchAgent:** drop the plist in `mac/LaunchAgents/`.
+- **New `defaults write`:** add it to `mac/defaults.sh`.
+- **New file to deploy:** add a row to `manifest.conf`.
+- **User-visible feature:** update the README tools table or key-binding section.
+
+Commit messages follow the style below.
 
 ## Known drift to ignore
 
@@ -171,4 +161,4 @@ Anything that prints means the live config has drifted from the repo.
 
 ## TL;DR
 
-**Live change → mirror to `~/dotfiles` → wire into `mac/setup.sh` if needed → commit. Same task, every time. Don't push.**
+**`dfw start` → edit in the worktree → wire into setup/manifest if needed → `dfw land`. Same task, every time.**
