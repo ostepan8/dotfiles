@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# fleet-status — one read-only snapshot of the nephos fleet: nodes, anything not
+# running that should be, failing jobs, and live GPU/RAM/disk pressure per node.
+# Every probe runs in parallel with a short timeout, so a dead node costs 8s,
+# not the whole report.
+set -uo pipefail
+
+[ -f "$HOME/.config/nephos/env" ] && { set -a; . "$HOME/.config/nephos/env"; set +a; }
+out=$(mktemp -d)
+trap 'rm -rf "$out"' EXIT
+# macOS has no coreutils timeout; ssh's ConnectTimeout covers the dead-node case.
+if command -v timeout >/dev/null 2>&1; then cap() { timeout "$@"; }
+elif command -v gtimeout >/dev/null 2>&1; then cap() { gtimeout "$@"; }
+else cap() { shift; "$@"; }
+fi
+
+nephos nodes >"$out/nodes" 2>&1 &
+nephos ps >"$out/ps" 2>&1 &
+nephos jobs >"$out/jobs" 2>&1 &
+
+probe_linux='free -g | awk "/Mem:/{printf \"ram %s/%sG used\", \$3, \$2}";
+  df -h / | awk "NR==2{printf \"  disk %s used\", \$5}";
+  nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null |
+    awk -F", " "{printf \"  gpu %s%% vram %s/%sMiB\", \$1, \$2, \$3}";
+  printf "  load %s\n" "$(cut -d" " -f1 /proc/loadavg)"'
+for h in fedora gpu1 gpu2 onephus onephus2; do
+  ( cap 12 ssh -o BatchMode=yes -o ConnectTimeout=5 "$h" "$probe_linux" >"$out/h_$h" 2>/dev/null \
+      || echo "UNREACHABLE over ssh" >"$out/h_$h" ) &
+done
+( printf 'mem pressure %s  load %s\n' \
+    "$(memory_pressure 2>/dev/null | awk -F': ' '/free percentage/{print 100-$2"% used"}')" \
+    "$(sysctl -n vm.loadavg | awk '{print $2}')" >"$out/h_studio" ) &
+wait
+
+echo "=== NODES ==="
+awk '$1 ~ /^[0-9a-f]{8}-[0-9a-f]{4}-/ {printf "  %-24s %s\n", $2, $3}' "$out/nodes"
+echo
+echo "=== LIVE PRESSURE ==="
+for f in "$out"/h_*; do printf '  %-10s %s\n' "${f##*/h_}" "$(cat "$f")"; done
+echo
+echo "=== SERVICES STOPPED / RESTARTING / OFFLINE NODES ==="
+awk '/ONLINE|OFFLINE/{node=$1} $2 ~ /^(stopped|failed|crashed|exited|restarting|pending)$/ || ($6 ~ /^[0-9]+$/ && $6 > 0) {printf "  %-24s %-36s %s\n", node, $1, $2}' "$out/ps" | grep . || echo "  (none)"
+grep -E 'OFFLINE|UNREACHABLE' "$out/ps" | sed 's/^/  /'
+echo
+echo "=== FAILED JOBS (latest per name) ==="
+awk 'NR>1 && $4=="failed" && !seen[$2]++ {printf "  %-36s failed %s ago\n", $2, $5}' "$out/jobs" | grep . || echo "  (none)"
+echo
+echo "=== RUNNING SERVICES ==="
+awk '/ONLINE|OFFLINE/{node=$1} $2=="running"{c[node]++} END{for(n in c) printf "  %-24s %d running\n", n, c[n]}' "$out/ps"

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# notify — push one line to Owen's phone via the fleet's ntfy topic.
+#   notify "multigap run finished: 14/15 benchmarks pass" [priority 1-5]
+set -uo pipefail
+[ -f "$HOME/.config/nephos/env" ] && { set -a; . "$HOME/.config/nephos/env"; set +a; }
+: "${NEPHOS_NTFY_URL:?NEPHOS_NTFY_URL not set in ~/.config/nephos/env}"
+: "${NEPHOS_NTFY_TOPIC:?NEPHOS_NTFY_TOPIC not set}"
+curl -fsS -m 10 -H "Priority: ${2:-3}" -H "Title: ${NOTIFY_TITLE:-claude overnight}" \
+  -d "${1:?usage: notify <message> [priority]}" "${NEPHOS_NTFY_URL%/}/${NEPHOS_NTFY_TOPIC}" >/dev/null
