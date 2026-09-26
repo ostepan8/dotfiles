@@ -1,6 +1,6 @@
 ---
 name: atlas-prod
-description: See and test the production atlas app (atlas.onephos.com) exactly as Owen does, signed in with Claude's own passkey in a phone-sized headless Chromium — screenshots, clicking through screens, reading what a screen shows, checking console errors. Use after every atlas deploy that changes anything visible, whenever Owen says a screen "looks wrong/bogus/broken", or when asked to "look at prod", "test prod", "check the app", "screenshot the money tab". Testing prod is non-negotiable for atlas UI work: never report a visible change as done without a screenshot of it on prod.
+description: Look at the production atlas app (origin: ATLAS_ORIGIN in ~/.config/atlas/env) signed in with Claude's own passkey in a phone-sized headless Chromium. NOT for testing — Owen does not want changes tested in prod; test on a local instance instead. Use only for read-only looks at prod when Owen asks ("what does prod show", "screenshot prod"), or a final glance after he has shipped.
 ---
 
 # atlas-prod
@@ -18,8 +18,8 @@ Routes are the app's hash routes: `home`, `money`, `school`, `fleet`, `lights`, 
 custom screens by slug (`money-history`), `settings`. Then `Read` the PNG to look at it.
 Console errors are printed after each run (the Cloudflare beacon CSP error is expected noise).
 
-**After a deploy:** screenshot every screen the change touches and look at it before saying
-it is done. Tables that run off the right edge, raw numbers, dashes where data should be and
+**Do not test changes here.** Owen (2026-09-25): "we shouldnt test in prod" — verify on a
+local instance before shipping; prod is for a read-only look when asked. Tables that run off the right edge, raw numbers, dashes where data should be and
 duplicate rows are the usual failures — generic screen blocks print values verbatim.
 
 ## Files and revocation

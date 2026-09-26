@@ -19,7 +19,17 @@ import path from "node:path";
 const require = createRequire(import.meta.url);
 const { chromium } = require(path.join(execSync("npm root -g").toString().trim(), "@playwright/test"));
 
-const ORIGIN = process.env.ATLAS_ORIGIN ?? "https://atlas.onephos.com";
+// The origin is private (dotfiles is public), so it comes from the env or ~/.config/atlas/env.
+function readOrigin() {
+  if (process.env.ATLAS_ORIGIN) return process.env.ATLAS_ORIGIN;
+  const envFile = path.join(os.homedir(), ".config/atlas/env");
+  const line = fs.existsSync(envFile) &&
+    fs.readFileSync(envFile, "utf8").split("\n").find((l) => l.startsWith("ATLAS_ORIGIN="));
+  if (!line) throw new Error(`ATLAS_ORIGIN not set and not found in ${envFile}`);
+  return line.slice("ATLAS_ORIGIN=".length).trim().replace(/^["']|["']$/g, "");
+}
+
+const ORIGIN = readOrigin();
 const CRED = path.join(os.homedir(), ".config/atlas/claude-passkey.json");
 const STATE = path.join(os.homedir(), ".config/atlas/claude-session.json");
 
