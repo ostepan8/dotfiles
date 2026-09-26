@@ -163,16 +163,34 @@ function _agent_title() {
     "$@"
     return
   fi
-  (
-    local label="" tick=0
-    while true; do
-      (( tick % 5 == 0 )) && label="$("$labeler" "$arg")"
-      { printf '\033]0;%s\007' "$label" > /dev/tty } 2>/dev/null
-      (( tick++ ))
-      sleep 1
-    done
-  ) &
-  local _pid=$!
+  # Job control turns this helper into shell noise: MONITOR announces the fork
+  # ("[2] 80814") and then reports "[2] + terminated" at the next prompt when we
+  # kill it, so every agent launch was framed by two lines of job chatter.
+  # no_monitor drops the start notice; `disown` drops the job-table entry the
+  # exit notice comes from. `wait` does NOT suppress it — the notice is printed
+  # from the job table, not from the reap.
+  #
+  # Both are scoped to an anonymous function (which honours local_options) so
+  # MONITOR is back on before the agent runs. Leaving it off for the agent would
+  # put it in the shell's own process group, and a Ctrl-C meant for the agent
+  # would hit the interactive shell too. The fork, on the other hand, WANTS that
+  # shared group: it is why closing the terminal still HUPs the loop even though
+  # the shell has disowned it.
+  local _pid
+  () {
+    setopt local_options no_monitor
+    (
+      local label="" tick=0
+      while true; do
+        (( tick % 5 == 0 )) && label="$("$labeler" "$arg")"
+        { printf '\033]0;%s\007' "$label" > /dev/tty } 2>/dev/null
+        (( tick++ ))
+        sleep 1
+      done
+    ) &
+    _pid=$!
+    disown
+  }
   "$@"
   kill $_pid 2>/dev/null
   # Guarded like the write inside the loop. Without 2>/dev/null this line emits
