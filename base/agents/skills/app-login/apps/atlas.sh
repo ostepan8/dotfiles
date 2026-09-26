@@ -1,7 +1,8 @@
 # atlas recipe for app-login. Sourced by app-login, which provides INST, PG_PORT,
 # fresh_db, dsn, psql_admin, free_port, start_bg, wait_http, say, die.
 #
-# A local atlas is contextd (API + the PWA it embeds) and, when the tree has it,
+# A local atlas is the server (API + the PWA it embeds; services/atlas, or
+# services/contextd in checkouts from before the rename) and, when the tree has it,
 # workqd (the Work screen's queue). Both start with `env -i` and only the variables
 # below: nothing from the caller's shell leaks in, so a local copy never reaches
 # a real lamp, TV, Kalshi account or the fleet. Panels for those say "not configured".
@@ -20,14 +21,16 @@ _atlas_env() { ENVI=(env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" HOME="$INST/hom
 
 app_up() {
   local src="$1" k; k=$(_atlas_key)
-  [ -d "$src/services/contextd" ] && [ -d "$src/apps/pwa" ] || die "$src is not an atlas checkout"
+  local svc=atlas
+  [ -d "$src/services/atlas/cmd/atlas" ] || svc=contextd
+  [ -d "$src/services/$svc/cmd/$svc" ] && [ -d "$src/apps/pwa" ] || die "$src is not an atlas checkout"
   mkdir -p "$INST/bin" "$INST/home" "$INST/blobs"
 
   say "building the app from $src"
   (cd "$src/apps/pwa" && { [ -d node_modules ] || npm ci --silent --no-audit --no-fund; } && npm run build --silent) \
     > "$INST/build.log" 2>&1 || die "PWA build failed; see $INST/build.log"
-  (cd "$src" && CGO_ENABLED=0 go build -o "$INST/bin/contextd" ./services/contextd/cmd/contextd) \
-    >> "$INST/build.log" 2>&1 || die "contextd build failed; see $INST/build.log"
+  (cd "$src" && CGO_ENABLED=0 go build -o "$INST/bin/atlas-server" "./services/$svc/cmd/$svc") \
+    >> "$INST/build.log" 2>&1 || die "$svc build failed; see $INST/build.log"
   local has_workq=0
   if [ -d "$src/services/workq/cmd/workq" ]; then
     has_workq=1
@@ -55,13 +58,13 @@ app_up() {
   local cenv=(ATLAS_DSN="$(dsn "atlas_$k")" ATLAS_EMBED_URL=http://127.0.0.1:1 ATLAS_EMBED_MODEL=none
     ATLAS_GATEWAY_KEY=local ATLAS_EMBED_DIMS=768 ATLAS_RP_ID=localhost
     ATLAS_ORIGIN="http://localhost:$cport" ATLAS_LISTEN="127.0.0.1:$cport" "${workq_env[@]+"${workq_env[@]}"}")
-  start_bg contextd "${ENVI[@]}" "${cenv[@]}" "$INST/bin/contextd" serve
-  wait_http "http://127.0.0.1:$cport/" contextd
+  start_bg atlas "${ENVI[@]}" "${cenv[@]}" "$INST/bin/atlas-server" serve
+  wait_http "http://127.0.0.1:$cport/" atlas
 
   # The enrol link carries a one-time code: straight to a 600 file, never printed.
-  (umask 077; "${ENVI[@]}" "${cenv[@]}" "$INST/bin/contextd" passkey enroll --label claude 2>&1 \
+  (umask 077; "${ENVI[@]}" "${cenv[@]}" "$INST/bin/atlas-server" passkey enroll --label claude 2>&1 \
     | grep -oE 'https?://[^ ]+#[^ ]+' | head -1 > "$INST/enroll.url")
-  [ -s "$INST/enroll.url" ] || die "contextd passkey enroll printed no link"
+  [ -s "$INST/enroll.url" ] || die "passkey enroll printed no link"
 
   {
     echo "ORIGIN=http://localhost:$cport"

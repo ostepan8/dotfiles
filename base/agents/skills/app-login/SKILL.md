@@ -70,7 +70,7 @@ a phone app, and fake data.
 
 ## atlas specifics
 
-- `up` builds `apps/pwa` (embedded into contextd), contextd, and workqd when the tree has it.
+- `up` builds `apps/pwa` (embedded into the server), the server, and workqd when the tree has it.
   It fills in the Work screen's project list from `~/projects`, the same way the Studio runner does.
 - Routes are the hash routes: `home`, `work`, `work/new`, `money`, `school`, `fleet`,
   `lights`, `roku`, `settings`, and custom screens by slug.
@@ -80,7 +80,7 @@ a phone app, and fake data.
 ## Enrolling Claude's production passkey (lost or revoked)
 
 ```bash
-OUT=$(ssh fedora 'podman exec systemd-nephos-contextd /contextd passkey enroll --label claude')
+OUT=$(ssh fedora 'podman exec systemd-nephos-atlas-app /atlas passkey enroll --label claude')
 LINK=$(printf '%s\n' "$OUT" | grep -oE 'https://[^ ]+#[^ ]+' | head -1)
 D=~/.cache/app-login/atlas/prod; mkdir -p "$D"; C=$(mktemp "$D/cred.XXXXXX")
 APPLOGIN_ORIGIN=$(grep ^ATLAS_ORIGIN= ~/.config/atlas/env | cut -d= -f2-) APPLOGIN_CRED="$C" \
@@ -89,7 +89,7 @@ APPLOGIN_ORIGIN=$(grep ^ATLAS_ORIGIN= ~/.config/atlas/env | cut -d= -f2-) APPLOG
 ```
 
 Never print `$OUT` or the link: the code in the fragment is a one-time credential. Revoke
-with `ssh fedora 'podman exec systemd-nephos-contextd /contextd passkey ls'`, then
+with `ssh fedora 'podman exec systemd-nephos-atlas-app /atlas passkey ls'`, then
 `... passkey revoke <id>`.
 
 ## Adding another app
