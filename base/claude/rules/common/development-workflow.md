@@ -34,6 +34,24 @@ Rules that follow from it:
   silently: the second is skipped because the version is already recorded, and the code
   then runs against a schema it did not create. Before adding one, `git log --all --
   <migrations dir>` and take the next free number across **all** refs, not just yours.
+- **An installed tool's `--help` is not evidence about the source.** A locally installed
+  binary can be hundreds of commits behind `origin/main`, so a missing subcommand means
+  *this build* lacks it — not that it was never written. Check the tree, not the CLI:
+
+  ```bash
+  git ls-tree -r origin/main --name-only | grep -i <feature>
+  git log --all --oneline --grep=<feature> -i
+  ```
+
+  Only after both come back empty is the feature genuinely absent. When they disagree
+  with the installed tool, rebuild/redistribute it (for nephos: `nephos self-update`)
+  before trusting any further capability check from that binary.
+
+  > Cost of skipping this: `nephos db --help` showed no `restore` subcommand, which was
+  > reported as a missing capability and nearly became a subagent task. `origin/main`
+  > already carried `cmd/db_restore.go`, `db_restore_apply.go`, `db_restore_credential.go`
+  > and five test files. The checkout was 284 commits behind and the installed binary
+  > older still.
 
 1. **Research & Reuse** _(mandatory before any new implementation)_
    - **GitHub code search first:** Run `gh search repos` and `gh search code` to find existing implementations, templates, and patterns before writing anything new.
