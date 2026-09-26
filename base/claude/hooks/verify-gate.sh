@@ -19,7 +19,10 @@ set -uo pipefail
 input=$(cat 2>/dev/null || true)
 command -v python3 >/dev/null 2>&1 || exit 0
 
-HOOK_INPUT="$input" python3 - <<'PY' 2>/dev/null
+# The verdict goes to stderr, which Claude reads on exit 2. Capture it rather than
+# discarding it: a block with no reason just says "No stderr output". Any other
+# exit (a python crash included) fails open and stays quiet.
+verdict=$(HOOK_INPUT="$input" python3 - 2>&1 >/dev/null <<'PY'
 import json, os, re, sys
 
 try:
@@ -38,7 +41,7 @@ BASH_WRITE = re.compile(r"(?:cat|tee)\s+>{1,2}\s*([^\s<;&|]+)|sed\s+-i\S*\s+(?:'
 CHECK = re.compile(
     r"\b(test|pytest|vitest|jest|playwright|go (?:test|vet|build|run)|cargo|tsc|"
     r"npm run|pnpm|bun (?:run|test)|make|curl|wget|nephos (?:logs|ps)|journalctl|"
-    r"tail|screencapture|agent-browser|lint|eslint|ruff|mypy|node |python3? \S+\.py)\b|(?:^|[\s;&|])(?:\./|bash |sh )\S+")
+    r"tail|screencapture|agent-browser|lint|eslint|ruff|mypy|node |python3? \S+\.py)\b|(?:^|[\s;&|])(?:\./|bash |sh |zsh )\S+|(?:^|[;&|]\s*)(?:~|/)\S*/\S+")
 VISUAL_TOOL = re.compile(r"playwright.*(screenshot|snapshot)|browser_take_screenshot|browser_snapshot")
 VISUAL_BASH = re.compile(r"playwright|agent-browser|screenshot|screencapture")
 UNVERIFIED = re.compile(r"(?i)\b(unverified|not verified|haven'?t (?:tested|verified|run)|did(?:n'?t| not) (?:test|verify|run)|could(?:n'?t| not) (?:test|verify))\b")
@@ -108,3 +111,7 @@ sys.stderr.write(
     + "\nIf it genuinely cannot be verified from here, say so plainly in your final message (e.g. \"unverified: …\") and stop.\n")
 sys.exit(2)
 PY
+)
+[ $? -eq 2 ] || exit 0
+printf '%s\n' "$verdict" >&2
+exit 2

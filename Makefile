@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check verify dfw-test roles acl test apply dry-run fleet fleet-dry setup vault-backup hooks
+.PHONY: help check verify dfw-test hooks-test roles acl test apply dry-run fleet fleet-dry setup vault-backup hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -16,6 +16,9 @@ dfw-test:  ## Test the dfw worktree tool and its JSON merge driver (throwaway re
 	@python3 base/agents/skills/dotfiles-worktree/tests/test_json_merge.py 2>&1 | tail -1
 	@bash base/agents/skills/dotfiles-worktree/tests/test_dfw.sh | tail -1
 
+hooks-test:  ## Feed synthetic transcripts to the Claude Stop hooks
+	@bash scripts/test-hooks.sh
+
 roles:  ## Check roles/ and the generated ACL agree
 	@bash scripts/gen-nephos-acl.sh --check >/dev/null && echo "roles coherent"
 
@@ -28,7 +31,7 @@ cheatsheet:  ## Regenerate the keybinding sections of docs/cheatsheet.html from 
 acl:  ## Print the Tailscale ACL generated from roles/
 	@bash scripts/gen-nephos-acl.sh
 
-test: check verify dfw-test roles doctor  ## Run every check
+test: check verify dfw-test hooks-test roles doctor  ## Run every check
 
 dry-run:  ## Show what apply would change on THIS machine
 	@bash apply.sh --dry-run
