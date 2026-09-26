@@ -40,8 +40,19 @@ tmux new-session -d -s "$RUN" -c <repo> \
 
 ## 3. Heartbeat
 
-Schedule a check (CronCreate, or a nephos schedule) every 60–90 min. **Try to unstick the
-run yourself before paging Owen** — he wants to be woken only when self-repair failed.
+**The session that launched the run is its supervisor: keeping the run alive is your job.**
+Don't hand that job to a cron and walk away. Start the watcher in the background
+(Bash with `run_in_background`):
+
+```bash
+~/.agents/skills/overnight/scripts/watch "$RUN"
+```
+
+It exits as soon as the run needs attention: the session died, it has been idle for 3 min,
+`PROGRESS.md` has gone an hour without a checkpoint, or `REPORT.md` exists. Its exit wakes
+you. Handle it with the steps below, then restart the watcher. Keep an hourly CronCreate
+check as a backstop in case the watcher itself dies. **Unstick the run yourself before
+paging Owen**: he wants to be woken only after self-repair has failed.
 
 1. Read the terminal (`tmux capture-pane -pt $RUN -S -200`) and the tail and mtime of
    `PROGRESS.md`. If it is still working, do nothing.
