@@ -53,7 +53,7 @@ nothing on this TV for every query, so don't use it.
 - **Hulu:** the rail has Search above Home, and it **collapses within ~3s**. Send
   `key Left Up Select` as one burst; a snapshot in between is too slow and Select then
   opens a tile instead.
-- **Netflix** currently needs a sign-in code on the 75". Tell Owen instead of trying.
+- **Netflix** opens on "Choose a Profile" with **Owen** highlighted. Press Select.
 
 ## Services
 
