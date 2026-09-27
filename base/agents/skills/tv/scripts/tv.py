@@ -113,7 +113,7 @@ def resolve(cfg: dict, serial: str, tv: dict, look_hard: bool = True) -> tuple[s
         return tv["addr"], found
     if not look_hard:
         return None, {}
-    addr = sweep(cfg.get("subnet", "10.0.0.0/24"), serial)
+    addr = sweep(subnet(cfg), serial)
     if not addr:
         return None, {}
     tv["addr"] = addr
@@ -121,12 +121,20 @@ def resolve(cfg: dict, serial: str, tv: dict, look_hard: bool = True) -> tuple[s
     return addr, info(addr) or {}
 
 
-def magic_packet(mac: str) -> None:
+def subnet(cfg: dict) -> str:
+    """The TVs' LAN, from tvs.json. Kept out of the script so no address is committed."""
+    if not cfg.get("subnet"):
+        die(f'set "subnet" (the TVs\' LAN, e.g. a /24) in {CONFIG}')
+    return cfg["subnet"]
+
+
+def magic_packet(cfg: dict, mac: str) -> None:
     raw = bytes.fromhex(mac.replace(":", ""))
     packet = b"\xff" * 6 + raw * 16
+    directed = str(ipaddress.ip_network(subnet(cfg)).broadcast_address)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        for dst in ("255.255.255.255", "10.0.0.255"):
+        for dst in ("255.255.255.255", directed):
             for port in (9, 7):
                 try:
                     s.sendto(packet, (dst, port))
@@ -144,7 +152,7 @@ def ensure_awake(cfg: dict, serial: str, tv: dict) -> tuple[str, dict]:
     start, last_wake, swept = time.monotonic(), 0.0, False
     while time.monotonic() - start < WAKE_BUDGET:
         if time.monotonic() - last_wake >= REWAKE_EVERY:
-            magic_packet(tv["mac"])
+            magic_packet(cfg, tv["mac"])
             last_wake = time.monotonic()
             print(f"tv: wake packet sent to {tv.get('name', serial)}", file=sys.stderr)
         time.sleep(1)
