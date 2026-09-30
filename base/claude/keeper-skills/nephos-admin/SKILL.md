@@ -5,7 +5,7 @@ description: >-
   using it (that's the `nephos` skill). Use when the task is: building and
   distributing the nephos binary across the fleet (`self-update`), starting or
   restarting the control plane, adding/removing/onboarding a NODE, configuring or
-  restarting inference TIERS (editing gateway-config, `llm up/down`), minting/scoping
+  restarting inference TIERS (editing gateway-config, engine recipes, `llm apply/up/down`), minting/scoping
   gateway API keys, managing the web dashboard/admin panel (`nephos ui`), setting up
   public exposure (Cloudflare Tunnel / `tailscale serve`), or diagnosing why the
   fleet/control-plane/an agent is misbehaving. Trigger on "update nephos", "rebuild
@@ -127,6 +127,8 @@ ssh <control-node> '~/bin/nephos agent self-update '"$NEPHOS_CONTROL_ADDR"'; \
   systemctl --user restart nephos-control nephos-deploy nephos-report'
 
 # The macOS agent (real binary ~/.local/libexec/nephos; ~/.local/bin/nephos is a wrapper):
+# If copying a binary over it by hand: rm it first, then `codesign --force -s -` — cp onto the
+# running binary's inode gets it SIGKILLed (exit 137) on Apple silicon.
 ~/.local/libexec/nephos agent self-update "$NEPHOS_CONTROL_ADDR"   # verifies + installs
 launchctl kickstart -k gui/$(id -u)/com.nephos.serve
 launchctl kickstart -k gui/$(id -u)/com.nephos.report
@@ -166,22 +168,64 @@ when an agent restarts, that node keeps its stale registration until it re-repor
 ## Inference tiers
 
 Tiers are declared in **`~/.config/nephos/gateway-config.yaml` on the control-plane
-node** — one block per alias: `alias`, `backend`, `model`, `engineKind`,
-`maxConcurrent`, `maxPromptTokens`, `overflowAlias`, `maxLiveTokens`,
-`maxQueueWaitSeconds`, `autostart`, `idleTimeoutSeconds`. Edit the file, then
-`systemctl --user restart nephos-control`.
+node** — one block per alias. Full reference: `docs/ENGINES.md` in the nephos repo.
+Read it before adding or changing a tier.
+
+**A tier names an engine; nephos derives the rest.** How to launch each serving
+engine (mlx_lm.server, mlx-dspark, splash, ollama) is a *recipe* in
+`internal/engine/defaults.yaml` (ships with the binary), optionally overridden by an
+`engines.yaml` beside the gateway config. From the recipe + the tier, nephos renders
+the argv, derives the backend URL (`http://127.0.0.1:<port>`) and generates an
+**on-demand** launchd/systemd unit (not started at login, not restarted on crash).
+
+```yaml
+tiers:
+  - alias: big
+    engine: mlx-dspark          # legacy spelling `engineKind:` still works
+    port: 8005                  # or the engine's fixedPort, or an explicit backend:
+    venv: /Users/you/.local/share/nephos/dspark-env   # required if the engine lives in one
+    model: mlx-community/Qwen3.8-27B-4bit
+    options: { maxBatch: "4" }  # only options the recipe declares
+    # plus admission limits: maxConcurrent, maxPromptTokens, overflowAlias,
+    # maxLiveTokens, maxQueueWaitSeconds, autostart, idleTimeoutSeconds
+```
 
 ```bash
-nephos llm ls                 # what's actually loaded now
-nephos llm up|down <tier>     # start/stop a backend (frees GPU memory)
+nephos llm apply --dry-run    # print each tier's rendered argv
+nephos llm apply              # write one unit per tier; starts nothing; safe to re-run
+nephos llm up|down <tier>     # start / TERM the unit (definition stays loaded)
+nephos llm ls                 # every tier and whether its backend answers
 nephos keys new <app> --models fast --models mid   # mint a scoped key (shown once)
 nephos models                 # list tiers (needs a key; 401 if unauthenticated — that's the gate working)
 ```
 
-Gotchas: two heavy models can't be resident on one Ollama at once (they thrash and
-serve *empty responses*, not errors) — lean on `idleTimeoutSeconds` to free the GPU.
-A tier's key scope must include a model alias or calls 401 with "not scoped for
-model". Ollama-backed tiers autostart/idle-unload themselves.
+After editing the gateway config: `nephos llm apply`, then
+`systemctl --user restart nephos-control`.
+
+**Two tier shapes coexist — check which one you're looking at:**
+- **Legacy / operator-owned:** the tier has its own `start:`/`stop:` shell (e.g.
+  `launchctl kickstart … com.nephos.llm.fast`) and a hand-written plist. `llm apply`
+  skips it and `up/down` run its commands. Read the live config to see which tiers
+  are still in this shape; migrate one tier at a time by deleting `start:`/`stop:`/
+  `backend:`, adding `engine:`/`port:`/`venv:`, then `llm apply`.
+- **Engine-derived:** no `start:`/`stop:`; nephos owns the unit.
+
+Adding a new engine = add a recipe row to `engines.yaml`, point a tier at it,
+`llm apply && llm up`. No Go change unless it needs a new probe strategy
+(`openai-models`, `ollama-ps`, `ollama-tags`, `none` are the only ones).
+
+Gotchas:
+- Config load rejects, all at once: unknown engine, undeclared option, wrong tier kind
+  (e.g. mlx-dspark is chat-only), splash off port 8000 or two splash tiers on one
+  machine, two tiers on one port.
+- `launchctl disable` does NOT stop a tier the gateway can kickstart — use
+  `launchctl bootout`.
+- mlx_lm.server's `/v1/models` lists the whole HF cache, not the served model; requests
+  must name the snapshot path passed to `--model`.
+- Two heavy models can't be resident on one Ollama at once (they thrash and serve
+  *empty responses*, not errors) — lean on `idleTimeoutSeconds`. Ollama tiers
+  autostart/idle-unload themselves and get no generated unit.
+- A key's scope must include the model alias or calls 401 "not scoped for model".
 
 ---
 
