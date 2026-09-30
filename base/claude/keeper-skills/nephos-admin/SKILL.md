@@ -59,30 +59,28 @@ hardcode tailnet addresses.
 
 ## Building & shipping the binary (do this after any source change)
 
-### Fleet state as of 2026-09-14 — an update is PENDING
+### Fleet state as of 2026-09-29
 
-The fleet runs a **2026-09-09** binary. `main` has since gained ~250 commits
-(rollouts, durable operations, node drain/cordon, verified DB backup/restore,
-projects, usage budgets). None of it is deployed.
-
-How to confirm the gap at any time, without sshing anywhere:
+Whole fleet updated to `main` at 7c8c78a (fedora, gpu1, gpu2, the Studio), except
+the two Pis (`pi`/`onephus`, `onephus2`), which had been offline for 15 days and
+were skipped. Update them when they're back. Confirm the control plane is current
+without sshing anywhere:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' "$NEPHOS_CONTROL_ADDR/v1/nodes"      # 200 = control plane up
-curl -s -o /dev/null -w '%{http_code}\n' "$NEPHOS_CONTROL_ADDR/v1/rollouts"   # 404 = pre-rollout binary
+curl -s -o /dev/null -w '%{http_code}\n' "$NEPHOS_CONTROL_ADDR/v1/rollouts"   # 200 = current, 404 = pre-rollout binary
 ```
 
-Commands present in `main` but absent from the deployed binary: `rollout`,
-`move`, `operations`, `usage`, `nodes cordon|drain|uncordon`, `project
-up|plan|status`, `db verify|restore|replicate|retention|backup-health`.
-
-Two caveats that survive the update, per `~/projects/nephos/docs/`: `nephos nodes
-drain` still returns unavailable and does **not** move workloads (publication
-writer not enabled) — cordon/uncordon do work; and `nephos rollout *` needs the
+Caveats per `~/projects/nephos/docs/`: `nephos nodes drain` still returns unavailable
+and does **not** move workloads (cordon/uncordon work); `nephos rollout *` needs the
 rollout API enabled on the control plane.
 
-Shipping this is a real change to a live fleet: do it when Owen is around, not
-unattended, and restart the control plane last.
+**Before restarting the control plane on a new binary, preflight its config:**
+`~/bin/nephos llm apply --dry-run --gateway-config ~/.config/nephos/gateway-config.yaml`
+on fedora. New validation can reject a config the old binary accepted, and the
+gateway then fails to start. This happened on 2026-09-29 (fixed in PR #15).
+
+`agent self-update` now restarts the node's services itself; no manual
+`systemctl`/`launchctl kickstart` needed afterwards.
 
 Source: **`~/projects/nephos` on `main`** (Go module `nephos`), pushed to
 `github.com:ostepan8/nephos`.
@@ -129,9 +127,10 @@ ssh <control-node> '~/bin/nephos agent self-update '"$NEPHOS_CONTROL_ADDR"'; \
 # The macOS agent (real binary ~/.local/libexec/nephos; ~/.local/bin/nephos is a wrapper):
 # If copying a binary over it by hand: rm it first, then `codesign --force -s -` — cp onto the
 # running binary's inode gets it SIGKILLed (exit 137) on Apple silicon.
-~/.local/libexec/nephos agent self-update "$NEPHOS_CONTROL_ADDR"   # verifies + installs
-launchctl kickstart -k gui/$(id -u)/com.nephos.serve
-launchctl kickstart -k gui/$(id -u)/com.nephos.report
+~/.local/libexec/nephos agent self-update "$NEPHOS_CONTROL_ADDR"   # verifies, installs, restarts
+# KNOWN BUG (2026-09-29): the first relaunch is SIGKILLed with OS_REASON_CODESIGNING
+# (launchctl list shows -9); KeepAlive retries and it comes up on run 2-3. Confirm with
+# `launchctl print gui/$(id -u)/com.nephos.serve | grep -E "state|runs"` = running.
 ```
 
 **Signature verification is FAIL-CLOSED.** Each node needs the operator's PUBLIC key
