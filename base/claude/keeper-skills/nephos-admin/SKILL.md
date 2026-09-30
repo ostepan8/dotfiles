@@ -128,9 +128,10 @@ ssh <control-node> '~/bin/nephos agent self-update '"$NEPHOS_CONTROL_ADDR"'; \
 # If copying a binary over it by hand: rm it first, then `codesign --force -s -` — cp onto the
 # running binary's inode gets it SIGKILLed (exit 137) on Apple silicon.
 ~/.local/libexec/nephos agent self-update "$NEPHOS_CONTROL_ADDR"   # verifies, installs, restarts
-# KNOWN BUG (2026-09-29): the first relaunch is SIGKILLed with OS_REASON_CODESIGNING
-# (launchctl list shows -9); KeepAlive retries and it comes up on run 2-3. Confirm with
-# `launchctl print gui/$(id -u)/com.nephos.serve | grep -E "state|runs"` = running.
+# Afterwards `launchctl list` shows -9 as the last exit: that is kickstart -k killing
+# the OLD process, not a failure. Check `launchctl print gui/$(id -u)/com.nephos.serve`
+# for state = running. "last exit reason = OS_REASON_CODESIGNING" is sticky and can be
+# left over from an earlier hand `cp` install; self-update itself was verified clean.
 ```
 
 **Signature verification is FAIL-CLOSED.** Each node needs the operator's PUBLIC key
