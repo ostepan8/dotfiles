@@ -6,4 +6,4 @@ python3 -m venv "$HOME/.local/share/nephos/dspark-env"
 "$HOME/.local/share/nephos/dspark-env/bin/pip" install --upgrade pip
 "$HOME/.local/share/nephos/dspark-env/bin/pip" install mlx-dspark
 # First `mlx-dspark serve` auto-downloads the DFlash2 drafter (incoai/Qwen3.8-27B-DFlash2).
-echo "done — com.nephos.llm.big.plist runs: mlx-dspark serve --model mlx-community/Qwen3.8-27B-4bit --port 8005 --max-batch 4"
+echo "done — now run: nephos llm apply && nephos llm up big"

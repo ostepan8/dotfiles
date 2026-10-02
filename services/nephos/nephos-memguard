@@ -15,7 +15,10 @@ free=$(memory_pressure 2>/dev/null | grep -i "free percentage" | grep -oE '[0-9]
 [ -z "$free" ] && exit 0
 
 stamp=$(date '+%Y-%m-%d %H:%M:%S')
-big_up() { pgrep -f "mlx_lm.server.*8005" >/dev/null 2>&1; }
+OLLAMA=/Applications/Ollama.app/Contents/Resources/ollama
+# big's engine has changed before (mlx_lm.server -> mlx-dspark); match its port.
+big_up() { pgrep -f -- "--port 8005" >/dev/null 2>&1; }
+ollama_loaded() { "$OLLAMA" ps 2>/dev/null | tail -n +2 | grep -q .; }
 
 alert() {
   [ -n "$NEPHOS_NTFY_TOPIC" ] || return 0
@@ -23,16 +26,18 @@ alert() {
     -d "$1" "${NEPHOS_NTFY_URL:-https://ntfy.sh}/$NEPHOS_NTFY_TOPIC" >/dev/null 2>&1 || true
 }
 
-if [ "$free" -lt "$SHED" ] && big_up; then
+if [ "$free" -lt "$SHED" ] && { big_up || ollama_loaded; }; then
   # cooldown: don't re-shed within 3 min
   if [ -f "$COOLDOWN" ] && [ $(( $(date +%s) - $(stat -f %m "$COOLDOWN") )) -lt 180 ]; then exit 0; fi
   touch "$COOLDOWN"
   echo "$stamp SHED: free ${free}% < ${SHED}% — evicting big" >> "$LOG"
-  launchctl kill TERM gui/$UID_/com.nephos.llm.big 2>/dev/null
-  /Applications/Ollama.app/Contents/Resources/ollama stop --all 2>/dev/null || true
+  launchctl kill TERM gui/$UID_/com.nephos.llm-big 2>/dev/null
+  "$OLLAMA" ps 2>/dev/null | awk 'NR>1 {print $1}' | while read -r m; do
+    "$OLLAMA" stop "$m" 2>/dev/null || true
+  done
   if [ "$free" -lt "$CRIT" ]; then
     echo "$stamp CRIT: also evicting fast" >> "$LOG"
-    launchctl kill TERM gui/$UID_/com.nephos.llm.fast 2>/dev/null
+    launchctl kill TERM gui/$UID_/com.nephos.llm-fast 2>/dev/null
   fi
   alert "Mac at ${free}% free — evicted big to prevent a crash. Restart with: nephos llm up big"
 elif [ "$free" -lt "$WATCH" ]; then
