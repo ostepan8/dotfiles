@@ -62,18 +62,6 @@
           }
         ]
       }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude-personal/hooks/secret-guard.sh",
-            "timeout": 10
-          }
-        ]
-      }
     ]
   },
   "enabledPlugins": {
