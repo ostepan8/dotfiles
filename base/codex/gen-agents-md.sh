@@ -14,7 +14,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RULES="$REPO/base/claude/rules/common"
 OUT="$REPO/base/codex/AGENTS.md"
 
-PORTABLE=(coding-style testing security git-workflow development-workflow patterns)
+PORTABLE=(communication coding-style testing security git-workflow development-workflow patterns)
 
 {
   echo "# Agent instructions"
