@@ -69,20 +69,26 @@ out to Owen. Cleanup only happens on command.
 
 `sub done subcon-670`
 
-It first kills the ticket's tmux session, so no agent writes during teardown.
-Then it refuses, and changes nothing, if any worktree has uncommitted changes,
-an env file edited since it was copied, a switch off the ticket branch, or
-commits not on GitHub, or a PR that is not merged. If the only problem is an
-unmerged PR, ask Owen. Run `sub done <id> --force` only after a yes. `--force`
-never overrides uncommitted or unpushed work.
+It refuses, and changes nothing, if any worktree has one of these problems.
+The session keeps running.
+
+- Uncommitted changes
+- An env file edited since it was copied
+- A switch off the ticket branch
+- Commits not on GitHub
+- A PR that is not merged
+
+If the only problem is an unmerged PR, ask Owen. Run `sub done <id> --force`
+only after a yes. `--force` never overrides the other checks.
 
 Teardown order:
 
-1. Gateway compose stack down, and its volume dropped.
-2. Worktrees removed.
-3. Merged local branches deleted.
-4. Ticket folder removed.
-5. Only that ticket's tmux session killed, last. Never `tmux kill-server`.
+1. Only that ticket's tmux session is killed, so no agent writes during
+   teardown. Never kill the tmux server.
+2. Gateway compose stack down, and its volume dropped.
+3. Worktrees removed. Each is re-checked first, and git refuses a dirty one.
+4. Merged local branches deleted.
+5. Ticket folder removed and port slot freed.
 
 ## Ports and databases
 

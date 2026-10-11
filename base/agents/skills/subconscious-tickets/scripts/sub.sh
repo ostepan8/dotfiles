@@ -512,9 +512,10 @@ check_done() {
   [ "$problems" -eq 0 ] || die "nothing removed" 3
 }
 
-# stop_session <ticket>: kill the ticket's own tmux session before teardown, so
-# no agent writes into a worktree while it is removed. Inside that session,
-# killing it would end this script, so it waits until the very end instead.
+# stop_session <ticket>: kill the ticket's own tmux session once the checks
+# pass, so no agent writes into a worktree while it is removed. A failed check
+# leaves the session running. Inside that session, killing it would end this
+# script, so it waits until the very end instead.
 inside_session() { [ -n "${TMUX:-}" ] && [ "$(tmux display-message -p '#{session_name}' 2>/dev/null)" = "$1" ]; }
 stop_session() {
   tmux has-session -t "=$1" 2>/dev/null || return 0
@@ -531,8 +532,8 @@ cmd_done() {
   [ -d "$tdir/.sub" ] || die "no ticket $ticket"
   branch="$(meta "$ticket" branch)"
 
-  stop_session "$ticket"
   check_done "$ticket" "$force"
+  stop_session "$ticket"
 
   if [ -d "$tdir/api-gateway" ] && command -v docker >/dev/null && docker info >/dev/null 2>&1; then
     docker compose -p "$(compose_project "$ticket")" down -v --remove-orphans >/dev/null 2>&1 &&
