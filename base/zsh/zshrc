@@ -83,6 +83,12 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
     yarn()     { load_nvm; yarn "$@"; }
     pnpm()     { load_nvm; pnpm "$@"; }
     corepack() { load_nvm; corepack "$@"; }
+    # Global npm CLIs (subc, ...) resolve without loading nvm. The newest
+    # installed Node's bin goes last on PATH, so once nvm loads, its own
+    # choice still comes first.
+    _nvm_bin=( "$NVM_DIR"/versions/node/v*/bin(N/nOn) )
+    (( ${#_nvm_bin} )) && export PATH="$PATH:${_nvm_bin[1]}"
+    unset _nvm_bin
 fi
 
 # ---------- bun ----------
