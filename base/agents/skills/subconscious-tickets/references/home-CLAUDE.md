@@ -9,6 +9,12 @@ here. The `subconscious-tickets` skill and the `sub` command manage them.
 - Never work in `.repos/`. Those are the parent clones the worktrees grow from.
 - Never edit `.env-store/` for one ticket. Edit the env file inside the worktree.
 
+## Workspaces
+
+Each main repo also has a workspace in `workspaces/`: `platform`, `gateway`, `cli`, `benchmarks`
+and `sglang`. Use one for single-repo work, and a ticket for work across repos. The `workspace`
+skill explains the layout.
+
 ## Repos
 
 | Repo | Alias | Base | What it is |

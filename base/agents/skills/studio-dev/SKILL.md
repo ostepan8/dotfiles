@@ -52,24 +52,26 @@ and note why in the config.
 
 ## Run each project
 
-Start every command on the Studio.
+Each project is a workspace: run `s <name>`, then `stack start` from any folder in it. Read the
+`workspace` skill for the layout, and the workspace's `AGENTS.md` for its safety rules.
 
-| Project | Where | Start | Ports |
+| Project | `s` name | Run | Ports |
 |---|---|---|---|
-| ListHalo | `~/Desktop/ListHalo` | `~/Desktop/ListHalo/scripts/lh-stack start` | API 3001, web 5173, Metro 8081 |
-| platform | `sub start <id> platform` | `PORT=$PLATFORM_WEB_PORT pnpm dev` in `platform/web` | from the ticket |
-| api-gateway | `sub start <id> gateway` | `bash local-dev/dev.sh up` | from the ticket |
-| subconscious CLI | `sub start <id> cli` | `npm test`, `bin/cli.js --version` | none |
-| bench-runner | `~/Desktop/subconscious/benchmarks`, tmux session `benchmarks` | `bench-stack start` | website 4200, backend 4201, Redis 4202 |
-| SGLang | `sub start <id> sglang` | no NVIDIA GPU here: sync to gpu1 or gpu2, see `fleet` and `nephos` | on the GPU box |
-| Personal | `~/projects/<name>` or `~/Desktop/Projects` | the project's README, in `s <name>` | the project's |
+| ListHalo | `listhalo` | `stack start` | API 3001, web 5173, Metro 8081 |
+| bench-runner | `benchmarks` | `stack start` | website 4200 |
+| platform | `platform` | `stack start` | website 4100 |
+| api-gateway | `gateway` | `stack start` | gateway 4110, management 4111, admin 4114 |
+| subconscious CLI | `cli` | `scripts/check [branch]` | none |
+| SGLang | `sglang` | `scripts/sync-gpu <gpu1\|gpu2> [branch]` | on the GPU box |
+| Personal | the project's name | the project's README | the project's |
 
-For Subconscious, read the `subconscious-tickets` skill first. Ticket ports are in
-`<ticket>/.sub/ports`. Never use default ports, because other tickets run at the same time.
+Start every command on the Studio. Start a task with `scripts/wt <branch>`.
 
-For ListHalo, read `~/Desktop/ListHalo/AGENTS.md` first. Never push to `list-halo`. Other
-`lh-stack` commands: `stop`, `status`, and `start --full`, which adds the job worker and the
-Stripe listener. Those two can change the dev database.
+For a Subconscious ticket across several repos, read the `subconscious-tickets` skill and use
+`sub`. Ticket ports are in `<ticket>/.sub/ports`, because other tickets run at the same time.
+
+For ListHalo, never push to `list-halo`. `stack start --full` adds the job worker and the
+Stripe listener, and those two can change the dev database.
 
 ## bench-runner safety
 
@@ -77,8 +79,8 @@ Use `bench-stack` for dev. The repo's `.env` points at the real remote Redis and
 backend reads that file unless `HARBOR_ENV_FILE` says otherwise. Never start the backend
 from a checkout by hand. `bench-stack` has a local Redis, no R2, and no provider keys.
 `bench-stack start --keys` adds runner keys, so real jobs can run and cost money. Ask Owen
-first. `bench-stack update` moves the checkout to `origin/main`. For a ticket that changes
-bench-runner, use `sub start <id> bench`, and set `BENCH_DIR` to its checkout.
+first. `bench-stack update` moves the checkout to `origin/main`. To run a ticket's checkout,
+set `BENCH_DIR` to it. Never copy the real `.env` into a workspace checkout.
 
 ## ListHalo on an iPhone
 
