@@ -17,8 +17,11 @@ set -euo pipefail
 
 export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
 
-BENCH_DIR="${BENCH_DIR:-$HOME/Desktop/subconscious/benchmarks/bench-runner}"
-STATE="$(dirname "$BENCH_DIR")/.dev"
+WORKSPACE="$HOME/workspaces/benchmarks"
+BENCH_DIR="${BENCH_DIR:-$WORKSPACE/worktrees/bench-runner/dev}"
+STATE="${BENCH_STATE:-$WORKSPACE/.dev}"
+# Read only for --keys. The checkout has no .env, so a backend started by hand has no keys.
+KEYS_FILE="${BENCH_KEYS_FILE:-$HOME/Desktop/subconscious/.env-store/bench-runner/.env}"
 ENV_FILE="$STATE/bench.env"
 SESSION="${BENCH_SESSION:-bench-stack}"
 WEB_PORT=4200
@@ -43,7 +46,7 @@ write_env() {
       echo "REDIS_URL=$REDIS_URL"
       echo "BENCH_REDIS_PREFIX=dev"
       if [ "${1:-}" = "--keys" ]; then
-        grep -E "^($RUNNER_KEYS)=" "$BENCH_DIR/.env" || true
+        grep -E "^($RUNNER_KEYS)=" "$KEYS_FILE" || true
       fi
     } > "$ENV_FILE"
   )
@@ -51,7 +54,7 @@ write_env() {
 }
 
 setup() {
-  [ -d "$BENCH_DIR" ] || die "no checkout at $BENCH_DIR. Run: sub start benchmarks bench"
+  [ -d "$BENCH_DIR" ] || die "no checkout at $BENCH_DIR. Run: ws ls"
   cd "$BENCH_DIR"
   uv sync --frozen
   (cd app/harbor-go && go build -o ../backend-go/bin/harbor ./cmd/harbor)

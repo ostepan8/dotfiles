@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# ws: create and list workspaces. A workspace is a folder around a repo that holds
+# agent docs, scripts, skills and worktrees. See the workspace skill.
+#
+#   ws new <name> <dir> <git-url> <base-branch> [--env-from <dir>]
+#   ws ls
+set -euo pipefail
+
+die() { printf 'ws: %s\n' "$*" >&2; exit 1; }
+is_safe() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
+
+# Never overwrite: a second run must keep what people and agents wrote.
+write_new() {
+  [ -e "$1" ] || cat > "$1"
+}
+
+write_agents() {
+  local name="$1" repo="$2" base="$3" url="$4"
+  write_new AGENTS.md <<EOM
+# $name workspace
+
+This folder is the workspace for \`$repo\`. It is not a git repo.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| \`repos/$repo/\` | The main clone. Keep it clean on \`$base\`. Never edit here. |
+| \`worktrees/$repo/dev/\` | The checkout that \`stack\` runs. |
+| \`worktrees/$repo/<branch>/\` | One worktree per task. All edits happen here. |
+| \`docs/\` | Notes for agents that don't belong in the repo. |
+| \`scripts/\` | Workspace commands. |
+| \`.claude/skills/\` | Skills for this workspace. |
+
+## Rules
+
+- To start a task, run \`scripts/wt <branch>\`. It branches from \`origin/$base\` and copies env files.
+- When a branch merges, run \`git -C repos/$repo worktree remove ../../worktrees/$repo/<branch>\`.
+- Read the repo's own \`AGENTS.md\` or \`CLAUDE.md\` before you change its code.
+- Open PRs against \`$base\`.
+
+Remote: \`$url\`
+EOM
+  write_new CLAUDE.md <<< "@AGENTS.md"
+  write_new docs/README.md <<EOM
+# $name notes
+
+Notes for agents: findings, decisions and how things really behave. The repo's own docs
+hold how the code works. Add a file here when you learn something the next agent needs.
+EOM
+}
+
+write_wt() {
+  local repo="$1" base="$2" env_from="$3"
+  [ -e scripts/wt ] || {
+    cat > scripts/wt <<EOM
+#!/usr/bin/env bash
+# wt: create a task worktree, on a new branch from origin/$base, with env files.
+set -euo pipefail
+root="\$(cd "\$(dirname "\$0")/.." && pwd)"
+branch="\${1:?usage: scripts/wt <branch>}"
+[[ "\$branch" =~ ^[A-Za-z0-9._/-]+\$ ]] || { echo "wt: bad branch name: \$branch" >&2; exit 1; }
+dest="\$root/worktrees/$repo/\$branch"
+git -C "\$root/repos/$repo" fetch -q origin
+git -C "\$root/repos/$repo" worktree add -q -b "\$branch" "\$dest" "origin/$base"
+env_from='$env_from'
+[ -z "\$env_from" ] || [ ! -d "\$env_from" ] || rsync -a --ignore-existing "\$env_from/" "\$dest/"
+echo "\$dest"
+EOM
+    chmod +x scripts/wt
+  }
+}
+
+new_workspace() {
+  [ $# -ge 4 ] || die "usage: ws new <name> <dir> <git-url> <base-branch> [--env-from <dir>]"
+  local name="$1" dir="$2" url="$3" base="$4" env_from=""
+  [ "${5:-}" != "--env-from" ] || env_from="${6:-}"
+  is_safe "$name" || die "bad name: $name"
+  local repo; repo="$(basename "$url" .git)"
+  mkdir -p "$dir"/{docs,scripts,repos,.claude/skills,worktrees/"$repo"}
+  dir="$(cd "$dir" && pwd -P)"
+  cd "$dir"
+  [ -d "repos/$repo/.git" ] || git clone -q "$url" "repos/$repo"
+  git -C "repos/$repo" checkout -q "$base"
+  local dev="worktrees/$repo/dev"
+  if [ ! -e "$dev/.git" ]; then
+    git -C "repos/$repo" fetch -q origin
+    git -C "repos/$repo" worktree add -q -b "$name-dev" "$dir/$dev" "origin/$base"
+  fi
+  [ -z "$env_from" ] || [ ! -d "$env_from" ] || rsync -a --ignore-existing "$env_from/" "$dir/$dev/"
+  write_agents "$name" "$repo" "$base" "$url"
+  write_wt "$repo" "$base" "$env_from"
+  mkdir -p "$HOME/workspaces"
+  ln -sfn "$dir" "$HOME/workspaces/$name"
+  if [ -z "${WS_NO_TMUX:-}" ] && ! tmux has-session -t "=$name" 2>/dev/null; then
+    tmux new-session -d -s "$name" -c "$dir"
+  fi
+  echo "$name ready at $dir"
+}
+
+list_workspaces() {
+  local link
+  for link in "$HOME"/workspaces/*; do
+    [ -e "$link" ] || continue
+    printf '%-14s %s\n' "$(basename "$link")" "$(readlink "$link")"
+  done
+}
+
+case "${1:-}" in
+  new) shift; new_workspace "$@" ;;
+  ls) list_workspaces ;;
+  *) die "usage: ws new <name> <dir> <git-url> <base-branch> [--env-from <dir>] | ws ls" ;;
+esac

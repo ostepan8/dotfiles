@@ -65,6 +65,8 @@ run listhalo
 check "named: exits 0" 0 "$RC"
 check "named: uses new-session -A" 1 "$(ssh_calls 'tmux -u new-session -A -s listhalo')"
 
+check "named: starts in its workspace" 1 "$(ssh_calls 'cd .*workspaces/listhalo')"
+
 # A lost connection (255) retries. A clean detach (0) stops the loop.
 setup
 printf '0\n255\n255\n0\n' > "$SANDBOX/codes"

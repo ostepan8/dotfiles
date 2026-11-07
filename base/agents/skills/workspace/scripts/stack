@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# stack: run a workspace's scripts/stack from any folder inside it.
+#
+#   stack start | stop | status     use the workspace around this folder
+#   stack <workspace> <command>     use a named workspace from anywhere
+set -euo pipefail
+
+find_workspace() {
+  local dir="$PWD"
+  while [ "$dir" != "/" ]; do
+    if [ -f "$dir/AGENTS.md" ] && [ -d "$dir/worktrees" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+if [ -e "$HOME/workspaces/${1:-}" ] && [ -n "${1:-}" ]; then
+  root="$(cd "$HOME/workspaces/$1" && pwd -P)"
+  shift
+else
+  root="$(find_workspace)" || { echo "stack: not inside a workspace. Use: stack <workspace> start, or ws ls" >&2; exit 1; }
+fi
+[ -x "$root/scripts/stack" ] || { echo "stack: $(basename "$root") has no server to run. See its AGENTS.md." >&2; exit 1; }
+exec "$root/scripts/stack" "$@"

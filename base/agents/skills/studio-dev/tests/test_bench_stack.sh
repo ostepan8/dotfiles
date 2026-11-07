@@ -30,7 +30,7 @@ E2B_API_KEY=runner-e2b
 DAYTONA_API_KEY=runner-daytona
 SUBCONSCIOUS_API_KEY=runner-sub
 ENV
-export BENCH_DIR="$SANDBOX/bench-runner"
+export BENCH_DIR="$SANDBOX/bench-runner" BENCH_STATE="$SANDBOX/.dev" BENCH_KEYS_FILE="$SANDBOX/bench-runner/.env"
 ENVFILE="$SANDBOX/.dev/bench.env"
 has() { grep -c -- "$1" "$ENVFILE" || true; }
 

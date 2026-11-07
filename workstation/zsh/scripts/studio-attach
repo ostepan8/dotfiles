@@ -115,7 +115,8 @@ restore_terminal() {
 attach_loop() {
   local name="$1" rc
   while :; do
-    ssh -t "${SSH_OPTS[@]}" "$HOST" "$TMUX_BIN -u new-session -A -s $name"
+    # A new session for a workspace starts in that workspace.
+    ssh -t "${SSH_OPTS[@]}" "$HOST" "cd \$HOME/workspaces/$name 2>/dev/null; $TMUX_BIN -u new-session -A -s $name"
     rc=$?
     [ "$rc" -eq "$SSH_CONNECTION_LOST" ] || return "$rc"
     restore_terminal
