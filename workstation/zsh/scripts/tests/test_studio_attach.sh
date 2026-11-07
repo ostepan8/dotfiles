@@ -135,9 +135,20 @@ check "ports: none for other sessions" 0 "$(wc -l < "$SANDBOX/forward.log" | tr 
 
 # A ticket's web ports come from the ticket. Its database ports stay closed.
 setup
-printf 'PLATFORM_WEB_PORT=40230\nDEV_POSTGRES_PORT=40201\nDEV_GATEWAY_PORT=40280\nDEV_GATEWAY_ADMIN_PORT=40282\n' > "$SANDBOX/ticket-ports"
+printf 'PLATFORM_WEB_PORT=40230\nDEV_POSTGRES_PORT=40201\nDEV_GATEWAY_PORT=40280\nDEV_GATEWAY_ADMIN_PORT=40282\nREPO=platform\nREPO=api-gateway\n' > "$SANDBOX/ticket-ports"
 run subcon-670
 check "ticket: web ports only" "--quiet 40230 40280 40282" "$(cat "$SANDBOX/forward.log")"
+
+# A ticket opens only the ports of the repos it holds.
+setup
+printf 'PLATFORM_WEB_PORT=40230\nDEV_GATEWAY_PORT=40280\nDEV_GATEWAY_ADMIN_PORT=40282\nREPO=platform\nREPO=bench-runner\n' > "$SANDBOX/ticket-ports"
+run subcon-671
+check "ticket: platform only" "--quiet 40230" "$(cat "$SANDBOX/forward.log")"
+
+setup
+printf 'PLATFORM_WEB_PORT=40230\nDEV_GATEWAY_PORT=40280\nREPO=bench-runner\n' > "$SANDBOX/ticket-ports"
+run subcon-672
+check "ticket: no matching repo, no ports" 0 "$(wc -l < "$SANDBOX/forward.log" | tr -d ' ')"
 
 # The picker path opens ports too.
 setup

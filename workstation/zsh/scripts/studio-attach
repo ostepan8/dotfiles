@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FORWARD_BIN="${STUDIO_FORWARD_BIN:-$SCRIPT_DIR/studio-forward}"
 PORTS_CONF="${STUDIO_PORTS_CONF:-$SCRIPT_DIR/../../../hosts/studio-ports.conf}"
 # Only ports a browser uses. A ticket's database ports stay closed.
-TICKET_WEB_PORTS='PLATFORM_WEB_PORT|DEV_GATEWAY_PORT|DEV_GATEWAY_MANAGEMENT_PORT|DEV_GATEWAY_ADMIN_PORT'
+GATEWAY_WEB_PORTS='DEV_GATEWAY_PORT|DEV_GATEWAY_MANAGEMENT_PORT|DEV_GATEWAY_ADMIN_PORT'
 # Notice a dead connection after about 15 seconds.
 SSH_OPTS=(-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=10)
 
@@ -73,7 +73,8 @@ pick_session() {
 # Prints the ticket's ports file, or nothing if this session is not a ticket. It
 # also proves that the Studio answers, so the caller needs no separate check.
 fetch_ticket_ports() {
-  ssh "${SSH_OPTS[@]}" "$HOST" "cat \$HOME/Desktop/subconscious/$1/.sub/ports 2>/dev/null; true"
+  local dir="\$HOME/Desktop/subconscious/$1"
+  ssh "${SSH_OPTS[@]}" "$HOST" "cat $dir/.sub/ports 2>/dev/null; ls $dir 2>/dev/null | sed 's/^/REPO=/'; true"
 }
 
 configured_ports() {
@@ -83,8 +84,13 @@ configured_ports() {
   }' "$PORTS_CONF"
 }
 
+# Every ticket's ports file lists all ports, so keep only those of repos it holds.
 ticket_web_ports() {
-  printf '%s\n' "$1" | sed -nE "s/^(export )?($TICKET_WEB_PORTS)=([0-9]+).*/\3/p" | tr '\n' ' '
+  local names=""
+  case "$1" in *REPO=platform*) names="PLATFORM_WEB_PORT" ;; esac
+  case "$1" in *REPO=api-gateway*) names="$names|$GATEWAY_WEB_PORTS" ;; esac
+  [ -n "$names" ] || return 0
+  printf '%s\n' "$1" | sed -nE "s/^(export )?(${names#|})=([0-9]+).*/\3/p" | tr '\n' ' '
 }
 
 # A tunnel problem must never block the session, so a failure only prints a note.
