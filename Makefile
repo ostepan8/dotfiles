@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help check verify dfw-test hooks-test app-login-test roles acl test apply dry-run fleet fleet-dry setup vault-backup hooks
+.PHONY: help check verify dfw-test hooks-test app-login-test studio-attach-test roles acl test apply dry-run fleet fleet-dry setup vault-backup hooks
 
 help:  ## Show available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -19,6 +19,9 @@ dfw-test:  ## Test the dfw worktree tool and its JSON merge driver (throwaway re
 app-login-test:  ## Offline checks of the app-login command
 	@bash base/agents/skills/app-login/tests/test_app_login.sh
 
+studio-attach-test:  ## Offline checks of the MacBook `s` command
+	@bash workstation/zsh/scripts/tests/test_studio_attach.sh | tail -1
+
 hooks-test:  ## Feed synthetic transcripts to the Claude Stop hooks
 	@bash scripts/test-hooks.sh
 
@@ -34,7 +37,7 @@ cheatsheet:  ## Regenerate the keybinding sections of docs/cheatsheet.html from 
 acl:  ## Print the Tailscale ACL generated from roles/
 	@bash scripts/gen-nephos-acl.sh
 
-test: check verify dfw-test hooks-test app-login-test roles doctor  ## Run every check
+test: check verify dfw-test hooks-test app-login-test studio-attach-test roles doctor  ## Run every check
 
 dry-run:  ## Show what apply would change on THIS machine
 	@bash apply.sh --dry-run

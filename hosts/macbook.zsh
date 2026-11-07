@@ -18,3 +18,7 @@ ccd-airplane() {
         --max-tokens 4096 \
         "$@"
 }
+
+# Open a tmux session on the Studio and reconnect after a dropped connection.
+# `s` shows a picker. `s <name>` attaches to that session or creates it.
+s() { "$HOME/dotfiles/workstation/zsh/scripts/studio-attach" "$@"; }

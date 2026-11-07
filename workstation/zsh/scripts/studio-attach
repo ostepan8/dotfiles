@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# studio-attach: open a tmux session on the Studio and stay connected.
+#
+#   studio-attach          pick a session (type a new name to create one)
+#   studio-attach <name>   attach to <name>, or create it
+#
+# The agents run in tmux on the Studio, so they do not stop when this connection
+# drops. This command only brings the screen back.
+#
+# WHY NOT MOSH: the MacBook's main Tailscale app stays on the work tailnet. It
+# reaches the Studio through a second, userspace tailscaled, and `tailscale nc`
+# carries TCP only. Mosh needs UDP to the Studio's address, and that route does
+# not exist. So this retries ssh, which is TCP and goes through the ProxyCommand.
+
+set -u
+
+HOST="${STUDIO_SSH_HOST:-mac-studio}"
+# A non-interactive ssh command does not read .zshrc, so tmux is not on PATH.
+TMUX_BIN="/opt/homebrew/bin/tmux"
+RETRY_SECONDS="${STUDIO_RETRY_SECONDS:-2}"
+SSH_CONNECTION_LOST=255
+# Notice a dead connection after about 15 seconds.
+SSH_OPTS=(-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=10)
+
+die() {
+  printf 's: %s\n' "$*" >&2
+  exit 1
+}
+
+die_unreachable() {
+  die "cannot reach ${HOST}. If Tailscale is down, run: launchctl kickstart -k gui/\$UID/com.tailscale.tailscaled"
+}
+
+# The name goes into a remote shell command, so allow only safe characters.
+is_safe_name() {
+  [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]]
+}
+
+# Prints "name Nw [attached]", most recently used first. No tmux server on the
+# Studio means an empty list, which is not an error.
+list_sessions() {
+  local format='#{session_last_attached} #S #{session_windows} #{?session_attached,attached,}'
+  local raw rc
+  raw="$(ssh "${SSH_OPTS[@]}" "$HOST" "$TMUX_BIN list-sessions -F '$format'")"
+  rc=$?
+  [ "$rc" -eq "$SSH_CONNECTION_LOST" ] && return "$rc"
+  printf '%s\n' "$raw" | sort -rn | awk 'NF >= 3 { print $2, $3 "w", $4 }'
+}
+
+# fzf prints the typed query on line 1 and the selection on line 2.
+pick_session() {
+  local sessions="$1" picked rc
+  picked="$(printf '%s\n' "$sessions" | fzf --print-query --reverse --height=60% \
+    --prompt='studio> ' --header='Enter attaches. A new name creates a session.')"
+  rc=$?
+  [ "$rc" -le 1 ] || return "$rc"
+  local query selection
+  query="$(printf '%s\n' "$picked" | sed -n 1p)"
+  selection="$(printf '%s\n' "$picked" | sed -n 2p | awk '{ print $1 }')"
+  printf '%s\n' "${selection:-$query}"
+}
+
+# A dropped ssh leaves the terminal in tmux's modes. Turn off the alternate
+# screen, mouse reporting, focus events and bracketed paste, or scrolling prints
+# escape codes until the next attach.
+restore_terminal() {
+  printf '\033[?1049l\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1004l\033[?2004l'
+}
+
+# Only exit code 255 means that the connection failed. A detach or a tmux error
+# ends the loop, so `C-a d` still quits.
+attach_loop() {
+  local name="$1" rc
+  while :; do
+    ssh -t "${SSH_OPTS[@]}" "$HOST" "$TMUX_BIN -u new-session -A -s $name"
+    rc=$?
+    [ "$rc" -eq "$SSH_CONNECTION_LOST" ] || return "$rc"
+    restore_terminal
+    printf '\ns: connection lost. Your agents still run on the Studio. Reconnecting to %s (Ctrl-C quits)...\n' "$name" >&2
+    sleep "$RETRY_SECONDS"
+  done
+}
+
+main() {
+  trap 'exit 130' INT
+
+  local name="${1:-}"
+  if [ -n "$name" ]; then
+    is_safe_name "$name" || die "bad session name: $name"
+    ssh "${SSH_OPTS[@]}" "$HOST" true || die_unreachable
+  else
+    local sessions
+    sessions="$(list_sessions)" || die_unreachable
+    name="$(pick_session "$sessions")" || exit 0
+    [ -n "$name" ] || exit 0
+    is_safe_name "$name" || die "bad session name: $name"
+  fi
+
+  if [ -n "${TMUX:-}" ]; then
+    printf 's: you are inside MacBook tmux. Press C-a twice to reach the Studio tmux.\n' >&2
+  fi
+  attach_loop "$name"
+}
+
+main "$@"
