@@ -28,6 +28,13 @@ brew "python"
 brew "uv"
 brew "ripgrep"
 
+# Compose and buildx plugins for the Colima docker CLI. Subconscious gateway
+# tickets need them (`local-dev/dev.sh`). `docker compose` only finds them if
+# ~/.docker/config.json lists /opt/homebrew/lib/docker/cli-plugins under
+# cliPluginsExtraDirs.
+brew "docker-compose"
+brew "docker-buildx"
+
 # ---- LSP servers & formatters ----
 brew "pyright"
 brew "llvm"
