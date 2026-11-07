@@ -7,6 +7,11 @@
 # The agents run in tmux on the Studio, so they do not stop when this connection
 # drops. This command only brings the screen back.
 #
+# It also opens the session's ports on the MacBook, so its apps work at localhost
+# with no second terminal. The ports come from hosts/studio-ports.conf, or from
+# the ticket's .sub/ports for a Subconscious ticket. Tunnels stay open after a
+# detach, and `sf` lists them.
+#
 # WHY NOT MOSH: the MacBook's main Tailscale app stays on the work tailnet. It
 # reaches the Studio through a second, userspace tailscaled, and `tailscale nc`
 # carries TCP only. Mosh needs UDP to the Studio's address, and that route does
@@ -19,6 +24,11 @@ HOST="${STUDIO_SSH_HOST:-mac-studio}"
 TMUX_BIN="/opt/homebrew/bin/tmux"
 RETRY_SECONDS="${STUDIO_RETRY_SECONDS:-2}"
 SSH_CONNECTION_LOST=255
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+FORWARD_BIN="${STUDIO_FORWARD_BIN:-$SCRIPT_DIR/studio-forward}"
+PORTS_CONF="${STUDIO_PORTS_CONF:-$SCRIPT_DIR/../../../hosts/studio-ports.conf}"
+# Only ports a browser uses. A ticket's database ports stay closed.
+TICKET_WEB_PORTS='PLATFORM_WEB_PORT|DEV_GATEWAY_PORT|DEV_GATEWAY_MANAGEMENT_PORT|DEV_GATEWAY_ADMIN_PORT'
 # Notice a dead connection after about 15 seconds.
 SSH_OPTS=(-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=10)
 
@@ -60,6 +70,33 @@ pick_session() {
   printf '%s\n' "${selection:-$query}"
 }
 
+# Prints the ticket's ports file, or nothing if this session is not a ticket. It
+# also proves that the Studio answers, so the caller needs no separate check.
+fetch_ticket_ports() {
+  ssh "${SSH_OPTS[@]}" "$HOST" "cat \$HOME/Desktop/subconscious/$1/.sub/ports 2>/dev/null; true"
+}
+
+configured_ports() {
+  [ -f "$PORTS_CONF" ] || return 0
+  awk -v name="$1" '!/^[[:space:]]*#/ && NF >= 2 && tolower($1) == tolower(name) {
+    for (i = 2; i <= NF; i++) printf "%s ", $i
+  }' "$PORTS_CONF"
+}
+
+ticket_web_ports() {
+  printf '%s\n' "$1" | sed -nE "s/^(export )?($TICKET_WEB_PORTS)=([0-9]+).*/\3/p" | tr '\n' ' '
+}
+
+# A tunnel problem must never block the session, so a failure only prints a note.
+open_session_ports() {
+  local ports
+  ports="$(configured_ports "$1") $(ticket_web_ports "$2")"
+  # shellcheck disable=SC2086  # the words are ports, split on purpose
+  set -- $ports
+  [ $# -gt 0 ] || return 0
+  "$FORWARD_BIN" --quiet "$@" || printf 's: could not open every port. Run sf to check.\n' >&2
+}
+
 # A dropped ssh leaves the terminal in tmux's modes. Turn off the alternate
 # screen, mouse reporting, focus events and bracketed paste, or scrolling prints
 # escape codes until the next attach.
@@ -84,17 +121,19 @@ attach_loop() {
 main() {
   trap 'exit 130' INT
 
-  local name="${1:-}"
+  local name="${1:-}" ticket_ports=""
   if [ -n "$name" ]; then
     is_safe_name "$name" || die "bad session name: $name"
-    ssh "${SSH_OPTS[@]}" "$HOST" true || die_unreachable
+    ticket_ports="$(fetch_ticket_ports "$name")" || die_unreachable
   else
     local sessions
     sessions="$(list_sessions)" || die_unreachable
     name="$(pick_session "$sessions")" || exit 0
     [ -n "$name" ] || exit 0
     is_safe_name "$name" || die "bad session name: $name"
+    ticket_ports="$(fetch_ticket_ports "$name")" || ticket_ports=""
   fi
+  open_session_ports "$name" "$ticket_ports"
 
   if [ -n "${TMUX:-}" ]; then
     printf 's: you are inside MacBook tmux. Press C-a twice to reach the Studio tmux.\n' >&2

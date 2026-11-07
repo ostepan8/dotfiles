@@ -6,6 +6,7 @@
 #   studio-forward 13000:3000       localhost:13000 here reaches port 3000 there
 #   studio-forward                  list tunnels
 #   studio-forward stop [port]      stop one tunnel, or all of them
+#   studio-forward --quiet 3000     for scripts: skip busy ports and print only problems
 #
 # A tunnel runs in the background and reopens after a dropped connection or a
 # closed lid. It does not survive a MacBook restart.
@@ -23,6 +24,7 @@ RETRY_SECONDS="${STUDIO_RETRY_SECONDS:-2}"
 SSH_CONNECTION_LOST=255
 MIN_LOCAL_PORT=1024
 MAX_PORT=65535
+QUIET=""
 SSH_OPTS=(-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=10)
 
 die() {
@@ -95,17 +97,21 @@ start_tunnel() {
   here="$(local_part "$1")"
   there="$(remote_part "$1")"
   if tunnel_alive "$here"; then
-    printf 'localhost:%s is already open.\n' "$here"
+    [ -n "$QUIET" ] || printf 'localhost:%s is already open.\n' "$here"
     return 0
   fi
   if port_is_open "$here"; then
+    if [ -n "$QUIET" ]; then
+      printf 'sf: port %s is in use on the MacBook, so it was not opened.\n' "$here" >&2
+      return 0
+    fi
     die "port $here is in use on the MacBook. Choose another local port: sf $(free_port_hint "$here"):$there"
   fi
-  warn_if_no_app "$there"
+  [ -n "$QUIET" ] || warn_if_no_app "$there"
   mkdir -p "$DIR"
   nohup "$0" --supervise "$here" "$there" </dev/null >"$DIR/$here.log" 2>&1 &
   printf '%s %s\n' "$!" "$there" > "$DIR/$here.tunnel"
-  printf 'Open http://localhost:%s (Studio port %s)\n' "$here" "$there"
+  [ -n "$QUIET" ] || printf 'Open http://localhost:%s (Studio port %s)\n' "$here" "$there"
 }
 
 list_tunnels() {
@@ -147,20 +153,23 @@ stop_tunnels() {
   done
 }
 
+start_specs() {
+  local spec
+  for spec in "$@"; do
+    valid_spec "$spec" || die "bad port: $spec. Use a port from $MIN_LOCAL_PORT to $MAX_PORT, or LOCAL:STUDIO."
+  done
+  for spec in "$@"; do
+    start_tunnel "$spec"
+  done
+}
+
 main() {
   case "${1:-}" in
     --supervise) shift; supervise "$@" ;;
+    --quiet) shift; QUIET=1; start_specs "$@" ;;
     "") list_tunnels ;;
     stop) shift; stop_tunnels "$@" ;;
-    *)
-      local spec
-      for spec in "$@"; do
-        valid_spec "$spec" || die "bad port: $spec. Use a port from $MIN_LOCAL_PORT to $MAX_PORT, or LOCAL:STUDIO."
-      done
-      for spec in "$@"; do
-        start_tunnel "$spec"
-      done
-      ;;
+    *) start_specs "$@" ;;
   esac
 }
 

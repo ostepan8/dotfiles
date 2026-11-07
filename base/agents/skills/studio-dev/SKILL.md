@@ -28,12 +28,14 @@ Run `cat ~/.dotfiles-host`. It prints `studio` or `macbook`.
 | Command | What it does |
 |---|---|
 | `s` | Pick a Studio tmux session. Reconnects after a drop. |
-| `s <name>` | Attach to that session, or create it. `C-a d` quits. |
-| `sf 3000` | Open Studio port 3000 at `localhost:3000` in the MacBook browser. |
+| `s <name>` | Attach to that session, or create it, and open its ports. `C-a d` quits. |
+| `sf 3000` | Open one more Studio port at `localhost:3000`. Rarely needed. |
 | `sf 13000:3000` | The same, on a different MacBook port. |
 | `sf` / `sf stop 3000` | List tunnels / stop one tunnel. |
 
-When you start a server for Owen, finish by telling them the exact `sf <port>` to run.
+`s` opens ports by itself, so Owen needs no second terminal. They come from
+`~/dotfiles/hosts/studio-ports.conf`, or from `.sub/ports` for a ticket. If a project has a
+server and no line there, add one with `dfw`. Only then tell Owen `sf <port>` for this time.
 
 ## Run each project
 
@@ -60,7 +62,7 @@ Stripe listener. Those two can change the dev database.
 
 - Owen uses the app on the MacBook in its own simulator, "ListHalo Studio". It's the normal
   way, because Screen Sharing shows the whole Studio screen and feels janky.
-  The MacBook runs `sf 3001 8081` first, then opens Simulator and the ListHalo icon. Code changes
+  `s listhalo` opens the ports. Owen then opens Simulator and the ListHalo icon. Code changes
   arrive through Metro on the Studio. The simulator has no real camera.
 - The MacBook can't build the app (Xcode 15.4). After a native change, build for the simulator
   on the Studio, copy `ListHalo.app` from DerivedData to the MacBook, and run

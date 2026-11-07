@@ -85,6 +85,18 @@ run 3000
 settle 3
 check "reconnect: reopened" yes "$([ "$(count_lines "$SANDBOX/tunnels.log")" -ge 3 ] && echo yes || echo no)"
 
+# Quiet mode, used by `s`: a busy port is skipped, the others still open, and it
+# does not ask the Studio about each app.
+setup
+echo 3000 > "$SANDBOX/open"
+run --quiet 3000 5173
+check "quiet: exits 0" 0 "$RC"
+settle
+check "quiet: opens the free port" 1 "$(grep -c -- '-L 127.0.0.1:5173:localhost:5173' "$SANDBOX/tunnels.log")"
+check "quiet: skips the busy port" 0 "$(grep -c -- '127.0.0.1:3000:' "$SANDBOX/tunnels.log")"
+check "quiet: names the busy port" 1 "$(printf '%s\n' "$OUT" | grep -c 'port 3000')"
+check "quiet: no ssh checks" 0 "$(count_lines "$SANDBOX/ssh.log")"
+
 # A busy local port is an error that names the fix.
 setup
 echo 3000 > "$SANDBOX/open"

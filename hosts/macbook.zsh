@@ -20,7 +20,8 @@ ccd-airplane() {
 }
 
 # Open a tmux session on the Studio and reconnect after a dropped connection.
-# `s` shows a picker. `s <name>` attaches to that session or creates it.
+# `s` shows a picker. `s <name>` attaches to that session or creates it, and opens
+# its ports at localhost (see hosts/studio-ports.conf).
 s() { "$HOME/dotfiles/workstation/zsh/scripts/studio-attach" "$@"; }
 
 # Open an app that runs on the Studio at localhost in the MacBook's browser.

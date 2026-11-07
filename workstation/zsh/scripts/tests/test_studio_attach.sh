@@ -26,6 +26,7 @@ setup() {
 printf '%s\n' "${@: -1}" >> "$SANDBOX/ssh.log"
 case "${@: -1}" in
   *list-sessions*) [ -f "$SANDBOX/sessions" ] && cat "$SANDBOX/sessions" ;;
+  *.sub/ports*) [ -f "$SANDBOX/ticket-ports" ] && cat "$SANDBOX/ticket-ports" ;;
 esac
 code=$(head -1 "$SANDBOX/codes" 2>/dev/null)
 sed -i.bak 1d "$SANDBOX/codes" 2>/dev/null
@@ -37,9 +38,18 @@ cat > "$SANDBOX/fzf.input"
 printf '%b' "$FZF_OUTPUT"
 exit "${FZF_CODE:-0}"
 FAKE
-  chmod +x "$SANDBOX/bin/ssh" "$SANDBOX/bin/fzf"
+  cat > "$SANDBOX/bin/fake-forward" <<'FAKE'
+#!/usr/bin/env bash
+echo "$*" >> "$SANDBOX/forward.log"
+exit "${FAKE_FORWARD_CODE:-0}"
+FAKE
+  chmod +x "$SANDBOX/bin/ssh" "$SANDBOX/bin/fzf" "$SANDBOX/bin/fake-forward"
   : > "$SANDBOX/codes"
+  : > "$SANDBOX/forward.log"
+  printf '# comment\nlisthalo 5173 3001\n' > "$SANDBOX/ports.conf"
   export SANDBOX PATH="$SANDBOX/bin:$PATH" STUDIO_RETRY_SECONDS=0
+  export STUDIO_FORWARD_BIN="$SANDBOX/bin/fake-forward" STUDIO_PORTS_CONF="$SANDBOX/ports.conf"
+  unset FAKE_FORWARD_CODE
 }
 
 run() {  # run <args...>; sets RC and OUT
@@ -107,5 +117,40 @@ printf '100 old 1 \n' > "$SANDBOX/sessions"
 export FZF_OUTPUT='' FZF_CODE=130
 run
 check "picker abort: no attach" 0 "$(ssh_calls 'new-session')"
+
+# A session in the config opens its ports with no second terminal.
+setup
+run listhalo
+check "ports: opened for the session" "--quiet 5173 3001" "$(cat "$SANDBOX/forward.log")"
+check "ports: still attaches" 1 "$(ssh_calls 'new-session -A -s listhalo')"
+
+setup
+run ListHalo
+check "ports: name matches in any case" "--quiet 5173 3001" "$(cat "$SANDBOX/forward.log")"
+
+# A session with no ports opens nothing.
+setup
+run jarvis
+check "ports: none for other sessions" 0 "$(wc -l < "$SANDBOX/forward.log" | tr -d ' ')"
+
+# A ticket's web ports come from the ticket. Its database ports stay closed.
+setup
+printf 'PLATFORM_WEB_PORT=40230\nDEV_POSTGRES_PORT=40201\nDEV_GATEWAY_PORT=40280\nDEV_GATEWAY_ADMIN_PORT=40282\n' > "$SANDBOX/ticket-ports"
+run subcon-670
+check "ticket: web ports only" "--quiet 40230 40280 40282" "$(cat "$SANDBOX/forward.log")"
+
+# The picker path opens ports too.
+setup
+printf '100 listhalo 1 \n' > "$SANDBOX/sessions"
+export FZF_OUTPUT='\nlisthalo 1w\n' FZF_CODE=0
+run
+check "picker: opens ports" "--quiet 5173 3001" "$(cat "$SANDBOX/forward.log")"
+
+# A failed tunnel never blocks the session.
+setup
+export FAKE_FORWARD_CODE=1
+run listhalo
+check "ports: failure still attaches" 1 "$(ssh_calls 'new-session -A -s listhalo')"
+check "ports: failure exits 0" 0 "$RC"
 
 [ "$FAILS" -eq 0 ] && echo "all passed" || { echo "$FAILS failed"; exit 1; }
