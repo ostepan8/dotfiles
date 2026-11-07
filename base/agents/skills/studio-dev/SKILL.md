@@ -58,6 +58,14 @@ Stripe listener. Those two can change the dev database.
 
 ## ListHalo on an iPhone
 
+- Owen uses the app on the MacBook in its own simulator, "ListHalo Studio". It's the normal
+  way, because Screen Sharing shows the whole Studio screen and feels janky.
+  The MacBook runs `sf 3001 8081` first, then opens Simulator and the ListHalo icon. Code changes
+  arrive through Metro on the Studio. The simulator has no real camera.
+- The MacBook can't build the app (Xcode 15.4). After a native change, build for the simulator
+  on the Studio, copy `ListHalo.app` from DerivedData to the MacBook, and run
+  `xcrun simctl install <udid> <app>` there. Run `simctl` on the MacBook with the simulator
+  already booted, because booting from ssh fails with `could not bind to session`.
 - Agents test in the simulator: `mobile/scripts/sim.sh shot home` in the repo, then read the image.
 - The real phone needs a build first: `~/Desktop/ListHalo/scripts/lh-phone debug` for live
   reload, or `lh-phone release` to run without Metro.
