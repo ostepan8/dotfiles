@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# studio-forward: open apps that run on the Studio in the MacBook's browser.
+#
+#   studio-forward 3000             localhost:3000 here reaches port 3000 there
+#   studio-forward 3000 5173        several ports
+#   studio-forward 13000:3000       localhost:13000 here reaches port 3000 there
+#   studio-forward                  list tunnels
+#   studio-forward stop [port]      stop one tunnel, or all of them
+#
+# A tunnel runs in the background and reopens after a dropped connection or a
+# closed lid. It does not survive a MacBook restart.
+#
+# WHY NOT A TAILSCALE URL: the MacBook's browser routes through the work tailnet,
+# which cannot reach the Studio. See studio-attach. Keeping the address on
+# localhost also keeps OAuth callbacks and secure cookies working. The tunnel
+# binds to the MacBook's loopback only, so nothing on the network can use it.
+
+set -u
+
+HOST="${STUDIO_SSH_HOST:-mac-studio}"
+DIR="${STUDIO_FORWARD_DIR:-$HOME/.cache/studio-forward}"
+RETRY_SECONDS="${STUDIO_RETRY_SECONDS:-2}"
+SSH_CONNECTION_LOST=255
+MIN_LOCAL_PORT=1024
+MAX_PORT=65535
+SSH_OPTS=(-o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=10)
+
+die() {
+  printf 'sf: %s\n' "$*" >&2
+  exit 1
+}
+
+is_port() {
+  [[ "$1" =~ ^[1-9][0-9]{0,4}$ ]] && [ "$1" -le "$MAX_PORT" ]
+}
+
+local_part() { printf '%s\n' "${1%%:*}"; }
+remote_part() { printf '%s\n' "${1##*:}"; }
+
+valid_spec() {
+  [[ "$1" =~ ^[0-9]+(:[0-9]+)?$ ]] || return 1
+  local here there
+  here="$(local_part "$1")"
+  there="$(remote_part "$1")"
+  is_port "$here" && is_port "$there" && [ "$here" -ge "$MIN_LOCAL_PORT" ]
+}
+
+port_is_open() {
+  nc -z -G 1 127.0.0.1 "$1" >/dev/null 2>&1
+}
+
+# True only if the pid is still our own supervisor, not a reused pid.
+tunnel_alive() {
+  local file="$DIR/$1.tunnel" pid
+  [ -f "$file" ] || return 1
+  pid="$(cut -d' ' -f1 "$file")"
+  ps -o args= -p "$pid" 2>/dev/null | grep -q -- '--supervise'
+}
+
+# Runs in the background and keeps one tunnel open until it receives TERM.
+supervise() {
+  local here="$1" there="$2" child=""
+  trap '[ -n "$child" ] && kill "$child" 2>/dev/null; exit 0' TERM
+  while :; do
+    ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes "${SSH_OPTS[@]}" \
+      -L "127.0.0.1:$here:localhost:$there" "$HOST" &
+    child=$!
+    wait "$child"
+    child=""
+    sleep "$RETRY_SECONDS"
+  done
+}
+
+# This first ssh runs in the foreground, so it can ask for the passphrase and
+# load the key into the agent. The background tunnels cannot ask.
+warn_if_no_app() {
+  local there="$1" rc=0
+  ssh "${SSH_OPTS[@]}" "$HOST" "nc -z -G 1 localhost $there" </dev/null >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq "$SSH_CONNECTION_LOST" ]; then
+    die "cannot reach ${HOST}. If Tailscale is down, run: launchctl kickstart -k gui/\$UID/com.tailscale.tailscaled"
+  fi
+  if [ "$rc" -ne 0 ]; then
+    printf 'sf: nothing listens on Studio port %s yet. The tunnel works once the app starts.\n' "$there" >&2
+  fi
+}
+
+start_tunnel() {
+  local here there
+  here="$(local_part "$1")"
+  there="$(remote_part "$1")"
+  if tunnel_alive "$here"; then
+    printf 'localhost:%s is already open.\n' "$here"
+    return 0
+  fi
+  if port_is_open "$here"; then
+    die "port $here is in use on the MacBook. Choose another local port: sf 1$here:$there"
+  fi
+  warn_if_no_app "$there"
+  mkdir -p "$DIR"
+  nohup "$0" --supervise "$here" "$there" </dev/null >"$DIR/$here.log" 2>&1 &
+  printf '%s %s\n' "$!" "$there" > "$DIR/$here.tunnel"
+  printf 'Open http://localhost:%s (Studio port %s)\n' "$here" "$there"
+}
+
+list_tunnels() {
+  local file here state found=""
+  for file in "$DIR"/*.tunnel; do
+    [ -f "$file" ] || continue
+    here="$(basename "$file" .tunnel)"
+    if ! tunnel_alive "$here"; then
+      rm -f "$file"
+      continue
+    fi
+    found=1
+    if port_is_open "$here"; then state=connected; else state=reconnecting; fi
+    printf 'localhost:%s -> Studio port %s  %s\n' "$here" "$(cut -d' ' -f2 "$file")" "$state"
+  done
+  [ -n "$found" ] || echo "No tunnels."
+}
+
+stop_tunnel() {
+  local here="$1" file="$DIR/$1.tunnel"
+  if tunnel_alive "$here"; then
+    kill "$(cut -d' ' -f1 "$file")" 2>/dev/null
+    printf 'Stopped localhost:%s\n' "$here"
+  else
+    printf 'No tunnel on localhost:%s\n' "$here"
+  fi
+  rm -f "$file" "$DIR/$here.log"
+}
+
+stop_tunnels() {
+  local file here
+  if [ $# -gt 0 ]; then
+    for here in "$@"; do stop_tunnel "$here"; done
+    return 0
+  fi
+  for file in "$DIR"/*.tunnel; do
+    [ -f "$file" ] || continue
+    stop_tunnel "$(basename "$file" .tunnel)"
+  done
+}
+
+main() {
+  case "${1:-}" in
+    --supervise) shift; supervise "$@" ;;
+    "") list_tunnels ;;
+    stop) shift; stop_tunnels "$@" ;;
+    *)
+      local spec
+      for spec in "$@"; do
+        valid_spec "$spec" || die "bad port: $spec. Use a port from $MIN_LOCAL_PORT to $MAX_PORT, or LOCAL:STUDIO."
+      done
+      for spec in "$@"; do
+        start_tunnel "$spec"
+      done
+      ;;
+  esac
+}
+
+main "$@"

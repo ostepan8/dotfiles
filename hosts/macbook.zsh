@@ -22,3 +22,7 @@ ccd-airplane() {
 # Open a tmux session on the Studio and reconnect after a dropped connection.
 # `s` shows a picker. `s <name>` attaches to that session or creates it.
 s() { "$HOME/dotfiles/workstation/zsh/scripts/studio-attach" "$@"; }
+
+# Open an app that runs on the Studio at localhost in the MacBook's browser.
+# `sf 3000` opens a tunnel, `sf` lists tunnels, `sf stop` stops them.
+sf() { "$HOME/dotfiles/workstation/zsh/scripts/studio-forward" "$@"; }
