@@ -109,11 +109,17 @@ start() {
   print_next_steps
 }
 
+# Redis ignores the hangup that tmux sends, so it needs its own shutdown.
+stop() {
+  redis-cli -p "$REDIS_PORT" shutdown >/dev/null 2>&1 || true
+  tmux kill-session -t "$SESSION" 2>/dev/null || true
+}
+
 case "${1:-}" in
   setup) setup ;;
   update) update ;;
   start) start "${2:-}" ;;
-  stop) tmux kill-session -t "$SESSION" ;;
+  stop) stop ;;
   status)
     for p in $PORTS; do
       if port_up "$p"; then echo "$p up"; else echo "$p down"; fi
