@@ -60,7 +60,7 @@ Start every command on the Studio.
 | platform | `sub start <id> platform` | `PORT=$PLATFORM_WEB_PORT pnpm dev` in `platform/web` | from the ticket |
 | api-gateway | `sub start <id> gateway` | `bash local-dev/dev.sh up` | from the ticket |
 | subconscious CLI | `sub start <id> cli` | `npm test`, `bin/cli.js --version` | none |
-| bench-runner | `sub start <id> bench` | read its README, frontend is `next dev -p 3000` in `app/frontend` | 3000 |
+| bench-runner | `~/Desktop/subconscious/benchmarks`, tmux session `benchmarks` | `bench-stack start` | website 4200, backend 4201, Redis 4202 |
 | SGLang | `sub start <id> sglang` | no NVIDIA GPU here: sync to gpu1 or gpu2, see `fleet` and `nephos` | on the GPU box |
 | Personal | `~/projects/<name>` or `~/Desktop/Projects` | the project's README, in `s <name>` | the project's |
 
@@ -70,6 +70,15 @@ For Subconscious, read the `subconscious-tickets` skill first. Ticket ports are 
 For ListHalo, read `~/Desktop/ListHalo/AGENTS.md` first. Never push to `list-halo`. Other
 `lh-stack` commands: `stop`, `status`, and `start --full`, which adds the job worker and the
 Stripe listener. Those two can change the dev database.
+
+## bench-runner safety
+
+Use `bench-stack` for dev. The repo's `.env` points at the real remote Redis and R2, and the
+backend reads that file unless `HARBOR_ENV_FILE` says otherwise. Never start the backend
+from a checkout by hand. `bench-stack` has a local Redis, no R2, and no provider keys.
+`bench-stack start --keys` adds runner keys, so real jobs can run and cost money. Ask Owen
+first. `bench-stack update` moves the checkout to `origin/main`. For a ticket that changes
+bench-runner, use `sub start <id> bench`, and set `BENCH_DIR` to its checkout.
 
 ## ListHalo on an iPhone
 
@@ -107,7 +116,7 @@ Stripe listener. Those two can change the dev database.
 | `dev.sh build` or `up` fails on ECR | The Studio has no AWS login. | Ask Owen, or run the gateway natively with cargo. |
 | `dev.sh down` leaves containers | It ignores the `.env` project name. | `DEV_COMPOSE_PROJECT=gw-<ticket> bash local-dev/dev.sh down` |
 | Containers run out of memory | Colima has 2 CPUs and 2 GB. | Ask Owen. A resize restarts the ListHalo containers. |
-| bench-runner `/api/health` is 503 | `app/backend-go/bin/harbor` is missing. | Build the Go Harbor binary. Don't run the production sidecar installer. |
+| bench-runner `/api/health` is 503 | `app/backend-go/bin/harbor` is missing. | Run `bench-stack setup`. Don't run the production sidecar installer. |
 | A branch or repo isn't on the Studio | It may exist only on the MacBook. | Check `ssh macbook` before you rebuild it. |
 
 ## Rules

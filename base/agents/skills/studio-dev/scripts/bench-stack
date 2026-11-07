@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# bench-stack: run a private bench-runner dev stack on the Studio.
+#
+#   bench-stack setup          install dependencies and build the binaries
+#   bench-stack update         move the checkout to origin/main, then run setup
+#   bench-stack start          Redis, backend and website, with no provider keys
+#   bench-stack start --keys   also pass runner keys, so real jobs can run and cost money
+#   bench-stack stop           stop the stack
+#   bench-stack status         check the three ports
+#
+# WHY THIS EXISTS: the repo's .env points at the real remote Redis and R2, and the
+# backend reads that file by default. A dev run on it could claim real jobs or
+# change real data. This stack points the backend at its own env file, with a local
+# Redis and no R2. Never start the backend with HARBOR_ENV_FILE unset.
+
+set -euo pipefail
+
+export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
+
+BENCH_DIR="${BENCH_DIR:-$HOME/Desktop/subconscious/benchmarks/bench-runner}"
+STATE="$(dirname "$BENCH_DIR")/.dev"
+ENV_FILE="$STATE/bench.env"
+SESSION="${BENCH_SESSION:-bench-stack}"
+WEB_PORT=4200
+BACKEND_PORT=4201
+REDIS_PORT=4202
+PORTS="$WEB_PORT $BACKEND_PORT $REDIS_PORT"
+REDIS_URL="redis://127.0.0.1:$REDIS_PORT/0"
+# Keys for sandboxes and models. Redis, R2 and the public proxy stay out on purpose.
+RUNNER_KEYS='DAYTONA_API_KEY|DAYTONA_API_URL|E2B_API_KEY|QWEN_BASETEN_API_BASE|QWEN_BASETEN_API_KEY|SUBCONSCIOUS_API_KEY|TRIE_TOKENIZER'
+
+die() {
+  printf 'bench-stack: %s\n' "$*" >&2
+  exit 1
+}
+
+write_env() {
+  mkdir -p "$STATE"
+  (
+    umask 077
+    {
+      echo "BENCH_STORE_BACKEND=redis"
+      echo "REDIS_URL=$REDIS_URL"
+      echo "BENCH_REDIS_PREFIX=dev"
+      if [ "${1:-}" = "--keys" ]; then
+        grep -E "^($RUNNER_KEYS)=" "$BENCH_DIR/.env" || true
+      fi
+    } > "$ENV_FILE"
+  )
+  chmod 600 "$ENV_FILE"
+}
+
+setup() {
+  [ -d "$BENCH_DIR" ] || die "no checkout at $BENCH_DIR. Run: sub start benchmarks bench"
+  cd "$BENCH_DIR"
+  uv sync --frozen
+  (cd app/harbor-go && go build -o ../backend-go/bin/harbor ./cmd/harbor)
+  (cd app/backend-go && go build -o bin/bench-runner ./cmd/bench-runner)
+  (cd app/frontend && npm ci --no-audit --no-fund)
+}
+
+update() {
+  [ -z "$(git -C "$BENCH_DIR" status --porcelain)" ] || die "the checkout has uncommitted changes, so it was not updated"
+  git -C "$BENCH_DIR" fetch -q origin main
+  git -C "$BENCH_DIR" merge -q --ff-only origin/main || die "the branch has its own commits, so it was not updated"
+  setup
+}
+
+window() {  # window <name> <command>
+  local name="$1" line="$2; exec zsh"
+  if tmux has-session -t "$SESSION" 2>/dev/null; then
+    tmux new-window -d -t "$SESSION" -n "$name" -c "$BENCH_DIR" "$line"
+  else
+    tmux new-session -d -s "$SESSION" -n "$name" -c "$BENCH_DIR" "$line"
+  fi
+}
+
+print_next_steps() {
+  cat <<EOM
+
+Website $WEB_PORT, backend $BACKEND_PORT, Redis $REDIS_PORT
+On the MacBook: s benchmarks opens the website port by itself
+Website:        http://localhost:$WEB_PORT
+Logs:           tmux switch-client -t $SESSION
+EOM
+}
+
+port_up() {
+  nc -z -G 1 127.0.0.1 "$1" 2>/dev/null
+}
+
+start() {
+  if tmux has-session -t "$SESSION" 2>/dev/null; then
+    for p in $PORTS; do
+      port_up "$p" || die "port $p is down, but the session exists. Run: bench-stack stop, then bench-stack start"
+    done
+    echo "Already running."
+    print_next_steps
+    return 0
+  fi
+  [ -x "$BENCH_DIR/app/backend-go/bin/bench-runner" ] && [ -d "$BENCH_DIR/app/frontend/node_modules" ] || setup
+  write_env "${1:-}"
+  mkdir -p "$STATE/redis" "$STATE/data"
+  window redis "redis-server --port $REDIS_PORT --bind 127.0.0.1 --dir '$STATE/redis' --appendonly yes"
+  # Environment values beat the env file, and these names are not in it either.
+  window backend "env -u R2_ACCESS_KEY_ID -u R2_SECRET_ACCESS_KEY -u R2_BUCKET -u R2_ACCOUNT_ID PATH='$PATH' BENCH_REPO_ROOT='$BENCH_DIR' HARBOR_ENV_FILE='$ENV_FILE' HARBOR_DASH_DATA='$STATE/data' REDIS_URL='$REDIS_URL' ./app/backend-go/bin/bench-runner --listen 127.0.0.1:$BACKEND_PORT"
+  window web "cd app/frontend && env PATH='$PATH' BACKEND_URL=http://127.0.0.1:$BACKEND_PORT npx next dev -p $WEB_PORT"
+  echo "Started."
+  print_next_steps
+}
+
+case "${1:-}" in
+  setup) setup ;;
+  update) update ;;
+  start) start "${2:-}" ;;
+  stop) tmux kill-session -t "$SESSION" ;;
+  status)
+    for p in $PORTS; do
+      if port_up "$p"; then echo "$p up"; else echo "$p down"; fi
+    done
+    print_next_steps
+    ;;
+  __write-env) write_env "${2:-}" ;;
+  *) die "usage: bench-stack setup | update | start [--keys] | stop | status" ;;
+esac
