@@ -37,6 +37,19 @@ Run `cat ~/.dotfiles-host`. It prints `studio` or `macbook`.
 `~/dotfiles/hosts/studio-ports.conf`, or from `.sub/ports` for a ticket. If a project has a
 server and no line there, add one with `dfw`. Only then tell Owen `sf <port>` for this time.
 
+## Pick a port for a project
+
+One port serves one app at a time, so a shared default like 3000 shows the wrong app.
+
+1. Read `hosts/studio-ports.conf` and take the next free port from 4100 upward.
+2. Check that nothing on the Studio holds it: `lsof -nP -iTCP:<port> -sTCP:LISTEN`.
+3. Set the app to use that port in its own config.
+4. Add the line to `hosts/studio-ports.conf`.
+
+Never reuse 5173, 3001 or 8081, which ListHalo holds. Never use 40000 and up, which `sub`
+tickets hold. If an app must keep a fixed port, for example for an OAuth callback, keep it
+and note why in the config.
+
 ## Run each project
 
 Start every command on the Studio.
