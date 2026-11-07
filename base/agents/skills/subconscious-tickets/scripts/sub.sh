@@ -406,7 +406,7 @@ pr_info() {
   command -v gh >/dev/null || { echo "unknown -"; return; }
   local s
   s="$(gh pr list -R "$SUB_GH_ORG/$1" --head "$2" --state all --limit 1 \
-    --json state,headRefOid -q '.[0] | "\(.state) \(.headRefOid)"' 2>/dev/null)" || { echo "unknown -"; return; }
+    --json state,headRefOid -q '.[0] // empty | "\(.state) \(.headRefOid)"' 2>/dev/null)" || { echo "unknown -"; return; }
   echo "${s:-none -}"
 }
 pr_state() { pr_info "$1" "$2" | cut -d' ' -f1; }
