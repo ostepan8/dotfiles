@@ -84,6 +84,12 @@ warn_if_no_app() {
   fi
 }
 
+# Adding 10000 keeps a familiar number, but a high port would pass the maximum.
+free_port_hint() {
+  local shifted=$(($1 + 10000))
+  if [ "$shifted" -le "$MAX_PORT" ]; then printf '%s\n' "$shifted"; else printf '%s\n' "$(($1 - 1))"; fi
+}
+
 start_tunnel() {
   local here there
   here="$(local_part "$1")"
@@ -93,7 +99,7 @@ start_tunnel() {
     return 0
   fi
   if port_is_open "$here"; then
-    die "port $here is in use on the MacBook. Choose another local port: sf 1$here:$there"
+    die "port $here is in use on the MacBook. Choose another local port: sf $(free_port_hint "$here"):$there"
   fi
   warn_if_no_app "$there"
   mkdir -p "$DIR"

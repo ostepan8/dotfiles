@@ -93,6 +93,12 @@ check "busy: exits 1" 1 "$RC"
 check "busy: suggests another port" 1 "$(printf '%s\n' "$OUT" | grep -c '13000:3000')"
 check "busy: no tunnel" 0 "$(count_lines "$SANDBOX/tunnels.log")"
 
+# The hint must itself be a valid port.
+setup
+echo 60000 > "$SANDBOX/open"
+run 60000
+check "busy high port: valid hint" 1 "$(printf '%s\n' "$OUT" | grep -c '59999:60000')"
+
 # An unreachable Studio is an error, not a silent retry loop.
 setup
 export FAKE_SSH_CODE=255
