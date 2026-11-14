@@ -11,6 +11,16 @@
 # on anything unexpected, because a hook that wedges a session over its own bug
 # is worse than a red branch.
 #
+# Two sources, in this order:
+#   1. A `local-ci` commit status: CI that runs on the user's own machines and
+#      posts to the statuses API (listhalo-monorepo: ci/local/README.md). When it
+#      exists, it decides: pending = wait, failure/error = block, success = allow.
+#      If the repo has ci/local/check.sh and the commit should get a run (main,
+#      hub/*, or an open PR) but has no status yet, wait up to
+#      CI_GATE_LOCAL_WAIT seconds (default 900) after the push, then allow.
+#   2. GitHub Actions runs. A run that ended in `startup_failure` with 0 jobs
+#      (billing, not the code) is allowed with a note, so it never blocks forever.
+#
 # Escape hatch: CI_GATE=off
 set -uo pipefail
 
@@ -35,7 +45,8 @@ except Exception: print("")' 2>/dev/null)
 [ -n "$cwd" ] && [ -d "$cwd" ] && cd "$cwd" 2>/dev/null
 
 git rev-parse --git-dir >/dev/null 2>&1 || allow
-[ -d "$(git rev-parse --show-toplevel)/.github/workflows" ] || allow
+top=$(git rev-parse --show-toplevel)
+[ -d "$top/.github/workflows" ] || [ -f "$top/ci/local/check.sh" ] || allow
 command -v gh >/dev/null 2>&1 || allow
 command -v python3 >/dev/null 2>&1 || allow
 gh auth status >/dev/null 2>&1 || allow
@@ -47,6 +58,63 @@ branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 # Only care once the commit is actually pushed; local work is the user's business.
 git branch -r --contains "$sha" 2>/dev/null | grep -q . || allow
 
+# --- 1. local-ci commit status -------------------------------------------------
+now=$(date +%s)
+to_epoch() { date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$1" +%s 2>/dev/null || date -d "$1" +%s 2>/dev/null || echo 0; }
+local_ci=$(cap 25 gh api "repos/{owner}/{repo}/commits/$sha/status" 2>/dev/null | python3 -c 'import json,sys
+try: d=json.load(sys.stdin)
+except Exception: sys.exit()
+for s in d.get("statuses") or []:
+    if s.get("context") == "local-ci":
+        print("\t".join([s.get("state") or "", s.get("updated_at") or "", s.get("target_url") or "-", (s.get("description") or "").replace("\t"," ")]))
+        break' 2>/dev/null)
+if [ -n "$local_ci" ]; then
+    IFS=$'\t' read -r lstate lupdated lurl ldesc <<<"$local_ci"
+    case "$lstate" in
+    success) allow ;;
+    pending)
+        age=$(( now - $(to_epoch "$lupdated") ))
+        if [ "$age" -lt "$now" ] && [ "$age" -gt "${CI_GATE_MAX_WAIT:-2400}" ]; then
+            echo "note: local-ci for ${sha:0:8} has been pending over $((age / 60)) minutes; not blocking on it." >&2
+            allow
+        fi
+        block "local CI is still running for ${sha:0:8} on branch '$branch' ($ldesc).
+
+Wait for it and deal with the result before finishing:
+  gh api repos/{owner}/{repo}/commits/$sha/status --jq '.statuses[] | select(.context==\"local-ci\")'
+
+A push is not a finished change until the run is green." ;;
+    failure|error)
+        link=""; [ "$lurl" != "-" ] && link="
+  full log: $lurl"
+        block "local CI FAILED for ${sha:0:8} on branch '$branch': $ldesc
+
+Do not hand this over. Fix it and push again.${link}" ;;
+    esac
+elif [ -f "$top/ci/local/check.sh" ]; then
+    # No status yet. Wait for the local runner to pick the commit up, but not forever.
+    expected=0
+    case "$branch" in main|hub/*) expected=1 ;; esac
+    if [ "$expected" = 0 ]; then
+        prs=$(cap 15 gh pr list --head "$branch" --state open --json number --jq length 2>/dev/null)
+        [ "${prs:-0}" -gt 0 ] 2>/dev/null && expected=1
+    fi
+    if [ "$expected" = 1 ]; then
+        # When this clone saw the push (the remote-tracking reflog), else the commit time.
+        seen=$(git log -g -1 --format=%gd --date=unix "refs/remotes/origin/$branch" 2>/dev/null | sed -n 's/.*@{\([0-9]*\)}.*/\1/p')
+        made=$(git show -s --format=%ct "$sha" 2>/dev/null)
+        pushed=${seen:-0}; [ "${made:-0}" -gt "$pushed" ] && pushed=$made
+        if [ "$pushed" -gt 0 ] && [ $((now - pushed)) -lt "${CI_GATE_LOCAL_WAIT:-900}" ]; then
+            block "local CI has not reported on ${sha:0:8} yet (branch '$branch'). Its poller runs every 2 minutes.
+
+Wait for the \`local-ci\` status before finishing:
+  gh api repos/{owner}/{repo}/commits/$sha/status --jq '.statuses[] | select(.context==\"local-ci\")'"
+        fi
+        echo "note: no local-ci status for ${sha:0:8} after $(( (now - pushed) / 60 )) minutes; going on to Actions." >&2
+    fi
+fi
+
+# --- 2. GitHub Actions --------------------------------------------------------
 run=$(cap 25 gh run list --commit "$sha" --limit 1 \
         --json databaseId,status,conclusion,workflowName 2>/dev/null) || allow
 [ -n "$run" ] || allow
@@ -63,6 +131,13 @@ case "$status" in
 completed)
     case "$conclusion" in
     success|skipped|neutral) allow ;;
+    startup_failure)
+        jobs=$(cap 15 gh run view "$id" --json jobs --jq '.jobs | length' 2>/dev/null)
+        if [ "${jobs:-0}" = 0 ]; then
+            echo "note: Actions run $id for ${sha:0:8} ended in startup_failure with 0 jobs and there is no local-ci status; not blocking." >&2
+            allow
+        fi
+        block "CI for ${sha:0:8} ended in startup_failure ($name, $jobs jobs). Look at it: gh run view $id" ;;
     cancelled)
         block "CI for ${sha:0:8} was cancelled ($name). Re-run it and confirm it is green before finishing:
   gh run rerun $id && ./scripts/wait-for-ci.sh
