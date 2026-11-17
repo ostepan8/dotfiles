@@ -148,6 +148,9 @@ alt-slash = 'layout tiles horizontal vertical'   # toggle tile orientation
 alt-shift-comma = 'layout floating tiling'        # toggle drag-anywhere floating
 alt-f     = 'fullscreen'
 alt-shift-space = 'layout floating tiling'        # same toggle, alternate key
+# Alt+Shift+T resets the whole focused workspace: un-floats every window,
+# clears any accordion and re-tiles with balanced sizes.
+alt-shift-t = 'exec-and-forget ~/.config/aerospace/retile.sh'
 
 # --- Workspaces (jump to) ---
 # Chaining 'move-mouse monitor-lazy-center' pulls the cursor onto the new
