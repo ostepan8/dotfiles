@@ -25,20 +25,16 @@
 # focused node), move it back to the original workspace with focus following.
 alt - space : ws=$(/opt/homebrew/bin/aerospace list-workspaces --focused); osascript -e 'tell application "Ghostty" to activate' -e 'tell application "System Events" to tell process "Ghostty" to click menu item "New Window" of menu "File" of menu bar 1'; /opt/homebrew/bin/aerospace move-node-to-workspace --focus-follows-window "$ws"
 
-# ---------- Arc Spaces ----------
-# Opt+B → Arc, Personal Space      (sidebar index 1)
-# Opt+W → Arc, subconscious.dev    (sidebar index 3, the work Space)
-# These replaced the Chrome-profile bindings when the browser moved to Arc.
-# Arc keeps personal/work as Spaces inside one browser instead of separate
-# profile directories, so there is no --profile-directory to resolve and
-# chrome-profile.sh plays no part here. arc-space.sh drives Arc's AppleScript
-# `space ... focus`, the only supported way to target a Space.
-# Unlike the old Chrome bindings these do NOT force a new window — Arc is
-# built around switching Spaces within one window, and spawning a window per
-# press just piles up duplicates. It creates a window only if none exists.
-alt - b : ~/.config/skhd/arc-space.sh 1
+# ---------- Dia profiles ----------
+# Opt+B → Dia, "Personal" profile (ohstep23@gmail.com)
+# Opt+W → Dia, "Work" profile     (owen@subconscious.dev)
+# Dia replaced Arc, which is being sunset. Dia keeps personal and work as
+# profiles inside one browser. dia-profile.sh focuses a profile by NAME through
+# Dia's AppleScript, so the profiles in Dia must be named Personal and Work.
+# These do NOT force a new window. A window opens only if none exists.
+alt - b : ~/.config/skhd/dia-profile.sh Personal
 
-alt - w : ~/.config/skhd/arc-space.sh 3
+alt - w : ~/.config/skhd/dia-profile.sh Work
 
 # ---------- Other apps ----------
 # Opt+E → new Finder window
@@ -47,7 +43,7 @@ alt - e : osascript -e 'tell application "Finder" to make new Finder window' -e 
 # Slack and Spotify are single-window apps; activate is the right behavior.
 alt - m : open -a Spotify
 
-# Opt+T → Bluetooth pane in System Settings (blueTooth; Opt+B is taken by Arc)
+# Opt+T → Bluetooth pane in System Settings (blueTooth; Opt+B is taken by Dia)
 alt - t : open "x-apple.systempreferences:com.apple.BluetoothSettings"
 
 # ---------- Screenshots ----------

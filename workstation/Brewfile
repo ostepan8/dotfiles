@@ -105,6 +105,8 @@ brew "displayplacer"
 # ---- casks ----
 cask "ghostty"
 cask "aerospace"
+cask "thebrowsercompany-dia"
+# Chrome stays: Finicky still sends clicked links to its pinned profiles.
 cask "google-chrome"
 # URL router sitting in front of Chrome; see workstation/finicky/finicky.js.
 cask "finicky"
