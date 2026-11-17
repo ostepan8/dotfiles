@@ -27,14 +27,14 @@ alt - space : ws=$(/opt/homebrew/bin/aerospace list-workspaces --focused); osasc
 
 # ---------- Dia profiles ----------
 # Opt+B → Dia, "Personal" profile (ohstep23@gmail.com)
-# Opt+W → Dia, "Work" profile     (owen@subconscious.dev)
+# Opt+W → Dia, "subconscious.dev" profile (owen@subconscious.dev)
 # Dia replaced Arc, which is being sunset. Dia keeps personal and work as
 # profiles inside one browser. dia-profile.sh focuses a profile by NAME through
-# Dia's AppleScript, so the profiles in Dia must be named Personal and Work.
+# Dia's AppleScript, so it must match the profile name shown in Dia.
 # These do NOT force a new window. A window opens only if none exists.
 alt - b : ~/.config/skhd/dia-profile.sh Personal
 
-alt - w : ~/.config/skhd/dia-profile.sh Work
+alt - w : ~/.config/skhd/dia-profile.sh subconscious.dev
 
 # ---------- Other apps ----------
 # Opt+E → new Finder window

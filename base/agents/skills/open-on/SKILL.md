@@ -20,6 +20,25 @@ ssh macbook "open '<path-or-url>'"                  # the MacBook (path must exi
 Files made on a Linux node (gpu1, gpu2, fedora) have to be copied to the Mac first:
 `scp gpu2:<path> ~/Downloads/`, then `open`.
 
+## URLs: open them in the right Dia profile
+
+Dia is the browser. It keeps accounts as profiles, so pick the profile from what the
+link is for, then open it with the skhd helper:
+
+```bash
+~/.config/skhd/dia-profile.sh <profile> '<url>'     # this Mac
+ssh macbook "~/.config/skhd/dia-profile.sh <profile> '<url>'"
+```
+
+| The link is for | Profile |
+|---|---|
+| Subconscious work: `*.subconscious.dev`, Linear, the company GitHub org, Vercel/Axiom/Datadog for work, work Google Docs | `subconscious.dev` |
+| School (`.edu`, Canvas, course pages) | `School` |
+| Anything else | `Personal` |
+
+If the helper fails with `no profile named`, its error lists the real names. Use the
+closest one. Do not use a plain `open <url>` for these: Finicky sends it to Chrome.
+
 ## Which workspace (aerospace)
 
 When they name a workspace, open the thing and then move its window there:

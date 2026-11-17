@@ -216,7 +216,7 @@ The marker holds a *type*, not a unique device id — a second Mac Studio just g
 | `Opt+Space` | Open new Ghostty window (launches Ghostty if dead) |
 | `` Opt+` `` | Toggle Ghostty drop-down quick terminal (only while Ghostty is running) |
 | `Opt+B` | Dia — Personal profile |
-| `Opt+W` | Dia — Work profile |
+| `Opt+W` | Dia — subconscious.dev (work) profile |
 | `Opt+S` | Slack |
 | `Opt+M` | Spotify |
 | `Opt+E` | New Finder window |
