@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# find-shot — find a screenshot on the Studio OR the MacBook and print a local path.
+#
+#   find-shot                      newest screenshot on either machine
+#   find-shot <name-or-path>       that file, matched by basename on either machine
+#
+# A remote match is copied into $SHOT_DIR (default: $TMPDIR/shots) first.
+set -euo pipefail
+
+SHOT_DIR="${SHOT_DIR:-${TMPDIR%/}/shots}"
+DIRS='~/Screenshots ~/Desktop ~/Downloads'
+
+case "$(scutil --get LocalHostName 2>/dev/null || hostname)" in
+  *Studio*) REMOTE=macbook ;;
+  *)        REMOTE=studio ;;
+esac
+
+# Prints "<mtime> <path>" for matches in the screenshot folders of one machine.
+list_cmd() {
+  local pattern="$1"
+  cat <<EOF
+for d in $DIRS; do
+  [ -d "\$d" ] || continue
+  find "\$d" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.heic' -o -iname '*.mov' \) -iname '$pattern' -exec stat -f '%m %N' {} + 2>/dev/null
+done
+EOF
+}
+
+want="${1:-}"
+if [ -n "$want" ] && [ -f "$want" ]; then echo "$want"; exit 0; fi
+pattern="${want:+$(basename "$want")}"
+pattern="${pattern:-*}"
+
+local_hits=$(bash -c "$(list_cmd "$pattern")" | sed 's/^/local /' || true)
+remote_hits=$(ssh -o ConnectTimeout=8 -o BatchMode=yes "$REMOTE" "$(list_cmd "$pattern")" 2>/dev/null | sed "s/^/$REMOTE /" || true)
+
+best=$(printf '%s\n%s\n' "$local_hits" "$remote_hits" | awk 'NF>=3' | sort -k2,2nr | awk 'NR==1')
+if [ -z "$best" ]; then
+  echo "find-shot: no match for '${want:-newest}' on this Mac or $REMOTE" >&2
+  [ -z "$remote_hits" ] && echo "find-shot: (could not reach $REMOTE, or it had no match)" >&2
+  exit 1
+fi
+
+where=${best%% *}
+path=$(echo "$best" | cut -d' ' -f3-)
+if [ "$where" = local ]; then echo "$path"; exit 0; fi
+
+mkdir -p "$SHOT_DIR"
+dest="$SHOT_DIR/$(basename "$path")"
+scp -q -o ConnectTimeout=8 "$REMOTE:$path" "$dest"
+echo "$dest"
